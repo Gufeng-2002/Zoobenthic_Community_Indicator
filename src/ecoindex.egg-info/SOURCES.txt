@@ -1,0 +1,8 @@
+pyproject.toml
+src/ecoindex/__init__.py
+src/ecoindex/transform.py
+src/ecoindex.egg-info/PKG-INFO
+src/ecoindex.egg-info/SOURCES.txt
+src/ecoindex.egg-info/dependency_links.txt
+src/ecoindex.egg-info/requires.txt
+src/ecoindex.egg-info/top_level.txt
