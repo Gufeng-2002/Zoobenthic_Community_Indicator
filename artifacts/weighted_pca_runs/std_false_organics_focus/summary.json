@@ -1,0 +1,46 @@
+{
+  "perm_direct": {
+    "F": 9.684909524429502,
+    "p": 0.002,
+    "R2": 0.1609192337573977,
+    "df_between": 2,
+    "df_within": 101,
+    "n_perm": 499,
+    "method": "permutation_euclidean"
+  },
+  "perm_null_tail": {
+    "p_tail": 0.002,
+    "n_perm": 499
+  },
+  "loss": 0.43431618503195246,
+  "dir_avg": {
+    "stat": 0.7763695116877345,
+    "p": 0.002,
+    "n_perm": 499,
+    "mode": "average",
+    "reference_label": "reference",
+    "degraded_label": "degraded",
+    "top_vars": [
+      "v29",
+      "v11",
+      "v1",
+      "v6",
+      "v5"
+    ]
+  },
+  "dir_min": {
+    "stat": -0.337751645824914,
+    "p": 0.158,
+    "n_perm": 499,
+    "mode": "min",
+    "reference_label": "reference",
+    "degraded_label": "degraded",
+    "top_vars": [
+      "v29",
+      "v11",
+      "v1",
+      "v6",
+      "v5"
+    ]
+  }
+}

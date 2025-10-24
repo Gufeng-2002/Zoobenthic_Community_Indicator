@@ -1,0 +1,42 @@
+{
+  "perm_direct": {
+    "F": 8.06478886421225,
+    "p": 0.002,
+    "R2": 0.13770712779160174,
+    "n_perm": 499,
+    "method": "permutation_euclidean"
+  },
+  "perm_wrapper": {
+    "F": 8.06478886421225,
+    "p": 0.002,
+    "R2": 0.1377071277916017,
+    "n_perm": 499,
+    "method": "permutation_euclidean",
+    "loss": 0.37166740729279996
+  },
+  "dir_avg": {
+    "stat": 1.0609697428537035,
+    "p": 0.002,
+    "n_perm": 499,
+    "mode": "average"
+  },
+  "dir_min": {
+    "stat": -0.08399135047929276,
+    "p": 0.02,
+    "n_perm": 499,
+    "mode": "min"
+  },
+  "dir_wrapper": {
+    "stat": 1.0609697428537035,
+    "p": 0.002,
+    "n_perm": 499,
+    "mode": "average",
+    "top_vars": [
+      "Mg",
+      "OC",
+      "total_PCB",
+      "Zn",
+      "QCB"
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+# This file helps VS Code recognize the Python environment
+# Environment path: /Users/gufeng/2025_winter/Thesis_Project/ThesisProject/envThesisProject
+# Python executable: /Users/gufeng/2025_winter/Thesis_Project/ThesisProject/envThesisProject/bin/python
+# Created: $(date)
+
+export PYTHONPATH="/Users/gufeng/2025_winter/Thesis_Project/ThesisProject/envThesisProject/bin/python"

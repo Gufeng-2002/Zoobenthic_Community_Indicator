@@ -36,7 +36,8 @@ class PCAContaminationResult:
     
     def __init__(self, scores: pd.DataFrame, loadings: pd.DataFrame, 
                  explained_variance: np.ndarray, explained_variance_ratio: np.ndarray,
-                 pca: PCA, chemical_block: str, subblock: Optional[str] = None):
+                 pca: PCA, chemical_block: str, subblock: Optional[str] = None,
+                 custom_weights: Optional[Dict[str, float]] = None):
         self.scores = scores
         self.loadings = loadings
         self.explained_variance = explained_variance
@@ -46,7 +47,8 @@ class PCAContaminationResult:
         self.subblock = subblock
         self.n_sites = scores.shape[0]
         self.n_chemicals = loadings.shape[0]
-        
+        self.custom_weights = custom_weights # added
+
         # Create contamination scores based on PC1 (assuming higher PC1 = more contaminated)
         self.contamination_scores = self._calculate_contamination_scores()
     
@@ -197,6 +199,7 @@ def pca_chemical_assessment(
         print(
             f"Applied variable weights - >=3.0: {np.sum(weights >= 3.0)} vars, "
             f"2.0-<3.0: {np.sum((weights >= 2.0) & (weights < 3.0))} vars, "
+            f"< 2.0: {np.sum(weights < 2.0)} vars, "
             f"=1.0: {np.sum(weights == 1.0)} vars"
         )
     
@@ -217,7 +220,8 @@ def pca_chemical_assessment(
         explained_variance_ratio=pca.explained_variance_ratio_,
         pca=pca,
         chemical_block=chemical_block,
-        subblock=subblock
+        subblock=subblock,
+        custom_weights=custom_weights # added
     )
 
 
@@ -334,7 +338,7 @@ def select_pcs_by_weighted_loadings(
 
     # Build variable weights for the variables in this result using the figure mapping
     var_names = list(loadings.index)
-    weight_map = _build_weights(var_names)
+    weight_map = _build_weights(var_names, weights_by_name = result.custom_weights)
 
     pc_summaries = {}
     selected = []
@@ -385,7 +389,7 @@ def select_pcs_by_weighted_loadings(
 
         # Selection rule: if high-weight variables dominate the considered set, select this PC
         denom = max(1, len(dominant))
-        if len(abs_high) / denom >= 0.6:
+        if len(abs_high) / denom >= 0.5:
             selected.append(pc)
             cumulative_explained_variance += explained_variance_by_pcs[pc]
         
@@ -394,3 +398,61 @@ def select_pcs_by_weighted_loadings(
         
 
     return {"selected_pcs": selected, "pc_summaries": pc_summaries, "cumulative_explained_variance": cumulative_explained_variance}
+
+
+def compute_pollution_scores_with_labels(
+    result: PCAContaminationResult,
+    filtered_pcs: list[str],
+    quantiles: tuple[float, float] = (0.33, 0.67),
+) -> pd.DataFrame:
+    """
+    Summarize selected PCs into a single SumReal score and assign quality labels.
+
+    Parameters
+    ----------
+    result : PCAContaminationResult
+        Result from pca_chemical_assessment containing `.scores` (rows are sites).
+    filtered_pcs : list[str]
+        PC names to sum for the SumReal pollution score (e.g., ["PC1", "PC2"]).
+    quantiles : tuple(float, float), default (0.33, 0.67)
+        Lower and upper quantile thresholds used to bin sites into
+        ['reference', 'medium', 'degraded'] based on SumReal.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A tidy DataFrame with columns: ['StationID', 'SumReal', 'Quality'].
+    """
+    # Validate PCs
+    missing = [pc for pc in filtered_pcs if pc not in result.scores.columns]
+    if missing:
+        raise ValueError(f"Requested PCs not found in result.scores: {missing}")
+
+    # Compute SumReal as sum of selected PCs per site
+    sumreal = result.scores[filtered_pcs].sum(axis=1)
+    sumreal.name = "SumReal"
+
+    # Determine thresholds
+    low_q, high_q = float(quantiles[0]), float(quantiles[1])
+    low_thr = sumreal.quantile(low_q)
+    high_thr = sumreal.quantile(high_q)
+
+    # Assign quality labels
+    def _label(v: float) -> str:
+        if v <= low_thr:
+            return "reference"
+        if v <= high_thr:
+            return "medium"
+        return "degraded"
+
+    quality = sumreal.apply(_label)
+
+    # Build tidy output
+    out = pd.DataFrame(
+        {
+            "StationID": result.scores.index,
+            "SumReal": sumreal.values,
+            "Quality": quality.values,
+        }
+    )
+    return out

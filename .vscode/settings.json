@@ -1,0 +1,8 @@
+{
+    "python.defaultInterpreterPath": "/Users/gufeng/2025_winter/Thesis_Project/ThesisProject/envThesisProject/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "jupyter.kernels.filter": [],
+    "notebook.defaultKernels": {
+        "python": "/Users/gufeng/2025_winter/Thesis_Project/ThesisProject/envThesisProject/bin/python"
+    }
+}

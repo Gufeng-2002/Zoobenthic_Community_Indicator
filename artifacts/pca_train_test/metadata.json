@@ -1,0 +1,29 @@
+{
+  "feature_block": "chemical",
+  "feature_subblock": "logz",
+  "train_fraction": 0.6,
+  "random_seed": 42,
+  "apply_weights": true,
+  "selected_pcs": [
+    "PC1",
+    "PC2",
+    "PC3",
+    "PC4",
+    "PC5",
+    "PC8",
+    "PC10",
+    "PC12",
+    "PC16",
+    "PC17",
+    "PC18",
+    "PC20",
+    "PC24",
+    "PC25",
+    "PC28"
+  ],
+  "low_thr": -12.441192703068849,
+  "high_thr": 9.892945959527108,
+  "high_weight_threshold": 1,
+  "loading_threshold": 0.2,
+  "top_k_per_pc": 15
+}

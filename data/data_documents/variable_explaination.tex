@@ -1,0 +1,309 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{graphicx}
+
+\geometry{margin=1in}
+
+\title{Data Structure Documentation}
+\author{Your Name}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Overview/Background}
+There are \textcolor{blue}{3} seperate data files(table formats) store the three types of data respectively:
+\begin{itemize}
+    \item \textbf{Environmental Data}
+    \item \textbf{Taxa Data}
+    \item \textbf{Stressor Data}
+\end{itemize}
+
+These original data files carry more columns that this project needs, some information are structured in an unpleasant way and 
+some columns are repeated across the three. \textbf{To keep the original integrity and track of changes,
+I keep the original files and produce new files the wanted data structure from them.}
+
+The motivation and producing process across the three original files are talked as follows.
+
+\section{Environmental data}
+
+\subsection{Raw data structure}
+The originally complete environmental data set has many columns, they can be categorized into the \textcolor{blue}{3}
+types of information for each sampled site:
+\begin{enumerate}
+    \item {\large \textbf{Sample identifier/Sampling information}}
+    \begin{enumerate}
+        \item \textbf{Integrated Code}: A tidy unique identifier for each sampled site with the naming of "waterbody + number". But it does not exist in other two files.
+        \item \textbf{Site Name(all sources)}: The initial identifier from the three surveys, there are no standard naming rules across the surverys, and there are 
+        some missing values.
+        \item \textbf{Station NO ID(Zhang)}: The exact same identifier as the "Site Name(all sources)" in all non-NA entries, compiled by Zhang.
+        There are also some missing values 
+        in it but it complements all the missing values in "Site Name(all sources)".
+        \footnote{It is reasonable to assume the missing values in it are deliberate for 
+        ease of analysis.}
+        \item \textbf{Waterbody}: The waterbody each site belongs to, there are 3 in total: Detroit River(DR), St. Clair River(SCR), and Lake St. Clair(LSC).
+        \item \textbf{Year sampled}: The year each sample was collected. There are more than 3 years of the surverys, minority of them were from 2005.
+        \item \textbf{* correspondence}: These '* correspondence' like columns are binary indicators to indicate if there are "*" relevant values missing in the 
+        row. They are not needed in this analysis and the missing in any type of variables will be detected and handled in later coding steps.
+        \item \textbf{* vs *}: These "* vs *" like columns are binary indicators, they indicate if the associated taxa or stressor data
+        of the same site(Site Name or Station NO ID) are completely available. 
+        These columns are also not needed here and this issue will be solved by the inner-join operation and checking the dropped rows in the merged dataframe.
+    \end{enumerate}
+    \item {\large \textbf{Environmental Variables:}}
+    \begin{enumerate}
+        \item \textbf{Latitude}: Latitude of the sampled site.
+        \item \textbf{Longitude}: Longitude of the sampled site.
+        \item \textbf{LOI/Total Organic Carbon (\%)}: Loss in Ignition, a measure of organic matter content in the sediment. It sometimes is named as Total Organic Carbon.
+        \item \textbf{Measured Depth (m)}: The depth of the water column at the sampled site. 
+        \item \textbf{Temperature (C)}: The water temperature at the sampled site in Celsius.
+        \item \textbf{Water Do Bottom (mg/L)}: The dissolved oxygen at the bottom of the water column at the sampled site, in mg/L.
+        \item \textbf{MPS (Phi)}: Mean Particle Size of the sediment at the sampled site, in Phi.
+        \item \textbf{Velocity at bottom (m/s)\footnote{Only samples from Detroit River have this estimated measurement, but not all of DR samples 
+        have this measurement.}}: The water velocity at the bottom of the water column at the sampled site, in m/s.
+        \item \textbf{L *}: The variables with names starting with "L" are the logorithmically transformed variables of the original environmental variables *.
+        The base of the logorithm is 10, except the \textit{LMPS} taking base 2. To avoid issues with log(0), 1 is added to * before the transformation.
+        \[L* = log_{10}(* + 1) \quad LMPS = log_{2}(MPS + 1 )\]
+    \end{enumerate}
+
+    \item {\large \textbf{Clustering labels of reference sites}}
+    \begin{enumerate}
+        \item \textbf{Clusters:} The cluster labels(integers) of the selected reference sites in the Detroit River case study. 
+        The specific values correspond to the clusters that the reference sites belong to. The missing values indicate the non-reference sites.
+        \item \textbf{RelMax RefSite:} A binary indicator to indicate if the site is a reference site or not, at a higher level than the cluster labels.
+    \end{enumerate}
+\end{enumerate}
+
+\subsection{Produced data structure from the raw environmental data}
+As talked above, not all columns in the raw data are needed in this analysis. The wanted information should include:
+\begin{enumerate}
+    \item A commonly existing unique identifier across the three data files.
+    \item The original environmental variables and the log-transformation rules(the log-transformed values are not necessary).
+    \item The previous clustering labels to be used as a comparison basis.
+\end{enumerate}
+
+\begin{table}[h!]
+\centering
+\caption{Produced and kept columns from the raw environmental data}
+\begin{tabular}{|>{\centering\arraybackslash}m{3cm}|p{10cm}|}
+\hline
+\rowcolor{gray!30}
+\textbf{Variable Name} & \textbf{Description} \\
+\hline
+StationID & Unique identifier from the union of the two columns: Site Names (all sources) and Station NO ID (Zhang) \\
+\hline
+Year & Original Year Sampled column \\
+\hline
+Waterbody & The waterbody column but simplified into three capital letters: DR, LSC, SCR \\
+\hline
+Latitude & Latitude of the sampled site \\
+\hline
+Longitude & Longitude of the sampled site \\
+\hline
+LOI & The original LOI variable in the raw data. \\
+\hline
+Measured Depth & The original Measured Depth variable in the raw data. \\
+\hline
+Temperature & The original Temperature variable in the raw data. \\
+\hline
+Water DO Bottom & The original Water DO Bottom variable in the raw data. \\
+\hline
+MPS & The original MPS variable in the raw data. \\
+\hline
+Velocity at bottom & The original Velocity at bottom variable in the raw data. \\
+\hline
+clusters & The original cluster labels in the raw data for Detroit River study, indicating the cluster labels for reference sites. \\
+\hline
+RelMax RefSite & The original RelMax RefSite variable in the raw data, indicating if a site is a reference site or not. \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width=1\textwidth]{images/shot_of_env_data.png}
+    \caption{Produced environmental data structure}
+    \label{fig:shot_of_env_data}
+\end{figure}
+
+\section{Taxa data}
+
+\subsection{Raw data structure}
+The original taxa data has a clearer structure than the environmental data.
+It has the same columns: integrated Code, Site Names(all sources), Station NO ID(Zhang), Waterbody, 
+Latitude, Longitude, Year Sampled. These columns are the same as the ones in the environmental data.
+The other columns are the 16 taxa variables and two extra columns: Validation Code and Site.
+
+These repeated columns are not shown in this section, the other columns are:
+\begin{enumerate}
+    \item \textbf{Sampling information* (\(\times 7\))}: the same first 7 columns as the environmental data, showing 
+    the original and compiled identifiers, waterbody, location and year information.
+    \item \textbf{Taxa*(\(\times 16\))}: The 16 taxa variables, they are the abundances of the 16 benthic invertebrate taxa groups.
+    \item \textbf{Validation Code}: A binary indicator to show if the associated data exists in other two
+    data files for this site (identified by Site Name or Station NO ID).
+    \item \textbf{Site}: The union of the two columns: Site Names (all sources) and Station NO ID (Zhang),
+    as a unique identifier.
+\end{enumerate}
+
+On top of the original taxa data, there are \textcolor{blue}{5} sub-tables showing the clustering results for two level studies:
+Corridor-wide and Detroit River. The first \textcolor{blue}{2} sub-tables are the clustering results(2 clusters) for the Corridor-wide study,
+containing all 311 sites in the taxa data.
+The rest \textcolor{blue}{3} sub-tables are the clustering results(3 cluster) for the Detroit River study,
+containing 213 sites in the taxa data.
+
+Therefore, the first two sub-tables are concated vertically to produce a clustering result for all 311 sites for 
+corridor-wide study. The last three sub-tables are concated vertically
+to produce a clustering result for all 213 sites for Detroit River study.
+
+\begin{enumerate}
+    \item \textbf{Corridor-wide cluster}: The clustering results for all 311 sites across the corridor,
+    2 clusters in total.
+    \item \textbf{Detroit River cluster}: The clustering results for all 213 sites in Detroit River, 
+    3 clusters in total.
+\end{enumerate}
+
+\subsection{Produced data structure from the raw taxa data}
+The sampling information columns contain the same information as the same columns in environmental data,
+but the unique identifier - StationID - is needed for the merging operation later. 
+Therefore, the wanted columns should include: 
+
+\begin{table}[h!]
+\centering
+\caption{Kept columns from the raw taxa data}
+\begin{tabular}{|>{\centering\arraybackslash}m{4cm}|p{11cm}|}
+\hline
+\rowcolor{gray!30}
+\textbf{Variable Name} & \textbf{Description} \\
+\hline
+StationID & Unique identifier from the union of the two columns: Site Names (all sources) and Station NO ID (Zhang) \\
+\hline
+Year & Original Year Sampled column from taxa data. To a site existing in both files, its value equal to the 
+the year value from another data file. \\
+\hline
+Waterbody & The waterbody column but simplified into three capital letters: DR, LSC, SCR. Same value for the site that exists in both files.\\
+\hline
+Latitude & Latitude of the sampled site. Same value for the site that exists in both files.\\
+\hline
+Longitude & Longitude of the sampled site. Same value for the site that exists in both files.\\
+\hline
+taxa variables(\(\times 16\))& The original taxa variables in the raw data, indicating the abundances of the 16 benthic invertebrate taxa groups. \\
+\hline
+Corridor clusters & The clustering results for all 311 sites across the corridor, 2 clusters in total. \\
+\hline
+Detroit clusters & The clustering results for all 213 sites in Detroit River, 3 clusters in total. \\
+\hline
+\end{tabular}
+\end{table}
+
+After the cleaning operation, the produced taxa data structure is shown in Figure \textcolor{blue}{\ref{fig:shot_of_taxa_data}}.
+
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width=1\textwidth]{images/shot_taxa_all.png}
+    \caption{Produced taxa data structure from the raw data.
+    (There are resting columns not shown, 16 taxa variables/columns in total)}
+    \label{fig:shot_of_taxa_data}
+    \end{figure}
+
+The clustering results for the two studies: corridor-wide and Detroit River, are 
+stored in two seperate tables with StationID as index for easy merging later.
+These tables of clustering results are shown in
+Figure \textcolor{blue}{\ref{fig:shot_of_taxa_corr_clusters}} and \textcolor{blue}{\ref{fig:shot_of_taxa_DR_clusters}}.
+
+\begin{figure}[!h]
+    \centering
+    \begin{minipage}{0.2\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/shot_taxa_corr_clusters.png}
+        \caption{Clustering results for all 311 sites across the corridor(snapshot)}
+        \label{fig:shot_of_taxa_corr_clusters}
+    \end{minipage}
+    % \hfill
+    \hspace{2cm}
+    \begin{minipage}{0.2\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{images/shot_taxa_DR_clusters.png}
+        \caption{Clustering results for all 213 sites in Detroit River(snapshot)}
+        \label{fig:shot_of_taxa_DR_clusters}
+    \end{minipage}
+\end{figure}
+
+
+\section{Merged environmental and taxa data}
+At this stage, the produced environmental data and taxa data share the same unique identifier - StationID.
+An inner-join operation is performed on the StationID column to combine the two datasets, producing a 
+complete dataset of sites with both types of data available. This join operation also reveals the 
+sites that do not have associated data in either of the two datasets, which are dropped in the final merged dataset.
+
+As the data operation logic talked in the proposal, the conceptually merging process and the merged 
+data structure are like:
+
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width=.8\textwidth]{images/data_operation_1.png}
+    \caption{Idealization: how the cleaned data sets are merged together and the resulting data structure.}
+    \label{fig:data_operation_1}
+
+\end{figure}
+
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width=.8\textwidth]{images/merged_env_taxa_data.png}
+    \caption{Practically: produced merged environmental and taxa data structure.
+    (The multi-level column indices are highlighted in colors; It is a snapshot of first columns, the 
+    clustering result columns remained at the right end of the table.)}
+    \label{fig:merged_env_taxa_data}
+\end{figure}
+
+\section{The purpose of maintaining datasets in a wider table with multi-level column indices}
+There are three main reasons for maintaining the three original datasets in a wider table with multi-level column indices,
+they are listed as the order of importance as follows:
+
+\begin{enumerate}
+    \item \textbf{Avoiding to create and spread many data objects in both coding and storing stages.}
+    
+    The framework of this project is designed to be computationally demanding, many itermediate computing results are 
+    produced with numbers of testing and tuning tasks, and the results will be used for guiding the next steps. 
+    If these intermediate results are stored seperately and instantiated as seperate data objects in the coding space,
+    it will be hard to tract and manage them, even the naming work will be a burden.
+    Additionaly, many test and tuning tasks need to bundle the data and intermediate results, it requires
+    the aligning and matching operations across these objects if they were stored separately,
+    very error-prone and inefficient.
+
+    Therefore, maintaining only the core data and the conclusive intermediate results in a single data object is
+    good for both coding work and data management.
+
+    \item \textbf{A faster way to do column-wise operation across all types of data.}
+    
+    Keeping all important data in one data object makes the column-wise operations broadcasting 
+    to all columns across all types of data easy. For example, assuming the pollution scores have been stored
+    for all sites in the merged data structure, the pollution-relevant grouping operations will 
+    automatically group the sites with both environmental and taxa data. It saves the time for the process:
+    \textit{grouping on pollution scores \(\rightarrow\) group indexing on environmental and taxa data  \(\rightarrow\) computing on each group.}
+
+    \item \textbf{Easier to track, read and inspire ideas from the data.}
+    
+    Keeping columns from all types of data together produces a larger(or complete) matrix of data, 
+    a more comprehensive view of the data.
+    It is easier to read and understand the data and structure by leveraging the visually clear table format.
+    This sub-block and complete view of the data also inspires ideas for analysis and modeling.
+\end{enumerate}
+
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width=.8\textwidth]{images/merged_env_taxa_data.png}
+    \caption{An instance of the merged data structure with multi-level column indices that meet the above purposes.}
+    \label{fig:merged_env_taxa_data}
+\end{figure}
+
+\section{More to come later: Stressor data and the final complete data set.}
+
+\end{document}

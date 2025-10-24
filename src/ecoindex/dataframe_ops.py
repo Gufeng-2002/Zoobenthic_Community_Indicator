@@ -227,3 +227,99 @@ def ensure_multiindex_names(df: pd.DataFrame) -> pd.DataFrame:
         elif out.columns.nlevels == 3:
             out.columns = pd.MultiIndex.from_tuples(out.columns, names=_BLOCK_NAMES_3)
     return out
+
+
+# -------------------------------
+# Merge helpers
+# -------------------------------
+
+def merge_into_master_by_station(
+    master_df: pd.DataFrame,
+    data: Union[pd.Series, pd.DataFrame],
+    *,
+    key_col: str = "StationID",
+    block_name: str = "pollution",
+    subblock_name: Optional[str] = None,
+    rename_map: Optional[dict[str, str]] = None,
+) -> pd.DataFrame:
+    """
+    General helper to merge any Series/DataFrame keyed by StationID into master.
+
+    Parameters
+    ----------
+    master_df : pd.DataFrame
+        Target master with MultiIndex columns (2- or 3-level). Indexed by StationID.
+    data : pd.Series or pd.DataFrame
+        Values to merge. If DataFrame and contains `key_col`, it's used as index.
+        If already indexed by StationID, index is used. Series name becomes column name.
+    key_col : str, default 'StationID'
+        Column name in `data` to use as key if not already indexed by StationID.
+    block_name : str
+        Top-level block name to place merged columns under.
+    subblock_name : str | None
+        Optional subblock level name. If None and master has 3 levels, subblock is omitted
+        and a 3rd level will still be 'var'. If provided, structure is (block, subblock, var).
+    rename_map : dict[str, str] | None
+        Optional column rename mapping for `data` prior to wrapping.
+
+    Returns
+    -------
+    pd.DataFrame
+        Updated master with merged columns appended.
+    """
+    if isinstance(data, pd.Series):
+        df = data.to_frame()
+    else:
+        df = data.copy()
+
+    # If key present as a column, set as index
+    if key_col in df.columns:
+        df = df.set_index(key_col)
+
+    # Validate index alignment key
+    assert_unique_index(df, name="data to merge")
+
+    if rename_map:
+        df = df.rename(columns=rename_map)
+
+    # Wrap columns under (block [,subblock], var)
+    wrapped = wrap_columns(df, block=block_name, subblock=subblock_name)
+
+    # Align indices by union, then join
+    # Prefer strict join on existing master index positions
+    _assert_same_index(master_df, master_df)  # no-op to reuse messaging style
+    # Use map to align values to master index ordering
+    out = master_df.copy()
+    for col in wrapped.columns:
+        # Extract the leaf name to get a Series to map
+        leaf = col[-1]
+        series = df[leaf]
+        mapped = master_df.index.to_series().map(series)
+        out[col] = mapped
+
+    return out
+
+
+def merge_pollution_scores_into_master(
+    master_df: pd.DataFrame,
+    scores_df: Union[pd.Series, pd.DataFrame],
+    *,
+    block_name: str = "pollution",
+    subblock_name: str = "sumreal",
+    key_col: str = "StationID",
+) -> pd.DataFrame:
+    """
+    Backward-compatible wrapper for merging pollution scores into master.
+
+    This is a convenience alias over `merge_into_master_by_station` and can
+    merge any DataFrame/Series keyed by StationID, not just pollution scores.
+
+    Parameters are identical in spirit; see `merge_into_master_by_station`.
+    """
+    return merge_into_master_by_station(
+        master_df,
+        scores_df,
+        key_col=key_col,
+        block_name=block_name,
+        subblock_name=subblock_name,
+    )
