@@ -7,57 +7,57 @@ Centralized chemical variable classification and weights based on the provided f
 
 # Exact mapping from "Variable Name" to "Type of Variable" (from the figure)
 VARIABLE_TYPE_BY_NAME = {
-    # Elements
+    # Binding agent
+    "%OC": "Binding agent",
+
+    # Earth element (nontoxic)
     "Al": "Earth element (nontoxic)",
-    "As": "Trace Metal (pollutant)",
-    "Bi": "Trace Metal_Bi (pollutant)",
     "Ca": "Earth element (nontoxic)",
+    "Fe": "Earth element (nontoxic)",
+    "K": "Earth element (nontoxic)",
+    "Mg": "Earth element (nontoxic)",
+    "Na": "Earth element (nontoxic)",
+
+    # Hydrocarbon pollutant
+    "1234-TCB": "Hydrocarbon pollutant",
+    "1245-TCB": "Hydrocarbon pollutant",
+    "HCB": "Hydrocarbon pollutant",
+    "OCS": "Hydrocarbon pollutant",
+    "QCB": "Hydrocarbon pollutant",
+
+    # organochlorine pesticide
+    "Heptachlor Epoxide": "organochlorine pesticide",
+    "mirex": "organochlorine pesticide",
+    "p,p'-DDD": "organochlorine pesticide",
+    "p,p'-DDE": "organochlorine pesticide",
+
+    # Sum of all PCBs
+    "total PCB": "Sum of all PCBs",
+
+    # Trace Metal (pollutant)
+    "As": "Trace Metal (pollutant)",
+    "Bi": "Trace Metal (pollutant)",
     "Cd": "Trace Metal (pollutant)",
     "Co": "Trace Metal (pollutant)",
     "Cr": "Trace Metal (pollutant)",
     "Cu": "Trace Metal (pollutant)",
-    "Fe": "Earth element (nontoxic)",
     "Hg": "Trace Metal (pollutant)",
-    "K": "Earth element (nontoxic)",
-    "Mg": "Earth element (nontoxic)",
     "Mn": "Trace Metal (pollutant)",
-    "Na": "Earth element (nontoxic)",
     "Ni": "Trace Metal (pollutant)",
     "Pb": "Trace Metal (pollutant)",
-    "Sb": "Trace Metal_Sb (pollutant)",
+    "Sb": "Trace Metal (pollutant)",
     "V": "Trace Metal (pollutant)",
     "Zn": "Trace Metal (pollutant)",
-
-    # Binding agent
-    "OC": "Binding agent",
-
-    # Hydrocarbon pollutants (chlorobenzenes, etc.)
-    "1245TCB": "Hydrocarbon pollutant",
-    "1234TCB": "Hydrocarbon pollutant",
-    "QCB": "Hydrocarbon pollutant",
-    "HCB": "Hydrocarbon pollutant",
-    "OCS": "Hydrocarbon pollutant",
-
-    # Organochlorine pesticides
-    "ppDDE": "organochlorine pesticide",
-    "ppDDD": "organochlorine pesticide",
-    "mirex": "organochlorine pesticide",
-    "Heptachlor_Epoxide": "organochlorine pesticide",
-
-    # Sum of PCBs
-    "total_PCB": "Sum of all PCBs",
 }
 
 # Weights by variable type
 TYPE_WEIGHTS = {
-    "Trace Metal (pollutant)": 1.0,
-    "Trace Metal_Sb (pollutant)": 1.0,  # Highest priority: toxic metals
-    "Trace Metal_Bi (pollutant)": 0.0,  # Highest priority: toxic metals
+    "Trace Metal (pollutant)": 3.0,      # High priority: toxic metals
     "Hydrocarbon pollutant": 3.0,        # Highest priority: petroleum/chlorobenzenes
     "organochlorine pesticide": 3.0,     # Highest priority: POPs
-    "Sum of all PCBs": 0.0,              # Highest priority: PCBs
+    "Sum of all PCBs": 3.0,              # Highest priority: PCBs
     "Binding agent": 3.0,               # Medium priority: affects bioavailability
-    "Earth element (nontoxic)": 30.0   # Lowest priority: background elements
+    "Earth element (nontoxic)": 3.0   # Lowest priority: background elements
 }
 
 # Optional per-variable override map (can be configured at runtime)
