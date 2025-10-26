@@ -3,13 +3,14 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ecoindex"
+name = "zci"
 version = "0.0.1"
 requires-python = ">=3.9"
 dependencies = ["numpy", "pandas", "scikit-learn", "scipy"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["zci*"]
 
 [tool.black]
 line-length = 100

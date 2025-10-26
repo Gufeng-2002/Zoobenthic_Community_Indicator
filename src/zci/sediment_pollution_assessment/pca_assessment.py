@@ -197,10 +197,11 @@ def pca_chemical_assessment(
         X = X * np.sqrt(weights)
 
         print(
-            f"Applied variable weights - >=3.0: {np.sum(weights >= 3.0)} vars, "
-            f"2.0-<3.0: {np.sum((weights >= 2.0) & (weights < 3.0))} vars, "
-            f"< 2.0: {np.sum(weights < 2.0)} vars, "
-            f"=1.0: {np.sum(weights == 1.0)} vars"
+            f"Applied variable weights:"
+            f"\n[3.0, -): {np.sum(weights >= 3.0)} vars, "
+            f"\n[2.0, 3.0): {np.sum((weights >= 2.0) & (weights < 3.0))} vars, "
+            f"\n[1.0, 2.0): {np.sum((1.0 < weights) & (weights < 2.0))} vars, "
+            f"\n=1.0: {np.sum(weights == 1.0)} vars"
         )
     
     # Fit PCA
@@ -380,7 +381,7 @@ def select_pcs_by_weighted_loadings(
             "pos_high": pos_high,
             "neg_high": neg_high,
             "abs_high": abs_high,
-            "considered": [(v, float(dominant[v])) for v in dominant.index],
+            "considered": [(v, dominant[v]) for v in dominant.index],
             "thresholds": {
                 "weight": high_weight_threshold,
                 "loading": loading_threshold,
