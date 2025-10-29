@@ -5,8 +5,7 @@ This subpackage contains modules for PCA-based pollution assessment,
 chemical variable weighting, and statistical evaluation methods.
 """
 
-from .pca_assessment import *
-from .pca_evaluation import *
+from .weighted_pca import *
 from .chemical_weights import *
 
 __all__ = [

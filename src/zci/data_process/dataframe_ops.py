@@ -1,6 +1,6 @@
 from __future__ import annotations
 import re
-from typing import Iterable, Tuple, Optional, Union, Iterable, Literal
+from typing import Iterable, Tuple, Optional, Union, Literal
 import pandas as pd
 
 # -------------------------------
@@ -84,18 +84,18 @@ def get_block(master: pd.DataFrame, block: str, subblock: Optional[str] = None) 
     """Return a single block (optionally subblock) as a plain DataFrame (drop column MI)."""
     if is_three_level(master):
         if subblock is None:
-            df = master.loc[:, (block, slice(None), slice(None))]
+            df = master.loc[:, (block, slice(None), slice(None))] # type: ignore
             # collapse top level(s)
             df = df.copy()
             df.columns = df.columns.get_level_values("var")
             return df
         else:
-            df = master.loc[:, (block, subblock, slice(None))]
+            df = master.loc[:, (block, subblock, slice(None))] # type: ignore
             df = df.copy()
             df.columns = df.columns.get_level_values("var")
             return df
     else:
-        df = master.loc[:, (block, slice(None))]
+        df = master.loc[:, (block, slice(None))] # type: ignore
         df = df.copy()
         df.columns = df.columns.get_level_values("var")
         return df
