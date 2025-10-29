@@ -3,7 +3,7 @@
 > 🧭 **Project background:**  
 > This repository is part of **Feng Gu’s Master’s thesis project** —  
 > *“Zoobenthic Community Indicator of Sediment Contamination.”*  
-> A complete research proposal can be found [here](https://drive.google.com/your_proposal_link).
+> A complete research proposal can be found [here](https://drive.google.com/file/d/1o4wm0Ox7t6uW84AtK3pRNr8zHJ5kNsW7/view?usp=drive_link).
 
 A Python package for analyzing zoobenthic community indicators of sediment contamination using multivariate statistical methods.
 ## 🏗️ Project Structure
