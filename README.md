@@ -1,7 +1,11 @@
 # Zoobenthic Community Indicators (ZCI) - Project Code
 
-A Python package for analyzing zoobenthic community indicators of sediment contamination using multivariate statistical methods.
+> 🧭 **Project background:**  
+> This repository is part of **Feng Gu’s Master’s thesis project** —  
+> *“Zoobenthic Community Indicator of Sediment Contamination.”*  
+> A complete research proposal can be found [here](https://drive.google.com/your_proposal_link).
 
+A Python package for analyzing zoobenthic community indicators of sediment contamination using multivariate statistical methods.
 ## 🏗️ Project Structure
 
 ```text
