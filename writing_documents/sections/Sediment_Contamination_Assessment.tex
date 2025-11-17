@@ -1,0 +1,234 @@
+\chapter{Sediment Contamination Assessment}
+
+\textcolor{red}{There should be 2 ~ 4 articles contain the major methdology used in this section,
+either statistically and ecologically.}
+
+\textcolor{red}{The work needs to build upon that framework of methodology.}
+
+
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width=0.9\textwidth]{images/demo_pollution_assessment.png}
+    \caption{Inputs and outputs at this stage}
+\end{figure}
+
+\section{Introduction}
+Put the literature review of sediment contamination assessment here. 
+List supports and reasons for using PCA-based contamination assessment method.
+
+\section{Waiting to seperate}
+The major steps in PCA-based sediment contamination assessment are summarized as follows:
+\begin{enumerate}
+    \item Explain the meanings of chemical variables; 
+    the individual level chemical and family level chemical variables;
+    the misalignment of variables across three surveys; 
+    \item Describe the statistical properties of the chemical data;
+    taking the motivation and reasons to pre-process the data both analytically and ecologically;
+    then transform the data as needed;
+    \item \textcolor{red}{answer the question: why and how to detect the chemical values occuring below the detection limits.}
+    \item Apply the PCA method to the transformed chemical data (log-transformed previously);
+    analyze and select PCs from the results based on their loadings on chemicals of different toxicity levels;
+    \item \textcolor{red}{interpret the selected PCs as latent pollution stressors; analyze the dependence and independence 
+    among chemical variables ecologically;}
+    \item Design the rule to sum add the selected PC scores to produce the composite pollution scores;
+    if following the previous work, scaling the PC scores and adding them eqaully gives Sum of Relative Scores(SumRel);
+    this score reflects the pollution level of sites;
+\end{enumerate}
+
+\section{Conclusions}
+
+Comment the results on distinguishing sites with different contamination levels;
+\textcolor{red}{recall and connect this stage result with the final work - zoobenthic community indicators of sediment contamination.}
+
+
+
+\clearpage
+\section{Weight-Drive PCA Method for Sediment Contamination Assessment}
+
+The following is the algorithm to perform PCA-based sediment contamination assessment with weights assigned to stressors
+that amplify their effects on pollution assessment - composite pollution scores(SumReal).
+
+\begin{enumerate}
+    \item \textbf{Weighted object:} directly multiplied by the weights, its inner value structure is reshaped by the weights.
+    \item \textbf{Weight-driven object:} indirectly influenced by the weights, its inner value structure is driven by the weights but not directly multiplied by the weights.
+\end{enumerate}
+
+% Algorithm1: PCA-based Contamination Assessment with weights on stressor and qualified PCs selection
+\begin{algorithm}
+\caption{PCA-based Contamination Assessment with weights on stressor and qualified PCs selection}
+\SetAlgoLined
+
+\KwData{Standardized Chemical data matrix $X \in \mathbb{R}^{n \times p}$,
+weights $\tilde w \in \mathbb{R}^p$,
+high-weighting threshold $w^{*}$,
+}
+
+\KwResult{Pollution scores $S_{\tilde w} \in \mathbb{R}^n$, loadings of selected PCs $Q_{sub|\tilde w}$}
+
+\textcolor{blue}{Step 1}: Keep the high-weighted (\(\tilde w_i > w^{*}\)) stressors in the set \(I_{hw}\)\;
+
+\For{stressor feature $X_{:, i}, i = 1$ to $p$}{
+    \If{$\tilde w_i > w^{*}$}{
+        Add the feature $X_{:, i}$ to the set of high-weighting stressors \(I_{hw}\)\;
+    }
+}
+
+\textcolor{blue}{Step 2}: Apply weights to the \(X\) matrix and compute weight-driven PCA\;
+
+Transform the \(X\) matrix: \(X_{weighted} = X \cdot \text{diag}({\tilde w})\) and
+compute PCA on the weighted data matrix: \(X_{weighted} = U \Sigma V^T\).
+
+Keep the PCs that explain at least 5\% variance, denote their loadings matrix \(Q_{\tilde w} = V\) and 
+the PC scores matrix \(Z_{\tilde w} = U \Sigma\)\;
+
+\textcolor{blue}{Step 3}: Remove the PCs that have top loadings on the minor-toxic stressors(earth elements)
+
+\For{each loading vector \(Q_{j}\)} {
+    Count the number \(n_{le}^{PC_j}\) of earth elements 
+    in the top 9 loadings(1.5 times of the total number of earth element stressors)\;
+    \If{\(n_{le}^{PC_j} \geq 4.5\)}{
+        remove \(PC_j\) from the candidate PC set \(I_{pc}\); same for its loading vector \(Q_{j}\)
+    }
+}
+
+\textcolor{blue}{Step 4}: Set PC-weights based on loadings on high-weighting stressors
+
+For the left candidate PCs, set their PC-weights \(w_{pc_i}\) according to their \textbf{loadings}
+on the \textbf{high-weighting stressors}
+
+\For{each loading vector $Q_{j},  j = 1, 2, \ldots, len(I_{pc})$}{
+    Count the number $n_{hw}^{PC_j}$ of high-weighting stressors in the top len($I_{hw}$) loadings\;
+    Assign the corresponding \(PC_j\) the weight as \(w_{pc_j} = e^{1 + \frac{n_{hw}^{PC_j}}{len(I_{hw})}}\)\;
+}
+\textcolor{blue}{Step 5}: Compute pollution scores from the candidate PCs with PC-weights
+Compute the pollution scores (SumReal) as the weighted sum of the qualified PC scores:
+\(S_{\tilde w} = \sum_{i \in I_{pc}} w_{pc_i} \cdot Z_{\tilde w[:, i]}\)\;
+
+\Return{pollution scores - \(S_{\tilde w} (m, 1)\) and loadings of selected PCs - \(Q_{sub|\tilde w}\)}
+
+\end{algorithm}
+\vspace{1em}
+Based on the above algorithm, we further design metrices to evaluate
+the representativeness and weight-driven performance of the PCA-based pollution assessment.
+
+
+% Algorithm2 : Metrics to evaluate the completeness of the weight-driven PC loadings
+\begin{algorithm}
+\caption{Metrics of the completeness of the weight-driven PC loadings}
+\SetAlgoLined
+
+\KwData{Standardized Chemical data matrix $X \in \mathbb{R}^{n \times p}$,
+weights $\tilde w \in \mathbb{R}^p$,
+high-weighting threshold $w^{*}$;
+fitted pollution scores: \(S_{\tilde w}\), loadings of selected PCs: \(Q_{sub|\tilde w}\);
+}
+
+\KwResult{Metrics for evaluating the completeness of the weight-driven PC loadings}
+
+\textcolor{blue}{Step 1}: Prepare a baseline PCA results without stressor weights\;
+Apply PCA on the standardized data matrix \(X\).
+
+Keep the PCs that explain at least 5\% variance and do \textbf{not} remove the PCs with high loadings on earth elements
+
+Store the filtered baseline PCs matrix as \(Z_{base}\) and its loadings matrix as \(Q_{base}\)\;
+
+\textcolor{blue}{Step 2}: Compute the similarity of each selected weight-driven loading vector to 
+the corresponding baseline loading vector\;
+
+Select the equally important loadings in \(Q_{base}\) based on their rankings of eigenvalues\;
+
+\For {each loading vector \(Q_{j}\) in \(Q_{sub|\tilde w}\)} {
+    \For {each loading vector \(Q_{k}\) in \(Q_{base}\)} {
+       \If {\(Q_{k}\) is equally important to the \(Q_{j}\) (same ranking number)} {
+        Compute the pearson correlation between \(Q_{j}\) and \(Q_{k}\)\ as \(\rho_{j, k}\), add 
+        \(\rho_{j, k}\) to the similarity set \(\{\rho_{j, k}\}\)\;
+        Save \(Q_{k}\) as a column vector to produce \(Q_{sub|base}\)\;}
+    }
+}
+
+\textcolor{blue}{Step 3}: Compute the representativeness of the overall selected loadings in \(Q_{sub|\tilde w}\)\;
+
+\textcolor{red}{For} the two loading sets: \(Q_{sub|\tilde w}\) and \(Q_{sub|base}\),
+take the rotated data matrix \(X Q_{sub}\) and fit linear regression of \(X\) with the rotated matrix\;
+
+\For {each loading set \(Q_{set} \in \{Q_{sub|\tilde w}, Q_{sub|base}\}\)} {
+    Fit linear regression models as \(X = \mu + (X Q_{set}) \beta + \epsilon \) and compute the
+    \(R^2_{set}\) using canonical correlations by: \(R^2_{\text{canonical}} = 1 - \frac{\det(E)}{\det(T)}\)\;
+}
+
+Compute the ratio \(\frac{R^2_{Q_{sub|\tilde w}}}{R^2_{Q_{sub|base}}} (\in [0, 1])\),
+it quantifies the representativeness of the weight-driven loadings data matrix \(X\).
+
+\Return{Similarity set \(\{\rho_{j, k}\}\) and 
+representativeness metric \(\frac{R^2_{Q_{sub|\tilde w}}}{R^2_{Q_{sub|base}}}\)}
+
+
+\end{algorithm}
+
+
+The \(S_{base}\) is computed by Algorithm 1 with not weights assigned to stressors(i.e., all weights equal to 1),
+which equals to skipping step 1 and taking the step 2 to step 5 in Algorithm 1.
+
+
+
+% Algorithm3: Metrics to evaluate the discrimination ability of the weight-driven pollution scores 
+% for the high-weighting stressors
+
+\begin{algorithm}
+\caption{Metrics of the discrimination ability of
+the weight-driven pollution scores for the high-weighting stressors}
+
+\SetAlgoLined
+
+\KwData{The raw stressor data matrix \(X_{raw} \in \mathbb{R}^{n \times p}\),
+the weight-driven pollution scores \(S_{\tilde w}\),
+the baseline pollution scores \(S_{base}\);
+}   
+
+\KwResult{A metric of the discrimination ability on high-weighting stressors of
+the weight-driven pollution scores}
+
+\textcolor{blue}{Step 1}: Filter out the reference sites under two pollution scores\;
+\For {each pollution scores \(S_{set} \in \{S_{\tilde w}, S_{base}\}\)} {
+    Identify the reference sites as those with pollution scores lower than 
+    the 20-th percentile of \(S_{set}\)\;
+    Store the filtered data matrix as \(X_{ref|set}\)\;
+}
+
+\textcolor{blue}{Step 2}: Make hypotheses tests for \(p\) times on the differences of stressor means 
+between the two reference site groups \(S_{\tilde w} \) and \(S_{base}\)\;
+\For {each stressor feature \(X_{i}, i = 1, 2, \ldots, p\) from the reference site groups} {
+    \If {\(X_{i}\) is a high-weighting stressor} {
+    Take a conservative estimate of the differnce of means as
+    \(\hat D_{mean, i} = (\bar X_{upper 95\%, i| \tilde w} - \bar X_{lower 5\%, i| base})\)
+
+    Set the null hypothesis \(H_0: D_{mean, i} \geq 0\), compute the t-statistic, 
+    and \(p\)-value;
+
+    Add the \(p\)-value to the \(p\)-value set \(\{p\text{-value}_i\}_{hw}\),
+    set the critical level as 0.01 for the \(p\)-value to reject \(H_0\)\;
+    }
+    \If {\(X_{i}\) is not a high-weighting stressor} {
+    Take a conservative estimate of the differnce of means as
+    \(\hat D_{mean, i} = (\bar X_{upper 95\%, i| \tilde w} - \bar X_{lower 5\%, i| base})\)
+
+    Set the null hypothesis \(H_0: D_{mean, i} = 0\), compute the t-statistic and \(p\)-value;
+    Add the \(p\)-value to the \(p\)-value set \(\{p\text{-value}_i\}_{lw}\),
+    set the critical level as 0.05 for the \(p\)-value to reject \(H_0\)\;
+    }
+}
+
+\textcolor{blue}{Step 3}: Compute the group mean differences within weight-driven reference sites\;
+Partition the sites into three groups: \(X_{ref|\tilde w}\), \(X_{med|\tilde w}\) and \(X_{degr|\tilde w}\)
+based on the 20-th, 80-th percentiles of the weight-driven pollution scores \(S_{\tilde w}\)\;
+
+Do PERMANOVA test to assess whether the raw stressor means differ among the three groups
+
+Set the null hypothesis \(H_0: \mu_{ref} \geq \mu_{med} \geq \mu_{degr}\)\;
+
+Compute Pseudo-F statistic: \(Pseudo-F = \frac{SS_{between} / (k - 1)}{SS_{within} / (N - k)}\),
+\(p-\)value = \(\frac{\#(F_{perm} \geq F)}{N_{perm}}\)\;
+
+\Return{The t-test \(p\)-value sets \(\{p\text{-value}_i\}_{hw}\), \(\{p\text{-value}_i\}_{lw}\) and 
+the PERMANOVA test results - Pseudo-F statistic and \(p\)-value}
+\end{algorithm}

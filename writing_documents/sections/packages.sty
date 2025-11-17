@@ -1,0 +1,109 @@
+% packages.sty - Package imports and configurations for the thesis proposal
+% This file contains all package imports and their configurations
+
+% Page geometry
+\usepackage{geometry}
+
+% Math packages
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\usepackage{lipsum} % For generating dummy text
+
+% Table packages
+\usepackage{longtable}
+\usepackage{booktabs}    % \toprule, \midrule, \bottomrule
+\usepackage{array}       % for more flexible column specs (e.g. >{\ttfamily}l)
+\usepackage{multirow}
+\usepackage{tabularx}
+
+% Graphics and figures
+\usepackage{graphicx}    % Required for including images
+\usepackage{subcaption}  % Required for subfigures
+
+% Colors and boxes
+\usepackage{xcolor}
+\usepackage{tcolorbox}   % For colored boxes
+
+% Hyperlinks and references
+\usepackage{hyperref}
+
+% Captions
+\usepackage{caption}     % if you need \caption* or extra caption control
+
+% Headers and footers
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{} % Clear all header and footer fields
+\fancyhead[C]{\nouppercase{\rightmark}}
+\fancyfoot[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Redefine plain page style (used on chapter first pages) to match fancy style
+\fancypagestyle{plain}{%
+    \fancyhf{} % Clear all header and footer fields
+    \fancyfoot[R]{\thepage} % Page number in bottom right
+    \renewcommand{\headrulewidth}{0pt} % No header rule on chapter first pages
+    \renewcommand{\footrulewidth}{0pt}
+}
+
+% Encoding & math
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb}
+
+% Algorithm2e + float for [H]
+\usepackage[ruled,vlined,linesnumbered]{algorithm2e}
+\usepackage{float}
+
+
+% Algorithm2e helpers
+\SetKwInput{KwData}{Data}
+\SetKwInput{KwResult}{Result}
+\SetKwComment{tcp}{// }{}
+\DontPrintSemicolon
+
+% Title formatting packages
+\usepackage{titlesec}
+\usepackage{titletoc}
+
+% Custom chapter and section formatting for report class
+% Customize chapter formatting
+\titleformat{\chapter}[display]
+    {\normalfont\huge\bfseries}
+    {\chaptertitlename\ \thechapter}
+    {20pt}
+    {\Huge}
+
+% Customize section formatting
+\titleformat{\section}
+    {\large\bfseries}
+    {\thesection}
+    {1.5em}
+    {}
+
+% Customize subsection formatting  
+\titleformat{\subsection}
+    {\large\bfseries}
+    {\thesubsection}
+    {1em}
+    {}
+
+% Customize subsubsection formatting
+\titleformat{\subsubsection}
+    {\normalsize\bfseries}
+    {\thesubsubsection}
+    {1em}
+    {}
+
+
+% Configure table of contents formatting
+\usepackage{tocloft}
+\renewcommand{\cfttoctitlefont}{\hfill\Huge\bfseries}
+\renewcommand{\cftaftertoctitle}{\hfill}
+\renewcommand{\cftdot}{.}
+\renewcommand{\cftdotsep}{2}
+\setlength{\cftbeforetoctitleskip}{0pt}
+\setlength{\cftaftertoctitleskip}{30pt}
+
+

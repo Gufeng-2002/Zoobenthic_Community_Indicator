@@ -51,13 +51,14 @@ VARIABLE_TYPE_BY_NAME = {
 }
 
 # Weights by variable type
+std_weight = 1.0
 TYPE_WEIGHTS = {
-    "Trace Metal (pollutant)": 3.0,      # High priority: toxic metals
-    "Hydrocarbon pollutant": 3.0,        # Highest priority: petroleum/chlorobenzenes
-    "organochlorine pesticide": 3.0,     # Highest priority: POPs
-    "Sum of all PCBs": 3.0,              # Highest priority: PCBs
-    "Binding agent": 3.0,               # Medium priority: affects bioavailability
-    "Earth element (nontoxic)": 3.0   # Lowest priority: background elements
+    "Trace Metal (pollutant)": std_weight,      # High priority: toxic metals
+    "Hydrocarbon pollutant": std_weight,        # Highest priority: petroleum/chlorobenzenes
+    "organochlorine pesticide": std_weight,     # Highest priority: POPs
+    "Sum of all PCBs": std_weight,              # Highest priority: PCBs
+    "Binding agent": std_weight,               # Medium priority: affects bioavailability
+    "Earth element (nontoxic)": std_weight   # Lowest priority: background elements
 }
 
 # Optional per-variable override map (can be configured at runtime)
