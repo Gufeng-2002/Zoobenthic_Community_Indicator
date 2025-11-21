@@ -1,0 +1,46 @@
+\chapter{DFA of habitat features for Taxa Assemblage Clusters of Test Sites}
+
+
+\textcolor{red}{There should be 2 to 4 articles contain the major methdology used in this section,
+either statistically and ecologically.}
+
+\textcolor{red}{The work needs to build upon that framework of methodology.}
+
+
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width=0.9\textwidth]{images/demo_DFA.png}
+    \caption{Inputs and outputs at this stage}
+\end{figure}
+
+
+\section{Introduction}
+Put the literature review of DFA in classifying environmental/habitat features here.
+To this classification task, compare with other classification methods, like logistic regression,
+support vector machine, etc. 
+List supports and reasons for using discriminant function analysis method.
+
+\section{Waiting to seperate}
+The major steps in zoobenthic assemblages cluster analysis are summarized as follows:
+\begin{enumerate}
+    \item Explain the meanings of environmental variables;
+    the availability of variables across three surveys;
+
+    \item Describe the statistical properties of the environmental data;
+    taking the motivation and reasons to pre-process the data both analytically and ecologically;
+    then transform the data as needed (log1p scale previously);
+
+    \item Build a forward stepwise DFA model of habitat features for the taxa assemblages clusters.
+    Identify the important habitat features and 
+    classify the test sites into most similar taxa assemblages clusters with the built DFA model;
+    \item \textcolor{red}{why to take this specific clustering method and the 
+    distance measure here;}
+    \item \textcolor{red}{It needs to be model validation for the DFA here, like cross-validation;
+    However, there is no true labels for training data because labels are chosen from clustering results;
+    it requires a solid discussion on the reliability of the clustering results as good labels for building the DFA model;}
+    \item \textcolor{red}{Another concern is the small sample size of labeled data, cause the 
+    reference sites are only around 20\% of the total sites; it might be a good question to solve;}
+\end{enumerate}
+
+
+\section{Conclusions}

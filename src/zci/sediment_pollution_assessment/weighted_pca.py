@@ -49,7 +49,7 @@ def weighted_PCA_computation(data: pd.DataFrame, custom_weights: dict) -> PCARes
     pca.fit(weighted_X)
 
     # Get scores and loadings
-    scores = pd.DataFrame(pca.transform(weighted_X), 
+    scores = pd.DataFrame(pca.transform(X=X), # X is the standardized original data, no weights applied here
                           index=data.index, 
                           columns=[f'PC{i+1}' for i in range(len(pca.components_))])
     
@@ -95,24 +95,33 @@ def PCs_filter_loading_vs_weight(loadings: pd.DataFrame,
     high_weighted_vars = [var for var, wt in var_weights.items() if wt >= weight_threshold]
     num_high_weighted = len(high_weighted_vars)
     
-    # The rule to select PCs by the loadings of these high-weighted variables
+    # The rule to select PCs by the loadings of the high-weighted vars and minor-toxic vars
     selected_pcs = []
+    weights_of_selected_pcs = []
+    minor_toxic_vars = ["Al", "Ca", "Fe", "K", "Mg", "Na"]
     for i, pc in enumerate(pc_names):
         # The loadings of high-weighted variables should rank in the top loadings of the slelected PC
         pc_loadings = loadings[pc]
             
         # get the ranking of all loadings in this PC
         ranked_loadings = pc_loadings.sort_values(ascending=False)
-        
-        # check if most high-weighted loadings are in the top # of total high-weighted variables
-        top_num_loadings = ranked_loadings[:num_high_weighted]
-        num_of_high_wt_in_top = sum(1 for var in high_weighted_vars if 
-                                    (var in top_num_loadings.index)
-                                    )
-        # at least 60% of high-wt vars in top loadings and explained variance >= 1%
-        if num_of_high_wt_in_top/num_high_weighted >= num_high_weighted/30 and explained_var_ratio[i] >= 0.01:
-            selected_pcs.append(pc)
 
+        # check the number of minor-toxic variables in top 6 loadings (1.5 times of the minor-toxic variables)
+        num_minor_toxic_in_top = sum(1 for var in ranked_loadings.index[:int(6)] if var in minor_toxic_vars)
+        if num_minor_toxic_in_top >= 3:
+            continue  # skip this PC if too many minor-toxic variables are in top loadings
+        if pc_loadings.abs().max() >= 0.5: # if any loading is too high for any vars
+            continue  # skip this PC 
+        # count how many high-weighted variables are in the top loadings
+        num_high_weighted_in_top = sum(1 for var in high_weighted_vars if var in ranked_loadings.index[:num_high_weighted])
+        if explained_var_ratio[i] >= 0.05 and num_high_weighted_in_top >= num_high_weighted/2:
+        # and num_high_weighted_in_top >= num_high_weighted * 0.5: # at least half of high-weighted vars in the top many
+            # select this toxicity-related PC
+            selected_pcs.append(pc)
+            # set a weight that emphasizes PCs with more high-weighted variables in top loadings
+            weight_of_pf = np.exp(num_high_weighted_in_top / num_high_weighted) if num_high_weighted > 0 else 1.0
+            weights_of_selected_pcs.append(weight_of_pf)
+            
     # Organize selected PCs information into a table format
     if selected_pcs:
         print("\n=== Selected Principal Components ===")
@@ -135,14 +144,16 @@ def PCs_filter_loading_vs_weight(loadings: pd.DataFrame,
         print("-" * 80)
         print(f"Total selected PCs: {len(selected_pcs)}")
         print(f"High-weighted variables ({len(high_weighted_vars)}): {', '.join(high_weighted_vars)}")
+        print(f"Weights of selected PCs: {', '.join([f'{pc}: {wt:.3f}' for pc, wt in zip(selected_pcs, weights_of_selected_pcs)])}")
     else:
         print("No principal components were selected based on the criteria.")
         
-    return selected_pcs
+    return {"selected_pcs": selected_pcs, "selected_pc_weights": weights_of_selected_pcs}
 
 # Function to compute the pollution scores from selected PCs
 def pollution_scores_of_subPCs(pca_scores: pd.DataFrame,
                                selected_pcs: list,
+                               weights_of_selected_pcs: list = None,
                                with_group_labels: bool = False,
                                group_thresholds = (0.2, 0.8)) -> pd.Series:
     """
@@ -151,15 +162,32 @@ def pollution_scores_of_subPCs(pca_scores: pd.DataFrame,
     Parameters:
     - pca_scores: pd.DataFrame, PCA scores with samples as rows and PCs as columns.
     - selected_pcs: list of str, names of selected principal components.
+    - weights_of_selected_pcs: list of float, weights for each selected PC. If None, defaults to equal weights.
+    - with_group_labels: bool, whether to return group labels along with scores.
+    - group_thresholds: tuple, quantile thresholds for grouping (reference, medium, degraded).
 
     Returns:
-    - pollution_scores: pd.Series, computed pollution scores for each sample.
+    - pollution_scores: pd.Series or pd.DataFrame, computed pollution scores for each sample.
     """
     if not selected_pcs:
         raise ValueError("No principal components selected for pollution score computation.")
 
-    # Sum the scores of the selected PCs to get pollution scores
-    pollution_scores = pca_scores[selected_pcs].sum(axis=1)
+    # Set default weights if not provided
+    if weights_of_selected_pcs is None:
+        weights_of_selected_pcs = [1.0] * len(selected_pcs)
+
+    # Ensure weights list has the same length as selected PCs
+    if len(weights_of_selected_pcs) != len(selected_pcs):
+        raise ValueError(f"Length mismatch: {len(weights_of_selected_pcs)} weights for {len(selected_pcs)} PCs")
+
+    # Sum the scores of the selected PCs with their weights to get pollution scores
+    # Convert weights to numpy array for proper broadcasting
+    weights_array = np.array(weights_of_selected_pcs)
+    selected_scores = pca_scores[selected_pcs]
+    
+    # Apply weights: multiply each PC column by its corresponding weight
+    weighted_scores = selected_scores * weights_array
+    pollution_scores = weighted_scores.sum(axis=1)
 
     # with_group_labels: partition the sites with labels for easier reference
     if with_group_labels:
@@ -192,6 +220,7 @@ class WeightedPCA_Scores:
         self.group_thresholds = group_thresholds
         self.pca_results = None
         self.selected_pcs = None
+        self.selected_pcs_weights = None
         self.X = None
         self.composite_scores = None
         
@@ -205,17 +234,19 @@ class WeightedPCA_Scores:
         self.pca_results = pca_results
         
         # Step 2: Select PCs based on weighted loadings
-        selected_pcs = PCs_filter_loading_vs_weight(
+        selected_pcs_result = PCs_filter_loading_vs_weight(
             pca_results.loadings,
             self.custom_weights,
             pca_results.explained_var_ratio,
             weight_threshold=self.weight_threshold)
-        self.selected_pcs = selected_pcs
+        self.selected_pcs = selected_pcs_result["selected_pcs"]
+        self.selected_pcs_weights = selected_pcs_result["selected_pc_weights"]
 
         # Step 3: Compute pollution scores from selected PCs
         composite_scores = pollution_scores_of_subPCs(
             pca_results.scores,
-            selected_pcs,
+            self.selected_pcs,
+            weights_of_selected_pcs=self.selected_pcs_weights,  # Use the PC weights
             with_group_labels=True,
             group_thresholds=self.group_thresholds
         )

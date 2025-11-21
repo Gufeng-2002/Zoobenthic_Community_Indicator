@@ -1,0 +1,7 @@
+\contentsline {chapter}{\numberline {1}Formatting test chapter}{1}{chapter.1}%
+\contentsline {chapter}{\numberline {2}Introduction}{3}{chapter.2}%
+\contentsline {section}{\numberline {2.1}Study Background}{3}{section.2.1}%
+\contentsline {section}{\numberline {2.2}Research Objectives}{3}{section.2.2}%
+\contentsline {section}{\numberline {2.3}Thesis Structure}{3}{section.2.3}%
+\contentsline {section}{\numberline {2.4}Data Description}{3}{section.2.4}%
+\contentsfinish 

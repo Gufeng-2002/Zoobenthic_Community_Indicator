@@ -1,0 +1,55 @@
+\documentclass[12pt, oneside]{report}
+\usepackage{sections/packages}
+\usepackage{setspace}
+\onehalfspacing
+
+
+\geometry{a4paper, margin=1.2in}
+
+\begin{document}
+% \maketitle
+
+\begin{titlepage}
+\thispagestyle{empty} % No page number on title page
+\centering
+\vspace*{2cm}
+
+{\LARGE\bfseries Zoobenthic Community Indicators of Sediment Contamination\par}
+\vspace{1.2cm}
+
+\end{titlepage}
+
+
+% \clearpage
+
+% \thispagestyle{empty} % No page number on abstract page
+% \begin{center}
+%     {\Large \textbf{Abstract}}
+% \end{center}
+
+% This is the abstract.
+
+
+\clearpage
+\pagenumbering{roman} % Use roman numerals for front matter
+\setcounter{page}{1}
+\tableofcontents
+
+\clearpage
+\pagenumbering{arabic} % Start Arabic numbering from first chapter
+\setcounter{page}{1}   % Reset page counter to 1
+
+\input{sections/Formatting_Section.tex}
+\input{sections/Introduction.tex}
+% \input{sections/Sediment_Contamination_Assessment.tex}
+% \input{sections/Taxa_Assemblages_Cluster_of_REF.tex}
+% \input{sections/DFA_Env_Test_Sites_Classification.tex}
+% \input{sections/ZCI_by_Ordination.tex}
+% \input{sections/PQRM_ZCI_vs_SumRel.tex}
+
+\clearpage
+\bibliographystyle{plain}  % or use unsrt if you want citations in order of appearance
+\bibliography{sections/Reference}   % your .bib file, without .bib extension
+
+\end{document}
+
