@@ -1,12 +1,13 @@
 # Zoobenthic Community Indicators (ZCI) - Project Code
 
-> 🧭 **Project background:**  
+> **Project background:**  
 > This repository is part of **Feng Gu’s Master’s thesis project** —  
 > *“Zoobenthic Community Indicator of Sediment Contamination.”*  
 > A complete research proposal can be found [here](https://drive.google.com/file/d/1o4wm0Ox7t6uW84AtK3pRNr8zHJ5kNsW7/view?usp=drive_link).
 
 A Python package for analyzing zoobenthic community indicators of sediment contamination using multivariate statistical methods.
-## 🏗️ Project Structure
+
+## Project Structure
 
 ```text
 Project_Code/
@@ -18,7 +19,17 @@ Project_Code/
 └── pyproject.toml             # Package configuration
 ```
 
-## 📦 ZCI Package (`src/zci/`)
+
+## Notebooks
+
+Interactive analysis workflows:
+
+- **`00*_build_data_operation.ipynb`** - Data loading, cleaning, and preprocessing pipeline
+- **`01_weighted_PCA_scores.ipynb`** - Weighted PCA analysis and pollution scoring
+- **`02_ordination_metrices.ipynb`** - Ordination analysis and distance metrics
+
+
+## ZCI Package (`src/zci/`)
 
 The core Python package organized into three main modules:
 
@@ -41,15 +52,7 @@ Statistical methods for pollution assessment:
 
 Environmental clustering and partitioning methods (under development)
 
-## 📓 Notebooks
-
-Interactive analysis workflows:
-
-- **`00*_build_data_operation.ipynb`** - Data loading, cleaning, and preprocessing pipeline
-- **`01_weighted_PCA_scores.ipynb`** - Weighted PCA analysis and pollution scoring
-- **`02_ordination_metrices.ipynb`** - Ordination analysis and distance metrics
-
-## 📁 Data Organization
+## Data Organization
 
 ```text
 data/
@@ -60,36 +63,7 @@ data/
 └── data_documents/           # Data documentation
 ```
 
-## 🚀 Getting Started
-
-### Installation
-
-```bash
-# Clone the repository
-git clone <repository-url>
-cd Project_Code
-
-# Install in development mode
-pip install -e .
-```
-
-### Usage
-
-```python
-# Import ZCI modules
-from zci.data_process import dataframe_ops, transform
-from zci.sediment_pollution_assessment import weighted_pca, chemical_weights
-
-# Example: Data preprocessing
-master_df = dataframe_ops.concat_blocks([env_data, taxa_data, chemical_data])
-transformed_taxa = transform.hellinger_transform(taxa_data)
-
-# Example: Weighted PCA analysis
-weights = chemical_weights.build_weights_for_columns(chemical_columns)
-pca_result = weighted_pca.weighted_pca_analysis(chemical_data, weights)
-```
-
-## 🔬 Key Features
+## Key Features
 
 - **Multi-index DataFrame Management** - Efficient handling of complex ecological datasets
 - **Weighted PCA Analysis** - Priority-based principal component analysis for pollution assessment
@@ -97,15 +71,9 @@ pca_result = weighted_pca.weighted_pca_analysis(chemical_data, weights)
 - **Ordination Methods** - Multiple distance metrics and ordination techniques
 - **Reproducible Workflows** - Jupyter notebook-based analysis pipelines
 
-## 📋 Requirements
+## Research Context
 
-- Python ≥ 3.9
-- pandas, numpy, scikit-learn, scipy
-- See `pyproject.toml` for complete dependencies
-
-## 📊 Research Context
-
-This package supports research on:
+This analysis supports research on:
 
 - Zoobenthic community structure analysis
 - Sediment contamination assessment
