@@ -2,15 +2,16 @@
 Environmental partitioning and cluster analysis for ZCI (Zhigan Chemical Index).
 
 This subpackage will contain modules for environmental data clustering,
-site partitioning, and ecosystem health assessment methods.
+site partitioning methods.
 
 Note: This subpackage is currently under development.
 """
 
-# TODO: Add clustering and partitioning modules
-# from .clustering import *
-# from .partitioning import *
+from .rda import PermutationTestResult, RDA, RDAFit, RDAScores
 
 __all__ = [
-    # Placeholder for future modules
+    "PermutationTestResult",
+    "RDA",
+    "RDAFit",
+    "RDAScores",
 ]
