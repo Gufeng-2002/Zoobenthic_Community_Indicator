@@ -1,10 +1,10 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.7.21)  16 NOV 2025 13:21
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.7.21)  14 JAN 2026 21:03
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
  %&-line parsing enabled.
-**/Users/gufeng/2025_winter/Thesis_Project/ThesisProject/Thesis_Writing/documents/main.tex
-(/Users/gufeng/2025_winter/Thesis_Project/ThesisProject/Thesis_Writing/documents/main.tex
+**/Users/gufeng/2025_Winter/Thesis_Project/ThesisProject/Project_Code/writing_documents/main.tex
+(/Users/gufeng/2025_Winter/Thesis_Project/ThesisProject/Project_Code/writing_documents/main.tex
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
 (/usr/local/texlive/2025basic/texmf-dist/tex/latex/base/report.cls
@@ -234,6 +234,13 @@ Package caption Info: New subtype `subfigure' on input line 238.
 \c@subfigure=\count303
 Package caption Info: New subtype `subtable' on input line 238.
 \c@subtable=\count304
+) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/wrapfig/wrapfig.sty
+\wrapoverhang=\dimen191
+\WF@size=\dimen192
+\c@WF@wrappedlines=\count305
+\WF@box=\box62
+\WF@everypar=\toks27
+Package: wrapfig 2003/01/31  v 3.6
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/xcolor/xcolor.sty
 Package: xcolor 2024/09/29 v3.02 LaTeX color extensions (UK)
  (/usr/local/texlive/2025basic/texmf-dist/tex/latex/graphics-cfg/color.cfg
@@ -253,11 +260,11 @@ Package xcolor Info: Model `wave' substituted by `hsb' on input line 1372.
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/tcolorbox/tcolorbox.sty
 Package: tcolorbox 2025/09/09 version 6.8.0 text color boxes
  (/usr/local/texlive/2025basic/texmf-dist/tex/latex/pgf/frontendlayer/tikz.sty (/usr/local/texlive/2025basic/texmf-dist/tex/latex/pgf/basiclayer/pgf.sty (/usr/local/texlive/2025basic/texmf-dist/tex/latex/pgf/utilities/pgfrcs.sty (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/utilities/pgfutil-common.tex
-\pgfutil@everybye=\toks27
-\pgfutil@tempdima=\dimen191
-\pgfutil@tempdimb=\dimen192
+\pgfutil@everybye=\toks28
+\pgfutil@tempdima=\dimen193
+\pgfutil@tempdimb=\dimen194
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/utilities/pgfutil-latex.def
-\pgfutil@abb=\box62
+\pgfutil@abb=\box63
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/utilities/pgfrcs.code.tex (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/pgf.revision.tex)
 Package: pgfrcs 2023-01-15 v3.1.10 (3.1.10)
 ))
@@ -265,31 +272,31 @@ Package: pgf 2023-01-15 v3.1.10 (3.1.10)
  (/usr/local/texlive/2025basic/texmf-dist/tex/latex/pgf/basiclayer/pgfcore.sty (/usr/local/texlive/2025basic/texmf-dist/tex/latex/pgf/systemlayer/pgfsys.sty (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/systemlayer/pgfsys.code.tex
 Package: pgfsys 2023-01-15 v3.1.10 (3.1.10)
  (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/utilities/pgfkeys.code.tex
-\pgfkeys@pathtoks=\toks28
-\pgfkeys@temptoks=\toks29
+\pgfkeys@pathtoks=\toks29
+\pgfkeys@temptoks=\toks30
  (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/utilities/pgfkeyslibraryfiltered.code.tex
-\pgfkeys@tmptoks=\toks30
+\pgfkeys@tmptoks=\toks31
 ))
-\pgf@x=\dimen193
-\pgf@y=\dimen194
-\pgf@xa=\dimen195
-\pgf@ya=\dimen196
-\pgf@xb=\dimen197
-\pgf@yb=\dimen198
-\pgf@xc=\dimen199
-\pgf@yc=\dimen256
-\pgf@xd=\dimen257
-\pgf@yd=\dimen258
+\pgf@x=\dimen195
+\pgf@y=\dimen196
+\pgf@xa=\dimen197
+\pgf@ya=\dimen198
+\pgf@xb=\dimen199
+\pgf@yb=\dimen256
+\pgf@xc=\dimen257
+\pgf@yc=\dimen258
+\pgf@xd=\dimen259
+\pgf@yd=\dimen260
 \w@pgf@writea=\write3
 \r@pgf@reada=\read2
-\c@pgf@counta=\count305
-\c@pgf@countb=\count306
-\c@pgf@countc=\count307
-\c@pgf@countd=\count308
-\t@pgf@toka=\toks31
-\t@pgf@tokb=\toks32
-\t@pgf@tokc=\toks33
-\pgf@sys@id@count=\count309
+\c@pgf@counta=\count306
+\c@pgf@countb=\count307
+\c@pgf@countc=\count308
+\c@pgf@countd=\count309
+\t@pgf@toka=\toks32
+\t@pgf@tokb=\toks33
+\t@pgf@tokc=\toks34
+\pgf@sys@id@count=\count310
  (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/systemlayer/pgf.cfg
 File: pgf.cfg 2023-01-15 v3.1.10 (3.1.10)
 )
@@ -300,59 +307,59 @@ File: pgfsys-pdftex.def 2023-01-15 v3.1.10 (3.1.10)
 File: pgfsys-common-pdf.def 2023-01-15 v3.1.10 (3.1.10)
 ))) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/systemlayer/pgfsyssoftpath.code.tex
 File: pgfsyssoftpath.code.tex 2023-01-15 v3.1.10 (3.1.10)
-\pgfsyssoftpath@smallbuffer@items=\count310
-\pgfsyssoftpath@bigbuffer@items=\count311
+\pgfsyssoftpath@smallbuffer@items=\count311
+\pgfsyssoftpath@bigbuffer@items=\count312
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/systemlayer/pgfsysprotocol.code.tex
 File: pgfsysprotocol.code.tex 2023-01-15 v3.1.10 (3.1.10)
 )) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/basiclayer/pgfcore.code.tex
 Package: pgfcore 2023-01-15 v3.1.10 (3.1.10)
  (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/math/pgfmath.code.tex (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/math/pgfmathutil.code.tex) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/math/pgfmathparser.code.tex
-\pgfmath@dimen=\dimen259
-\pgfmath@count=\count312
-\pgfmath@box=\box63
-\pgfmath@toks=\toks34
-\pgfmath@stack@operand=\toks35
-\pgfmath@stack@operation=\toks36
+\pgfmath@dimen=\dimen261
+\pgfmath@count=\count313
+\pgfmath@box=\box64
+\pgfmath@toks=\toks35
+\pgfmath@stack@operand=\toks36
+\pgfmath@stack@operation=\toks37
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.code.tex) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.basic.code.tex) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.trigonometric.code.tex) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.random.code.tex) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.comparison.code.tex) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.base.code.tex) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.round.code.tex) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.misc.code.tex) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.integerarithmetics.code.tex) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/math/pgfmathcalc.code.tex) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/math/pgfmathfloat.code.tex
-\c@pgfmathroundto@lastzeros=\count313
+\c@pgfmathroundto@lastzeros=\count314
 )) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/math/pgfint.code.tex) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/basiclayer/pgfcorepoints.code.tex
 File: pgfcorepoints.code.tex 2023-01-15 v3.1.10 (3.1.10)
-\pgf@picminx=\dimen260
-\pgf@picmaxx=\dimen261
-\pgf@picminy=\dimen262
-\pgf@picmaxy=\dimen263
-\pgf@pathminx=\dimen264
-\pgf@pathmaxx=\dimen265
-\pgf@pathminy=\dimen266
-\pgf@pathmaxy=\dimen267
-\pgf@xx=\dimen268
-\pgf@xy=\dimen269
-\pgf@yx=\dimen270
-\pgf@yy=\dimen271
-\pgf@zx=\dimen272
-\pgf@zy=\dimen273
+\pgf@picminx=\dimen262
+\pgf@picmaxx=\dimen263
+\pgf@picminy=\dimen264
+\pgf@picmaxy=\dimen265
+\pgf@pathminx=\dimen266
+\pgf@pathmaxx=\dimen267
+\pgf@pathminy=\dimen268
+\pgf@pathmaxy=\dimen269
+\pgf@xx=\dimen270
+\pgf@xy=\dimen271
+\pgf@yx=\dimen272
+\pgf@yy=\dimen273
+\pgf@zx=\dimen274
+\pgf@zy=\dimen275
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/basiclayer/pgfcorepathconstruct.code.tex
 File: pgfcorepathconstruct.code.tex 2023-01-15 v3.1.10 (3.1.10)
-\pgf@path@lastx=\dimen274
-\pgf@path@lasty=\dimen275
+\pgf@path@lastx=\dimen276
+\pgf@path@lasty=\dimen277
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/basiclayer/pgfcorepathusage.code.tex
 File: pgfcorepathusage.code.tex 2023-01-15 v3.1.10 (3.1.10)
-\pgf@shorten@end@additional=\dimen276
-\pgf@shorten@start@additional=\dimen277
+\pgf@shorten@end@additional=\dimen278
+\pgf@shorten@start@additional=\dimen279
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/basiclayer/pgfcorescopes.code.tex
 File: pgfcorescopes.code.tex 2023-01-15 v3.1.10 (3.1.10)
-\pgfpic=\box64
-\pgf@hbox=\box65
-\pgf@layerbox@main=\box66
-\pgf@picture@serial@count=\count314
+\pgfpic=\box65
+\pgf@hbox=\box66
+\pgf@layerbox@main=\box67
+\pgf@picture@serial@count=\count315
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/basiclayer/pgfcoregraphicstate.code.tex
 File: pgfcoregraphicstate.code.tex 2023-01-15 v3.1.10 (3.1.10)
-\pgflinewidth=\dimen278
+\pgflinewidth=\dimen280
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/basiclayer/pgfcoretransformations.code.tex
 File: pgfcoretransformations.code.tex 2023-01-15 v3.1.10 (3.1.10)
-\pgf@pt@x=\dimen279
-\pgf@pt@y=\dimen280
-\pgf@pt@temp=\dimen281
+\pgf@pt@x=\dimen281
+\pgf@pt@y=\dimen282
+\pgf@pt@temp=\dimen283
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/basiclayer/pgfcorequick.code.tex
 File: pgfcorequick.code.tex 2023-01-15 v3.1.10 (3.1.10)
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/basiclayer/pgfcoreobjects.code.tex
@@ -361,17 +368,17 @@ File: pgfcoreobjects.code.tex 2023-01-15 v3.1.10 (3.1.10)
 File: pgfcorepathprocessing.code.tex 2023-01-15 v3.1.10 (3.1.10)
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/basiclayer/pgfcorearrows.code.tex
 File: pgfcorearrows.code.tex 2023-01-15 v3.1.10 (3.1.10)
-\pgfarrowsep=\dimen282
+\pgfarrowsep=\dimen284
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/basiclayer/pgfcoreshade.code.tex
 File: pgfcoreshade.code.tex 2023-01-15 v3.1.10 (3.1.10)
-\pgf@max=\dimen283
-\pgf@sys@shading@range@num=\count315
-\pgf@shadingcount=\count316
+\pgf@max=\dimen285
+\pgf@sys@shading@range@num=\count316
+\pgf@shadingcount=\count317
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/basiclayer/pgfcoreimage.code.tex
 File: pgfcoreimage.code.tex 2023-01-15 v3.1.10 (3.1.10)
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/basiclayer/pgfcoreexternal.code.tex
 File: pgfcoreexternal.code.tex 2023-01-15 v3.1.10 (3.1.10)
-\pgfexternal@startupbox=\box67
+\pgfexternal@startupbox=\box68
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/basiclayer/pgfcorelayers.code.tex
 File: pgfcorelayers.code.tex 2023-01-15 v3.1.10 (3.1.10)
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/basiclayer/pgfcoretransparency.code.tex
@@ -382,57 +389,57 @@ File: pgfcorepatterns.code.tex 2023-01-15 v3.1.10 (3.1.10)
 File: pgfcorerdf.code.tex 2023-01-15 v3.1.10 (3.1.10)
 ))) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/modules/pgfmoduleshapes.code.tex
 File: pgfmoduleshapes.code.tex 2023-01-15 v3.1.10 (3.1.10)
-\pgfnodeparttextbox=\box68
+\pgfnodeparttextbox=\box69
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/modules/pgfmoduleplot.code.tex
 File: pgfmoduleplot.code.tex 2023-01-15 v3.1.10 (3.1.10)
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/pgf/compatibility/pgfcomp-version-0-65.sty
 Package: pgfcomp-version-0-65 2023-01-15 v3.1.10 (3.1.10)
-\pgf@nodesepstart=\dimen284
-\pgf@nodesepend=\dimen285
+\pgf@nodesepstart=\dimen286
+\pgf@nodesepend=\dimen287
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/pgf/compatibility/pgfcomp-version-1-18.sty
 Package: pgfcomp-version-1-18 2023-01-15 v3.1.10 (3.1.10)
 )) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/pgf/utilities/pgffor.sty (/usr/local/texlive/2025basic/texmf-dist/tex/latex/pgf/utilities/pgfkeys.sty (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/utilities/pgfkeys.code.tex)) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/pgf/math/pgfmath.sty (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/math/pgfmath.code.tex)) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/utilities/pgffor.code.tex
 Package: pgffor 2023-01-15 v3.1.10 (3.1.10)
-\pgffor@iter=\dimen286
-\pgffor@skip=\dimen287
-\pgffor@stack=\toks37
-\pgffor@toks=\toks38
+\pgffor@iter=\dimen288
+\pgffor@skip=\dimen289
+\pgffor@stack=\toks38
+\pgffor@toks=\toks39
 )) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/frontendlayer/tikz/tikz.code.tex
 Package: tikz 2023-01-15 v3.1.10 (3.1.10)
  (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/libraries/pgflibraryplothandlers.code.tex
 File: pgflibraryplothandlers.code.tex 2023-01-15 v3.1.10 (3.1.10)
-\pgf@plot@mark@count=\count317
-\pgfplotmarksize=\dimen288
+\pgf@plot@mark@count=\count318
+\pgfplotmarksize=\dimen290
 )
-\tikz@lastx=\dimen289
-\tikz@lasty=\dimen290
-\tikz@lastxsaved=\dimen291
-\tikz@lastysaved=\dimen292
-\tikz@lastmovetox=\dimen293
-\tikz@lastmovetoy=\dimen294
-\tikzleveldistance=\dimen295
-\tikzsiblingdistance=\dimen296
-\tikz@figbox=\box69
-\tikz@figbox@bg=\box70
-\tikz@tempbox=\box71
-\tikz@tempbox@bg=\box72
-\tikztreelevel=\count318
-\tikznumberofchildren=\count319
-\tikznumberofcurrentchild=\count320
-\tikz@fig@count=\count321
+\tikz@lastx=\dimen291
+\tikz@lasty=\dimen292
+\tikz@lastxsaved=\dimen293
+\tikz@lastysaved=\dimen294
+\tikz@lastmovetox=\dimen295
+\tikz@lastmovetoy=\dimen296
+\tikzleveldistance=\dimen297
+\tikzsiblingdistance=\dimen298
+\tikz@figbox=\box70
+\tikz@figbox@bg=\box71
+\tikz@tempbox=\box72
+\tikz@tempbox@bg=\box73
+\tikztreelevel=\count319
+\tikznumberofchildren=\count320
+\tikznumberofcurrentchild=\count321
+\tikz@fig@count=\count322
  (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/modules/pgfmodulematrix.code.tex
 File: pgfmodulematrix.code.tex 2023-01-15 v3.1.10 (3.1.10)
-\pgfmatrixcurrentrow=\count322
-\pgfmatrixcurrentcolumn=\count323
-\pgf@matrix@numberofcolumns=\count324
+\pgfmatrixcurrentrow=\count323
+\pgfmatrixcurrentcolumn=\count324
+\pgf@matrix@numberofcolumns=\count325
 )
-\tikz@expandcount=\count325
+\tikz@expandcount=\count326
  (/usr/local/texlive/2025basic/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibrarytopaths.code.tex
 File: tikzlibrarytopaths.code.tex 2023-01-15 v3.1.10 (3.1.10)
 ))) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/tools/verbatim.sty
 Package: verbatim 2024-01-22 v1.5x LaTeX2e package for verbatim enhancements
-\every@verbatim=\toks39
-\verbatim@line=\toks40
+\every@verbatim=\toks40
+\verbatim@line=\toks41
 \verbatim@in@stream=\read3
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/environ/environ.sty
 Package: environ 2014/05/04 v0.3 A new way to define environments
@@ -440,21 +447,21 @@ Package: environ 2014/05/04 v0.3 A new way to define environments
 Package: trimspaces 2009/09/17 v1.1 Trim spaces around a token list
 )) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/etoolbox/etoolbox.sty
 Package: etoolbox 2025/02/11 v2.5l e-TeX tools for LaTeX (JAW)
-\etb@tempcnta=\count326
+\etb@tempcnta=\count327
 )
-\tcb@titlebox=\box73
-\tcb@upperbox=\box74
-\tcb@lowerbox=\box75
-\tcb@phantombox=\box76
-\c@tcbbreakpart=\count327
-\c@tcblayer=\count328
-\c@tcolorbox@number=\count329
-\l__tcobox_tmpa_box=\box77
-\l__tcobox_tmpa_dim=\dimen297
-\tcb@temp=\box78
+\tcb@titlebox=\box74
+\tcb@upperbox=\box75
+\tcb@lowerbox=\box76
+\tcb@phantombox=\box77
+\c@tcbbreakpart=\count328
+\c@tcblayer=\count329
+\c@tcolorbox@number=\count330
+\l__tcobox_tmpa_box=\box78
+\l__tcobox_tmpa_dim=\dimen299
 \tcb@temp=\box79
 \tcb@temp=\box80
 \tcb@temp=\box81
+\tcb@temp=\box82
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/hyperref/hyperref.sty
 Package: hyperref 2024-11-05 v7.01l Hypertext links for LaTeX
  (/usr/local/texlive/2025basic/texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty
@@ -484,13 +491,13 @@ Package: gettitlestring 2019/12/15 v1.6 Cleanup title references (HO)
  (/usr/local/texlive/2025basic/texmf-dist/tex/latex/kvoptions/kvoptions.sty
 Package: kvoptions 2022-06-15 v3.15 Key value format for package options (HO)
 ))
-\c@section@level=\count330
+\c@section@level=\count331
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/stringenc/stringenc.sty
 Package: stringenc 2019/11/29 v1.12 Convert strings between diff. encodings (HO)
 )
-\@linkdim=\dimen298
-\Hy@linkcounter=\count331
-\Hy@pagecounter=\count332
+\@linkdim=\dimen300
+\Hy@linkcounter=\count332
+\Hy@pagecounter=\count333
  (/usr/local/texlive/2025basic/texmf-dist/tex/latex/hyperref/pd1enc.def
 File: pd1enc.def 2024-11-05 v7.01l Hyperref: PDFDocEncoding definition (HO)
 Now handling font encoding PD1 ...
@@ -498,7 +505,7 @@ Now handling font encoding PD1 ...
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/generic/intcalc/intcalc.sty
 Package: intcalc 2019/12/15 v1.3 Expandable calculations with integers (HO)
 )
-\Hy@SavedSpaceFactor=\count333
+\Hy@SavedSpaceFactor=\count334
  (/usr/local/texlive/2025basic/texmf-dist/tex/latex/hyperref/puenc.def
 File: puenc.def 2024-11-05 v7.01l Hyperref: PDF Unicode definition (HO)
 Now handling font encoding PU ...
@@ -511,21 +518,21 @@ Package hyperref Info: Plain pages OFF on input line 4172.
 Package hyperref Info: Backreferencing OFF on input line 4177.
 Package hyperref Info: Implicit mode ON; LaTeX internals redefined.
 Package hyperref Info: Bookmarks ON on input line 4424.
-\c@Hy@tempcnt=\count334
+\c@Hy@tempcnt=\count335
  (/usr/local/texlive/2025basic/texmf-dist/tex/latex/url/url.sty
 \Urlmuskip=\muskip18
 Package: url 2013/09/16  ver 3.4  Verb mode for urls, etc.
 )
 LaTeX Info: Redefining \url on input line 4763.
-\XeTeXLinkMargin=\dimen299
+\XeTeXLinkMargin=\dimen301
  (/usr/local/texlive/2025basic/texmf-dist/tex/generic/bitset/bitset.sty
 Package: bitset 2019/12/09 v1.3 Handle bit-vector datatype (HO)
  (/usr/local/texlive/2025basic/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty
 Package: bigintcalc 2019/12/15 v1.5 Expandable calculations on big integers (HO)
 ))
-\Fld@menulength=\count335
-\Field@Width=\dimen300
-\Fld@charsize=\dimen301
+\Fld@menulength=\count336
+\Field@Width=\dimen302
+\Fld@charsize=\dimen303
 Package hyperref Info: Hyper figures OFF on input line 6042.
 Package hyperref Info: Link nesting OFF on input line 6047.
 Package hyperref Info: Hyper index ON on input line 6050.
@@ -537,9 +544,9 @@ Package hyperref Info: PDF/A mode OFF on input line 6072.
 Package: atbegshi-ltx 2021/01/10 v1.0c Emulation of the original atbegshi
 package with kernel methods
 )
-\Hy@abspage=\count336
-\c@Item=\count337
-\c@Hfootnote=\count338
+\Hy@abspage=\count337
+\c@Item=\count338
+\c@Hfootnote=\count339
 )
 Package hyperref Info: Driver (autodetected): hpdftex.
  (/usr/local/texlive/2025basic/texmf-dist/tex/latex/hyperref/hpdftex.def
@@ -548,8 +555,8 @@ File: hpdftex.def 2024-11-05 v7.01l Hyperref driver for pdfTeX
 Package: atveryend-ltx 2020/08/19 v1.0a Emulation of the original atveryend package
 with kernel methods
 )
-\Fld@listcount=\count339
-\c@bookmark@seq@number=\count340
+\Fld@listcount=\count340
+\c@bookmark@seq@number=\count341
  (/usr/local/texlive/2025basic/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty
 Package: rerunfilecheck 2022-07-10 v1.10 Rerun checks for auxiliary files (HO)
 
@@ -575,21 +582,21 @@ Package: fancyhdr 2025/02/07 v5.2 Extensive control of page headers and footers
 \f@nch@widthL=\skip74
 \f@nch@widthC=\skip75
 \f@nch@widthR=\skip76
-\@temptokenb=\toks41
+\@temptokenb=\toks42
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/base/inputenc.sty
 Package: inputenc 2024/02/08 v1.3d Input encoding file
-\inpenc@prehook=\toks42
-\inpenc@posthook=\toks43
+\inpenc@prehook=\toks43
+\inpenc@posthook=\toks44
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/algorithm2e/algorithm2e.sty
 Package: algorithm2e 2017/07/18 v5.2 algorithms environments
-\c@AlgoLine=\count341
+\c@AlgoLine=\count342
  (/usr/local/texlive/2025basic/texmf-dist/tex/latex/base/ifthen.sty
 Package: ifthen 2024/03/16 v1.1e Standard LaTeX ifthen package (DPC)
 )
 \algocf@hangindent=\skip77
  (/usr/local/texlive/2025basic/texmf-dist/tex/latex/ifoddpage/ifoddpage.sty
 Package: ifoddpage 2022/10/18 v1.2 Conditionals for odd/even page detection
-\c@checkoddpage=\count342
+\c@checkoddpage=\count343
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/tools/xspace.sty
 Package: xspace 2014/10/28 v1.13 Space after command names (DPC,MH)
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/relsize/relsize.sty
@@ -603,54 +610,54 @@ Package: relsize 2013/03/29 ver 4.1
 \skiplength=\skip83
 \algomargin=\skip84
 \skipalgocfslide=\skip85
-\algowidth=\dimen302
-\inoutsize=\dimen303
-\inoutindent=\dimen304
-\interspacetitleruled=\dimen305
-\interspacealgoruled=\dimen306
-\interspacetitleboxruled=\dimen307
+\algowidth=\dimen304
+\inoutsize=\dimen305
+\inoutindent=\dimen306
+\interspacetitleruled=\dimen307
+\interspacealgoruled=\dimen308
+\interspacetitleboxruled=\dimen309
 \algocf@ruledwidth=\skip86
-\algocf@inoutbox=\box82
-\algocf@inputbox=\box83
+\algocf@inoutbox=\box83
+\algocf@inputbox=\box84
 \AlCapSkip=\skip87
 \AlCapHSkip=\skip88
 \algoskipindent=\skip89
-\algocf@nlbox=\box84
-\algocf@hangingbox=\box85
-\algocf@untilbox=\box86
+\algocf@nlbox=\box85
+\algocf@hangingbox=\box86
+\algocf@untilbox=\box87
 \algocf@skipuntil=\skip90
-\algocf@capbox=\box87
+\algocf@capbox=\box88
 \algocf@lcaptionbox=\skip91
 \algoheightruledefault=\skip92
 \algoheightrule=\skip93
 \algotitleheightruledefault=\skip94
 \algotitleheightrule=\skip95
-\c@algocfline=\count343
-\c@algocfproc=\count344
-\c@algocf=\count345
-\algocf@algoframe=\box88
-\algocf@algobox=\box89
+\c@algocfline=\count344
+\c@algocfproc=\count345
+\c@algocf=\count346
+\algocf@algoframe=\box89
+\algocf@algobox=\box90
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/float/float.sty
 Package: float 2001/11/08 v1.3d Float enhancements (AL)
-\c@float@type=\count346
-\float@exts=\toks44
-\float@box=\box90
-\@float@everytoks=\toks45
-\@floatcapt=\box91
+\c@float@type=\count347
+\float@exts=\toks45
+\float@box=\box91
+\@float@everytoks=\toks46
+\@floatcapt=\box92
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/titlesec/titlesec.sty
 Package: titlesec 2025/01/04 v2.17 Sectioning titles
-\ttl@box=\box92
+\ttl@box=\box93
 \beforetitleunit=\skip96
 \aftertitleunit=\skip97
-\ttl@plus=\dimen308
-\ttl@minus=\dimen309
-\ttl@toksa=\toks46
-\titlewidth=\dimen310
-\titlewidthlast=\dimen311
-\titlewidthfirst=\dimen312
+\ttl@plus=\dimen310
+\ttl@minus=\dimen311
+\ttl@toksa=\toks47
+\titlewidth=\dimen312
+\titlewidthlast=\dimen313
+\titlewidthfirst=\dimen314
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/titlesec/titletoc.sty
 Package: titletoc 2025/01/04 v2.17 TOC entries
-\ttl@leftsep=\dimen313
+\ttl@leftsep=\dimen315
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/tocloft/tocloft.sty
 Package: tocloft 2017/08/31 v2.3i parameterised ToC, etc., typesetting
 Package tocloft Info: The document has chapter divisions on input line 51.
@@ -683,8 +690,8 @@ Package tocloft Info: The document has chapter divisions on input line 51.
 \cftbeforefigskip=\skip124
 \cftfigindent=\skip125
 \cftfignumwidth=\skip126
-\c@lofdepth=\count347
-\c@lotdepth=\count348
+\c@lofdepth=\count348
+\c@lotdepth=\count349
 \cftbeforelottitleskip=\skip127
 \cftafterlottitleskip=\skip128
 \cftbeforetabskip=\skip129
@@ -750,17 +757,17 @@ LaTeX Font Info:    ... okay on input line 9.
 
 (/usr/local/texlive/2025basic/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
 [Loading MPS to PDF converter (version 2006.09.02).]
-\scratchcounter=\count349
-\scratchdimen=\dimen314
-\scratchbox=\box93
-\nofMPsegments=\count350
-\nofMParguments=\count351
-\everyMPshowfont=\toks47
-\MPscratchCnt=\count352
-\MPscratchDim=\dimen315
-\MPnumerator=\count353
-\makeMPintoPDFobject=\count354
-\everyMPtoPDFconversion=\toks48
+\scratchcounter=\count350
+\scratchdimen=\dimen316
+\scratchbox=\box94
+\nofMPsegments=\count351
+\nofMParguments=\count352
+\everyMPshowfont=\toks48
+\MPscratchCnt=\count353
+\MPscratchDim=\dimen317
+\MPnumerator=\count354
+\makeMPintoPDFobject=\count355
+\everyMPtoPDFconversion=\toks49
 ) (/usr/local/texlive/2025basic/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
 Package: epstopdf-base 2020-01-24 v2.11 Base part for package epstopdf
 Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 485.
@@ -770,6 +777,7 @@ File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Live
 Package caption Info: Begin \AtBeginDocument code.
 Package caption Info: float package is loaded.
 Package caption Info: hyperref package is loaded.
+Package caption Info: wrapfig package is loaded.
 Package caption Info: End \AtBeginDocument code.
 Package hyperref Info: Link coloring OFF on input line 9.
  (./main.out) (./main.out)
@@ -796,12 +804,22 @@ File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 
 [1
 
-] (./sections/Formatting_Section.tex
+] (./sections/Introduction.tex
 Chapter 1.
-)
 
-Package lipsum Warning: Unknown language 'latin'. Hyphenation patterns for
-(lipsum)                'english' will be used instead.
+Underfull \hbox (badness 10000) in paragraph at lines 48--49
+[]|\OT1/cmr/m/n/12 Transformation method for
+ []
+
+
+Underfull \hbox (badness 1178) in paragraph at lines 49--50
+[]|\OT1/cmr/m/n/12 Number of habi-tat clus-ters to
+ []
+
+
+Underfull \hbox (badness 7168) in paragraph at lines 51--52
+[]|\OT1/cmr/m/n/12 Hierarchical clus-ter-ing link-age
+ []
 
 
 
@@ -809,11 +827,16 @@ Package lipsum Warning: Unknown language 'latin'. Hyphenation patterns for
 pdfTeX warning (ext4): destination with the same identifier (name{page.1}) has been already used, duplicate ignored
 <to be read again> 
                    \relax 
-l.43 \input{sections/Formatting_Section.tex}
-                                             [1
+l.56 
+      [1
 
 
-] (./sections/Introduction.tex
+]
+Underfull \hbox (badness 10000) in paragraph at lines 81--82
+[]|\OT1/cmr/m/n/12 Log-transform en-vi-ron-men-tal
+ []
+
+
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -823,17 +846,270 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
 
 [2]
+Overfull \hbox (40.42186pt too wide) in paragraph at lines 96--112
+ [][] 
+ []
+
+) (./sections/01_contamination_assessment.tex
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 14.49998pt, for example:
+(fancyhdr)                \setlength{\headheight}{14.49998pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
+
+[3]
 Chapter 2.
-<images/proposal_toc_1.png, id=55, 1654.18pt x 853.1875pt>
-File: images/proposal_toc_1.png Graphic file (type png)
-<use images/proposal_toc_1.png>
-Package pdftex.def Info: images/proposal_toc_1.png  used on input line 13.
-(pdftex.def)             Requested size: 381.6517pt x 196.84087pt.
+<../results/figures/01_contamination_assessment/figure1_pca_variance.png, id=64, 860.013pt x 353.1594pt>
+File: ../results/figures/01_contamination_assessment/figure1_pca_variance.png Graphic file (type png)
+<use ../results/figures/01_contamination_assessment/figure1_pca_variance.png>
+Package pdftex.def Info: ../results/figures/01_contamination_assessment/figure1_pca_variance.png  used on input line 5.
+(pdftex.def)             Requested size: 381.6517pt x 156.72162pt.
+<../results/figures/01_contamination_assessment/figure2_pc_loadings_ridge.png, id=66, 1149.093pt x 713.7867pt>
+File: ../results/figures/01_contamination_assessment/figure2_pc_loadings_ridge.png Graphic file (type png)
+<use ../results/figures/01_contamination_assessment/figure2_pc_loadings_ridge.png>
+Package pdftex.def Info: ../results/figures/01_contamination_assessment/figure2_pc_loadings_ridge.png  used on input line 12.
+(pdftex.def)             Requested size: 381.6517pt x 237.07515pt.
+<../results/figures/01_contamination_assessment/RDA_triplot_pollution_species.png, id=67, 1011.78pt x 722.7pt>
+File: ../results/figures/01_contamination_assessment/RDA_triplot_pollution_species.png Graphic file (type png)
+<use ../results/figures/01_contamination_assessment/RDA_triplot_pollution_species.png>
+Package pdftex.def Info: ../results/figures/01_contamination_assessment/RDA_triplot_pollution_species.png  used on input line 19.
+(pdftex.def)             Requested size: 381.6517pt x 272.61081pt.
+) (./sections/02_taxa_assemblage_in_refs.tex
+
+[4
+
+ <../results/figures/01_contamination_assessment/figure1_pca_variance.png>]
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 14.49998pt, for example:
+(fancyhdr)                \setlength{\headheight}{14.49998pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
+
+[5 <../results/figures/01_contamination_assessment/figure2_pc_loadings_ridge.png> <../results/figures/01_contamination_assessment/RDA_triplot_pollution_species.png>]
+Chapter 3.
+
+Overfull \hbox (3.45537pt too wide) in paragraph at lines 1--1
+|\OT1/cmr/bx/n/24.88 Taxa As-sem-blage in Ref-er-ence Sites| 
+ []
+
+<../results/figures/02_taxa_assemblage_in_refs/figure2_cluster_visualization.png, id=83, 1003.3485pt x 714.7503pt>
+File: ../results/figures/02_taxa_assemblage_in_refs/figure2_cluster_visualization.png Graphic file (type png)
+<use ../results/figures/02_taxa_assemblage_in_refs/figure2_cluster_visualization.png>
+Package pdftex.def Info: ../results/figures/02_taxa_assemblage_in_refs/figure2_cluster_visualization.png  used on input line 6.
+(pdftex.def)             Requested size: 381.6517pt x 271.86969pt.
+<../results/figures/02_taxa_assemblage_in_refs/figure2_reference_selection.png, id=84, 953.964pt x 475.5366pt>
+File: ../results/figures/02_taxa_assemblage_in_refs/figure2_reference_selection.png Graphic file (type png)
+<use ../results/figures/02_taxa_assemblage_in_refs/figure2_reference_selection.png>
+Package pdftex.def Info: ../results/figures/02_taxa_assemblage_in_refs/figure2_reference_selection.png  used on input line 13.
+(pdftex.def)             Requested size: 381.6517pt x 190.24754pt.
+<../results/figures/02_taxa_assemblage_in_refs/figure5_ward_analysis.png, id=85, 1149.093pt x 428.5611pt>
+File: ../results/figures/02_taxa_assemblage_in_refs/figure5_ward_analysis.png Graphic file (type png)
+<use ../results/figures/02_taxa_assemblage_in_refs/figure5_ward_analysis.png>
+Package pdftex.def Info: ../results/figures/02_taxa_assemblage_in_refs/figure5_ward_analysis.png  used on input line 34.
+(pdftex.def)             Requested size: 381.6517pt x 142.3411pt.
+<../results/figures/02_taxa_assemblage_in_refs/figure6_cluster_visualization.png, id=86, 1003.3485pt x 714.7503pt>
+File: ../results/figures/02_taxa_assemblage_in_refs/figure6_cluster_visualization.png Graphic file (type png)
+<use ../results/figures/02_taxa_assemblage_in_refs/figure6_cluster_visualization.png>
+Package pdftex.def Info: ../results/figures/02_taxa_assemblage_in_refs/figure6_cluster_visualization.png  used on input line 41.
+(pdftex.def)             Requested size: 381.6517pt x 271.86969pt.
+
+
+[6
+
+ <../results/figures/02_taxa_assemblage_in_refs/figure2_cluster_visualization.png>]
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 14.49998pt, for example:
+(fancyhdr)                \setlength{\headheight}{14.49998pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
+
+[7 <../results/figures/02_taxa_assemblage_in_refs/figure2_reference_selection.png> <../results/figures/02_taxa_assemblage_in_refs/figure5_ward_analysis.png>]
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 14.49998pt, for example:
+(fancyhdr)                \setlength{\headheight}{14.49998pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
+
+[8 <../results/figures/02_taxa_assemblage_in_refs/figure6_cluster_visualization.png>]
+<../data/taxa_images/Dreissena_image.jpg, id=114, 427.5975pt x 260.172pt>
+File: ../data/taxa_images/Dreissena_image.jpg Graphic file (type jpg)
+<use ../data/taxa_images/Dreissena_image.jpg>
+Package pdftex.def Info: ../data/taxa_images/Dreissena_image.jpg  used on input line 116.
+(pdftex.def)             Requested size: 118.73637pt x 72.24423pt.
+
+
+Package lipsum Warning: Unknown language 'latin'. Hyphenation patterns for
+(lipsum)                'english' will be used instead.
+
+<../data/taxa_images/Caenis_image.jpg, id=115, 96.1191pt x 144.54pt>
+File: ../data/taxa_images/Caenis_image.jpg Graphic file (type jpg)
+<use ../data/taxa_images/Caenis_image.jpg>
+Package pdftex.def Info: ../data/taxa_images/Caenis_image.jpg  used on input line 124.
+(pdftex.def)             Requested size: 118.73637pt x 178.55284pt.
+<../data/taxa_images/Oligochaeta_image.jpg, id=116, 216.81pt x 144.0582pt>
+File: ../data/taxa_images/Oligochaeta_image.jpg Graphic file (type jpg)
+<use ../data/taxa_images/Oligochaeta_image.jpg>
+Package pdftex.def Info: ../data/taxa_images/Oligochaeta_image.jpg  used on input line 134.
+(pdftex.def)             Requested size: 118.73637pt x 78.89372pt.
+
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 14.49998pt, for example:
+(fancyhdr)                \setlength{\headheight}{14.49998pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
+
+[9 <../data/taxa_images/Dreissena_image.jpg> <../data/taxa_images/Caenis_image.jpg>]
+<../data/taxa_images/Gastropoda_image_converted.jpg, id=123, 552.0625pt x 387.4475pt>
+File: ../data/taxa_images/Gastropoda_image_converted.jpg Graphic file (type jpg)
+<use ../data/taxa_images/Gastropoda_image_converted.jpg>
+Package pdftex.def Info: ../data/taxa_images/Gastropoda_image_converted.jpg  used on input line 143.
+(pdftex.def)             Requested size: 118.73637pt x 83.32915pt.
+<../data/taxa_images/Amphipoda_image.jpg, id=124, 1355.0625pt x 1355.0625pt>
+File: ../data/taxa_images/Amphipoda_image.jpg Graphic file (type jpg)
+<use ../data/taxa_images/Amphipoda_image.jpg>
+Package pdftex.def Info: ../data/taxa_images/Amphipoda_image.jpg  used on input line 151.
+(pdftex.def)             Requested size: 118.73637pt x 118.72481pt.
+<../data/taxa_images/Nematoda_image.jpg, id=125, 602.25pt x 227.85126pt>
+File: ../data/taxa_images/Nematoda_image.jpg Graphic file (type jpg)
+<use ../data/taxa_images/Nematoda_image.jpg>
+Package pdftex.def Info: ../data/taxa_images/Nematoda_image.jpg  used on input line 159.
+(pdftex.def)             Requested size: 118.73637pt x 44.91928pt.
+
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 14.49998pt, for example:
+(fancyhdr)                \setlength{\headheight}{14.49998pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
+
+[10 <../data/taxa_images/Oligochaeta_image.jpg> <../data/taxa_images/Gastropoda_image_converted.jpg> <../data/taxa_images/Amphipoda_image.jpg> <../data/taxa_images/Nematoda_image.jpg>]
+<../data/taxa_images/Chironomidae_image.jpg, id=134, 1580.90625pt x 1133.23375pt>
+File: ../data/taxa_images/Chironomidae_image.jpg Graphic file (type jpg)
+<use ../data/taxa_images/Chironomidae_image.jpg>
+Package pdftex.def Info: ../data/taxa_images/Chironomidae_image.jpg  used on input line 167.
+(pdftex.def)             Requested size: 118.73637pt x 85.1099pt.
+) (./sections/03_env_driven_taxa_clusters.tex
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 14.49998pt, for example:
+(fancyhdr)                \setlength{\headheight}{14.49998pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
+
+[11 <../data/taxa_images/Chironomidae_image.jpg>]
+Chapter 4.
+<../results/figures/03_env_driven_taxa_clusters/figure1_rda_triplot.png, id=141, 1005.2757pt x 715.473pt>
+File: ../results/figures/03_env_driven_taxa_clusters/figure1_rda_triplot.png Graphic file (type png)
+<use ../results/figures/03_env_driven_taxa_clusters/figure1_rda_triplot.png>
+Package pdftex.def Info: ../results/figures/03_env_driven_taxa_clusters/figure1_rda_triplot.png  used on input line 51.
+(pdftex.def)             Requested size: 381.6517pt x 271.63147pt.
+<../results/figures/03_env_driven_taxa_clusters/figure4_cluster_comparison.png, id=142, 1293.633pt x 860.013pt>
+File: ../results/figures/03_env_driven_taxa_clusters/figure4_cluster_comparison.png Graphic file (type png)
+<use ../results/figures/03_env_driven_taxa_clusters/figure4_cluster_comparison.png>
+Package pdftex.def Info: ../results/figures/03_env_driven_taxa_clusters/figure4_cluster_comparison.png  used on input line 193.
+(pdftex.def)             Requested size: 381.6517pt x 253.71475pt.
+) (./sections/04_community_composition_measures.tex
+
+[12
+
+]
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 14.49998pt, for example:
+(fancyhdr)                \setlength{\headheight}{14.49998pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
+
+[13 <../results/figures/03_env_driven_taxa_clusters/figure1_rda_triplot.png>]
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 14.49998pt, for example:
+(fancyhdr)                \setlength{\headheight}{14.49998pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
+
+[14]
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 14.49998pt, for example:
+(fancyhdr)                \setlength{\headheight}{14.49998pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
+
+[15 <../results/figures/03_env_driven_taxa_clusters/figure4_cluster_comparison.png>]
+Chapter 5.
+
+Overfull \hbox (1.8571pt too wide) in paragraph at lines 1--1
+|\OT1/cmr/bx/n/24.88 Community Com-po-si-tion Mea-sures| 
+ []
+
+<../results/figures/04_community_composition_measures/figure2_ordination.png, id=177, 1293.3921pt x 445.9059pt>
+File: ../results/figures/04_community_composition_measures/figure2_ordination.png Graphic file (type png)
+<use ../results/figures/04_community_composition_measures/figure2_ordination.png>
+Package pdftex.def Info: ../results/figures/04_community_composition_measures/figure2_ordination.png  used on input line 69.
+(pdftex.def)             Requested size: 381.6517pt x 131.57512pt.
+<../results/figures/04_community_composition_measures/figure3_zci_vs_pollution.png, id=178, 948.4233pt x 703.9098pt>
+File: ../results/figures/04_community_composition_measures/figure3_zci_vs_pollution.png Graphic file (type png)
+<use ../results/figures/04_community_composition_measures/figure3_zci_vs_pollution.png>
+Package pdftex.def Info: ../results/figures/04_community_composition_measures/figure3_zci_vs_pollution.png  used on input line 76.
+(pdftex.def)             Requested size: 381.6517pt x 283.25598pt.
+<../results/figures/04_community_composition_measures/figure4_pc_regression.png, id=179, 1148.6112pt x 1035.6291pt>
+File: ../results/figures/04_community_composition_measures/figure4_pc_regression.png Graphic file (type png)
+<use ../results/figures/04_community_composition_measures/figure4_pc_regression.png>
+Package pdftex.def Info: ../results/figures/04_community_composition_measures/figure4_pc_regression.png  used on input line 83.
+(pdftex.def)             Requested size: 381.6517pt x 344.11322pt.
+<../results/figures/04_community_composition_measures/figure5_pollution_vs_species_pc.png, id=180, 1727.253pt x 1551.6369pt>
+File: ../results/figures/04_community_composition_measures/figure5_pollution_vs_species_pc.png Graphic file (type png)
+<use ../results/figures/04_community_composition_measures/figure5_pollution_vs_species_pc.png>
+Package pdftex.def Info: ../results/figures/04_community_composition_measures/figure5_pollution_vs_species_pc.png  used on input line 90.
+(pdftex.def)             Requested size: 381.6517pt x 342.85277pt.
 )
 
-[3
+[16
 
- <./images/proposal_toc_1.png>]
+]
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 14.49998pt, for example:
+(fancyhdr)                \setlength{\headheight}{14.49998pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
+
+[17 <../results/figures/04_community_composition_measures/figure2_ordination.png> <../results/figures/04_community_composition_measures/figure3_zci_vs_pollution.png>]
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 14.49998pt, for example:
+(fancyhdr)                \setlength{\headheight}{14.49998pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
+
+[18 <../results/figures/04_community_composition_measures/figure4_pc_regression.png>]
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 14.49998pt, for example:
+(fancyhdr)                \setlength{\headheight}{14.49998pt}.
+(fancyhdr)                You might also make \topmargin smaller:
+(fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
+
+[19 <../results/figures/04_community_composition_measures/figure5_pollution_vs_species_pc.png>]
 No file main.bbl.
 (./main.aux)
  ***********
@@ -841,21 +1117,21 @@ LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
  ***********
 Package rerunfilecheck Info: File `main.out' has not changed.
-(rerunfilecheck)             Checksum: 35EAA455F7E2DF26FFB76EF460929054;830.
+(rerunfilecheck)             Checksum: C5D42599BCB3F4CB393624AB86627B3E;1095.
  ) 
 Here is how much of TeX's memory you used:
- 27136 strings out of 474662
- 517887 string characters out of 5751109
- 981013 words of memory out of 5000000
- 49733 multiletter control sequences out of 15000+600000
- 565606 words of font info for 61 fonts, out of 8000000 for 9000
+ 27484 strings out of 474662
+ 531839 string characters out of 5751109
+ 1001535 words of memory out of 5000000
+ 50011 multiletter control sequences out of 15000+600000
+ 570520 words of font info for 80 fonts, out of 8000000 for 9000
  319 hyphenation exceptions out of 8191
- 113i,12n,115p,521b,479s stack positions out of 10000i,1000n,20000p,200000b,200000s
-</usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb>
-Output written on main.pdf (5 pages, 348303 bytes).
+ 113i,11n,115p,738b,479s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ </Users/gufeng/Library/texlive/2025basic/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1095.600pk> </Users/gufeng/Library/texlive/2025basic/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1000.600pk> </Users/gufeng/Library/texlive/2025basic/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1200.600pk></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb>
+Output written on main.pdf (21 pages, 9492945 bytes).
 PDF statistics:
- 78 PDF objects out of 1000 (max. 8388607)
- 64 compressed objects within 1 object stream
- 12 named destinations out of 1000 (max. 500000)
- 66 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 291 PDF objects out of 1000 (max. 8388607)
+ 204 compressed objects within 3 object streams
+ 62 named destinations out of 1000 (max. 500000)
+ 161 words of extra memory for PDF output out of 10000 (max. 10000000)
 
