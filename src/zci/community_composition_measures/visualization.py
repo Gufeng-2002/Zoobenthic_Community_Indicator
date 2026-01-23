@@ -30,7 +30,11 @@ def plot_ordination_comparison(
     title: Optional[str] = None,
     show_ellipses: bool = True,
     ellipse_std: float = 2.0,
-    pc_plane: Tuple[int, int] = (1, 2)
+    pc_plane: Tuple[int, int] = (1, 2),
+    custom_reference_sites: Optional[Dict[int, List[str]]] = None,
+    show_centroid: bool = True,
+    ellipse_method: str = 'custom_refs',
+    label_sites: bool = False
 ) -> plt.Figure:
     """
     Visualize training vs projected sites in PC space for each cluster.
@@ -64,6 +68,19 @@ def plot_ordination_comparison(
     pc_plane : tuple
         Which PCs to plot as (pc_x, pc_y) where pc_x and pc_y are 1-indexed.
         Default (1, 2) plots PC1 vs PC2. Use (1, 3) for PC1 vs PC3, etc.
+    custom_reference_sites : dict, optional
+        {cluster_id: [site_ids]} to use as reference sites for each cluster.
+        These sites are used for calculating centroid and constructing ellipse.
+        If None, uses the ref_column to determine reference sites.
+    show_centroid : bool
+        If True, show the centroid (mean) of reference sites as a star marker.
+    ellipse_method : str
+        How to determine the reference area ellipse:
+        - 'custom_refs': Use custom_reference_sites if provided, else use ref_column
+        - 'all_refs': Always use ref_column regardless of custom_reference_sites
+        - 'none': Don't show ellipse
+    label_sites : bool
+        If True, add text labels to reference site markers.
         
     Returns:
     --------
@@ -116,44 +133,103 @@ def plot_ordination_comparison(
             xlabel = pc_x_name
             ylabel = pc_y_name
         
-        # Identify reference vs non-reference among training sites
-        ref_mask = raw_data[ref_column].isin([True, 1])
+        # Determine reference sites for this cluster
+        default_ref_mask = raw_data[ref_column].isin([True, 1])
         
-        # Plot training reference sites
-        train_ref_sites = [s for s in train_coords.index if s in raw_data.index and ref_mask[s]]
-        train_nonref_sites = [s for s in train_coords.index if s in raw_data.index and not ref_mask[s]]
-        
-        if train_ref_sites:
-            ref_data = train_coords.loc[train_ref_sites]
-            ax.scatter(ref_data[pc_x_name], ref_data[pc_y_name],
-                      c=colors.get(cluster, '#1f77b4'),
-                      marker='o', s=100, alpha=0.8,
-                      edgecolors='black', linewidth=1.5,
-                      label='Training (Reference)', zorder=3)
+        # Use custom reference sites if provided
+        if custom_reference_sites is not None and cluster in custom_reference_sites:
+            custom_refs = custom_reference_sites[cluster]
+            train_custom_ref_sites = [s for s in train_coords.index if s in custom_refs]
+            train_other_sites = [s for s in train_coords.index if s not in custom_refs]
             
-            # Add ellipse around reference sites
-            if show_ellipses and len(ref_data) > 2:
-                _add_confidence_ellipse(ax, ref_data[pc_x_name].values, ref_data[pc_y_name].values,
-                                        color=colors.get(cluster, '#1f77b4'),
-                                        n_std=ellipse_std, alpha=0.2)
+            # For ellipse, use custom refs
+            if ellipse_method == 'custom_refs':
+                ellipse_ref_sites = train_custom_ref_sites
+            elif ellipse_method == 'all_refs':
+                ellipse_ref_sites = [s for s in train_coords.index if s in raw_data.index and default_ref_mask[s]]
+            else:
+                ellipse_ref_sites = []
+            
+            # Plot custom reference sites (prominently)
+            if train_custom_ref_sites:
+                ref_data = train_coords.loc[train_custom_ref_sites]
+                ax.scatter(ref_data[pc_x_name], ref_data[pc_y_name],
+                          c=colors.get(cluster, '#1f77b4'),
+                          marker='o', s=120, alpha=0.9,
+                          edgecolors='black', linewidth=2,
+                          label=f'Custom Ref ({len(train_custom_ref_sites)})', zorder=4)
+                
+                # Add labels if requested
+                if label_sites:
+                    for site in train_custom_ref_sites:
+                        ax.annotate(str(site), 
+                                   (train_coords.loc[site, pc_x_name], train_coords.loc[site, pc_y_name]),
+                                   xytext=(3, 3), textcoords='offset points', fontsize=7, alpha=0.8)
+                
+                # Show centroid of custom reference sites
+                if show_centroid:
+                    centroid_x = ref_data[pc_x_name].mean()
+                    centroid_y = ref_data[pc_y_name].mean()
+                    ax.scatter(centroid_x, centroid_y, c=colors.get(cluster, '#1f77b4'),
+                              marker='*', s=300, edgecolors='black', linewidth=1.5,
+                              label='Centroid', zorder=5)
+            
+            # Plot other sites (non-custom-reference)
+            if train_other_sites:
+                other_data = train_coords.loc[train_other_sites]
+                ax.scatter(other_data[pc_x_name], other_data[pc_y_name],
+                          c=colors.get(cluster, '#1f77b4'),
+                          marker='s', s=70, alpha=0.4,
+                          edgecolors='black', linewidth=0.8,
+                          label=f'Other Sites ({len(train_other_sites)})', zorder=2)
+                
+        else:
+            # Use default ref_column-based reference sites
+            train_ref_sites = [s for s in train_coords.index if s in raw_data.index and default_ref_mask[s]]
+            train_nonref_sites = [s for s in train_coords.index if s in raw_data.index and not default_ref_mask[s]]
+            ellipse_ref_sites = train_ref_sites if ellipse_method != 'none' else []
+            
+            # Plot training reference sites
+            if train_ref_sites:
+                ref_data = train_coords.loc[train_ref_sites]
+                ax.scatter(ref_data[pc_x_name], ref_data[pc_y_name],
+                          c=colors.get(cluster, '#1f77b4'),
+                          marker='o', s=100, alpha=0.8,
+                          edgecolors='black', linewidth=1.5,
+                          label='Reference', zorder=3)
+                
+                # Show centroid
+                if show_centroid:
+                    centroid_x = ref_data[pc_x_name].mean()
+                    centroid_y = ref_data[pc_y_name].mean()
+                    ax.scatter(centroid_x, centroid_y, c=colors.get(cluster, '#1f77b4'),
+                              marker='*', s=250, edgecolors='black', linewidth=1.5,
+                              label='Centroid', zorder=5)
+            
+            if train_nonref_sites:
+                nonref_data = train_coords.loc[train_nonref_sites]
+                ax.scatter(nonref_data[pc_x_name], nonref_data[pc_y_name],
+                          c=colors.get(cluster, '#1f77b4'),
+                          marker='s', s=80, alpha=0.5,
+                          edgecolors='black', linewidth=1,
+                          label='Non-Reference', zorder=2)
         
-        if train_nonref_sites:
-            nonref_data = train_coords.loc[train_nonref_sites]
-            ax.scatter(nonref_data[pc_x_name], nonref_data[pc_y_name],
-                      c=colors.get(cluster, '#1f77b4'),
-                      marker='s', s=80, alpha=0.5,
-                      edgecolors='black', linewidth=1,
-                      label='Training (Non-Ref)', zorder=2)
+        # Add ellipse around reference sites
+        if show_ellipses and ellipse_ref_sites and len(ellipse_ref_sites) > 2:
+            ellipse_data = train_coords.loc[ellipse_ref_sites]
+            _add_confidence_ellipse(ax, ellipse_data[pc_x_name].values, ellipse_data[pc_y_name].values,
+                                    color=colors.get(cluster, '#1f77b4'),
+                                    n_std=ellipse_std, alpha=0.2)
         
         # Plot projected sites
         if not proj_coords.empty:
             ax.scatter(proj_coords[pc_x_name], proj_coords[pc_y_name],
                       c='lightgray', marker='^', s=100, alpha=0.7,
                       edgecolors='darkgray', linewidth=1,
-                      label='Projected Sites', zorder=1)
+                      label='Projected', zorder=1)
             
-            # Add ellipse around projected sites
-            if show_ellipses and len(proj_coords) > 2:
+            # Add ellipse around projected sites (optional)
+            if show_ellipses and len(proj_coords) > 2 and ellipse_method != 'none':
                 _add_confidence_ellipse(ax, proj_coords[pc_x_name].values, proj_coords[pc_y_name].values,
                                         color='gray', n_std=ellipse_std, alpha=0.15)
         
@@ -173,7 +249,7 @@ def plot_ordination_comparison(
     
     # Overall title
     if title is None:
-        title = 'PCA Ordination: Training vs Projected Sites by Cluster'
+        title = f'PCA Ordination: {pc_x_name} vs {pc_y_name} by Cluster'
     fig.suptitle(title, fontsize=14, fontweight='bold', y=1.02)
     
     plt.tight_layout()

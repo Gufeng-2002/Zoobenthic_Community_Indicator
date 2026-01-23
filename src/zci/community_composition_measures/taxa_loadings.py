@@ -9,6 +9,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
+from scipy.cluster.hierarchy import linkage, leaves_list
+from scipy.spatial.distance import pdist
 from typing import Dict, List, Tuple, Optional, Union
 
 
@@ -573,3 +576,287 @@ def plot_taxa_loadings_comparison(
     plt.tight_layout()
     
     return fig
+
+
+def plot_pc_loadings_ridge(
+    loadings_df: pd.DataFrame,
+    pcs_to_plot: Optional[List[int]] = None,
+    variance_explained: Optional[np.ndarray] = None,
+    cluster_id: Optional[int] = None,
+    figsize: Tuple[int, int] = (14, 10),
+    dpi: int = 150,
+    color_positive: str = '#87CEEB',
+    color_negative: str = '#87CEEB',
+    use_hierarchical_order: bool = True,
+    title: Optional[str] = None,
+    bar_width: float = 0.7,
+    row_height: float = 1.0,
+    show_variance: bool = True
+) -> plt.Figure:
+    """
+    Create a ridge plot showing individual PC loadings on taxa.
+    
+    This visualization shows how each PC loads on the taxa, with positive loadings
+    as solid bars and negative loadings as hatched bars. Variables (taxa) are 
+    ordered by hierarchical clustering to group similar loading patterns.
+    
+    Parameters:
+    -----------
+    loadings_df : pd.DataFrame
+        Species loadings DataFrame (taxa x PCs). Rows are taxa, columns are PCs.
+    pcs_to_plot : list of int, optional
+        1-indexed PC numbers to plot (e.g., [1, 2, 3] for PC1-PC3).
+        If None, plots all available PCs.
+    variance_explained : np.ndarray, optional
+        Variance explained by each PC (as percentages) for labels.
+    cluster_id : int, optional
+        Cluster identifier for title.
+    figsize : tuple
+        Figure size (width, height).
+    dpi : int
+        Figure resolution.
+    color_positive : str
+        Color for positive loadings (solid bars).
+    color_negative : str
+        Color for negative loadings (hatched bars).
+    use_hierarchical_order : bool
+        If True, order taxa by hierarchical clustering of their loading patterns.
+        If False, keep original order.
+    title : str, optional
+        Custom title. If None, generates default title.
+    bar_width : float
+        Width of individual bars (0-1).
+    row_height : float
+        Height of each PC row in the ridge plot.
+    show_variance : bool
+        If True, show variance explained in PC labels.
+        
+    Returns:
+    --------
+    plt.Figure
+        The matplotlib figure with ridge plot.
+    """
+    # Determine which PCs to plot
+    available_pcs = loadings_df.columns.tolist()
+    
+    if pcs_to_plot is None:
+        pc_cols = available_pcs
+    else:
+        pc_cols = [f'PC{i}' for i in pcs_to_plot if f'PC{i}' in available_pcs]
+        if not pc_cols:
+            raise ValueError(f"No valid PCs found. Available: {available_pcs}, requested: {pcs_to_plot}")
+    
+    n_pcs = len(pc_cols)
+    n_taxa = len(loadings_df.index)
+    
+    # Order taxa by hierarchical clustering if requested
+    if use_hierarchical_order and n_taxa > 2:
+        # Create distance matrix based on loading patterns
+        loading_matrix = loadings_df[pc_cols].values
+        
+        # Handle NaN values
+        loading_matrix = np.nan_to_num(loading_matrix, nan=0.0)
+        
+        try:
+            # Compute pairwise distances and hierarchical clustering
+            distances = pdist(loading_matrix, metric='euclidean')
+            linkage_matrix = linkage(distances, method='average')
+            taxa_order = leaves_list(linkage_matrix)
+            ordered_taxa = [loadings_df.index[i] for i in taxa_order]
+        except Exception:
+            # Fallback to original order if clustering fails
+            ordered_taxa = loadings_df.index.tolist()
+    else:
+        ordered_taxa = loadings_df.index.tolist()
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    
+    # Set up positions
+    x_positions = np.arange(n_taxa)
+    
+    # Plot each PC as a row (from bottom to top: PC1 at bottom)
+    for pc_idx, pc_col in enumerate(reversed(pc_cols)):
+        pc_num = int(pc_col.replace('PC', ''))
+        row_idx = pc_idx  # PC1 will be at the top after reversal
+        
+        # Get loadings in ordered taxa sequence
+        loadings = [loadings_df.loc[taxon, pc_col] for taxon in ordered_taxa]
+        loadings = np.array(loadings)
+        
+        # Baseline y-position for this PC row
+        y_base = row_idx * row_height * 1.5
+        
+        # Scale loadings for visualization (max loading = 0.8 * row_height)
+        max_abs_loading = np.abs(loadings).max()
+        if max_abs_loading > 0:
+            scale_factor = (0.8 * row_height) / max_abs_loading
+        else:
+            scale_factor = 1.0
+        
+        scaled_loadings = loadings * scale_factor
+        
+        # Plot positive and negative loadings separately
+        for i, (x, loading, scaled) in enumerate(zip(x_positions, loadings, scaled_loadings)):
+            if loading >= 0:
+                # Positive loading - solid bar
+                ax.bar(x, scaled, bottom=y_base, width=bar_width, 
+                      color=color_positive, edgecolor='darkblue', linewidth=0.5,
+                      alpha=0.9)
+            else:
+                # Negative loading - hatched bar (bar extends downward)
+                ax.bar(x, scaled, bottom=y_base, width=bar_width,
+                      color=color_negative, edgecolor='darkblue', linewidth=0.5,
+                      alpha=0.9, hatch='///')
+        
+        # Add horizontal baseline
+        ax.axhline(y=y_base, color='gray', linestyle='-', linewidth=0.5, alpha=0.3)
+    
+    # Set up axes
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(ordered_taxa, rotation=45, ha='right', fontsize=9)
+    
+    # Y-axis labels for PCs
+    y_ticks = [i * row_height * 1.5 for i in range(n_pcs)]
+    
+    if show_variance and variance_explained is not None:
+        y_labels = []
+        for pc_idx, pc_col in enumerate(reversed(pc_cols)):
+            pc_num = int(pc_col.replace('PC', ''))
+            if pc_num - 1 < len(variance_explained):
+                var = variance_explained[pc_num - 1]
+                y_labels.append(f'{pc_col} ({var:.1f}%)')
+            else:
+                y_labels.append(pc_col)
+    else:
+        y_labels = list(reversed(pc_cols))
+    
+    ax.set_yticks(y_ticks)
+    ax.set_yticklabels(y_labels, fontsize=11, fontweight='bold')
+    
+    # Adjust y-limits
+    ax.set_ylim(-row_height * 0.8, n_pcs * row_height * 1.5 + row_height * 0.3)
+    ax.set_xlim(-0.5, n_taxa - 0.5)
+    
+    # Labels
+    ax.set_xlabel('Taxa (Clustered Order)' if use_hierarchical_order else 'Taxa', 
+                  fontsize=12, fontweight='bold')
+    
+    # Title
+    if title is None:
+        cluster_str = f' - Cluster {cluster_id}' if cluster_id is not None else ''
+        title = f'PC Loadings Ridge Plot{cluster_str}\n(Variables Ordered by Hierarchical Clustering)'
+    ax.set_title(title, fontsize=14, fontweight='bold')
+    
+    # Legend
+    legend_elements = [
+        Patch(facecolor=color_positive, edgecolor='darkblue', label='Positive loadings'),
+        Patch(facecolor=color_negative, edgecolor='darkblue', hatch='///', label='Negative loadings')
+    ]
+    ax.legend(handles=legend_elements, loc='upper right', fontsize=10)
+    
+    # Remove spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    plt.tight_layout()
+    
+    return fig
+
+
+def plot_pc_loadings_ridge_all_clusters(
+    pca_results: Dict,
+    pcs_to_plot: Optional[Dict[int, List[int]]] = None,
+    figsize_per_cluster: Tuple[int, int] = (14, 8),
+    dpi: int = 150,
+    color_positive: str = '#87CEEB',
+    color_negative: str = '#87CEEB',
+    use_hierarchical_order: bool = True,
+    bar_width: float = 0.7,
+    row_height: float = 1.0,
+    colors: Optional[Dict] = None
+) -> Dict[int, plt.Figure]:
+    """
+    Create PC loadings ridge plots for all clusters.
+    
+    Parameters:
+    -----------
+    pca_results : dict
+        Output from fit_cluster_pcas() containing:
+        - 'loadings': {cluster_id: DataFrame}
+        - 'variance_explained': {cluster_id: array}
+        - 'n_components': {cluster_id: int}
+    pcs_to_plot : dict, optional
+        {cluster_id: [pc1, pc2, ...]} specifying which PCs to plot for each cluster.
+        PC numbers are 1-indexed. If None, plots all PCs for each cluster.
+    figsize_per_cluster : tuple
+        Figure size for each cluster's plot.
+    dpi : int
+        Figure resolution.
+    color_positive : str
+        Color for positive loadings.
+    color_negative : str
+        Color for negative loadings.
+    use_hierarchical_order : bool
+        If True, order taxa by hierarchical clustering.
+    bar_width : float
+        Width of individual bars.
+    row_height : float
+        Height of each PC row.
+    colors : dict, optional
+        {cluster_id: color} for cluster-specific coloring. If provided,
+        uses cluster colors instead of default blue.
+        
+    Returns:
+    --------
+    dict
+        {cluster_id: matplotlib Figure}
+    """
+    loadings = pca_results['loadings']
+    variance_explained = pca_results['variance_explained']
+    n_components = pca_results['n_components']
+    
+    clusters = sorted(loadings.keys())
+    figures = {}
+    
+    for cluster in clusters:
+        cluster_loadings = loadings[cluster]
+        cluster_variance = variance_explained[cluster]
+        cluster_n_pcs = n_components[cluster]
+        
+        # Determine which PCs to plot for this cluster
+        if pcs_to_plot is not None and cluster in pcs_to_plot:
+            pcs_for_cluster = pcs_to_plot[cluster]
+        else:
+            pcs_for_cluster = list(range(1, cluster_n_pcs + 1))
+        
+        # Adjust figure height based on number of PCs
+        n_pcs_to_plot = len(pcs_for_cluster)
+        adjusted_height = max(6, n_pcs_to_plot * 1.5 + 3)
+        adjusted_figsize = (figsize_per_cluster[0], adjusted_height)
+        
+        # Use cluster-specific color if provided
+        if colors is not None and cluster in colors:
+            pos_color = colors[cluster]
+            neg_color = colors[cluster]
+        else:
+            pos_color = color_positive
+            neg_color = color_negative
+        
+        fig = plot_pc_loadings_ridge(
+            loadings_df=cluster_loadings,
+            pcs_to_plot=pcs_for_cluster,
+            variance_explained=cluster_variance,
+            cluster_id=cluster,
+            figsize=adjusted_figsize,
+            dpi=dpi,
+            color_positive=pos_color,
+            color_negative=neg_color,
+            use_hierarchical_order=use_hierarchical_order,
+            bar_width=bar_width,
+            row_height=row_height
+        )
+        
+        figures[cluster] = fig
+    
+    return figures

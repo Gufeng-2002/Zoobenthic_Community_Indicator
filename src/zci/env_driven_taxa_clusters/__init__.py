@@ -82,7 +82,13 @@ from .lda_pipeline import (
     compare_lda_rda_axes,
     predict_nonreference_sites,
     update_data_with_predictions,
-    compute_lda_variable_importance
+    compute_lda_variable_importance,
+    # LDA table formatting functions
+    create_lda_confusion_matrix_table,
+    create_lda_classification_report_table,
+    create_mccv_confusion_matrix_table,
+    create_mccv_classification_report_table,
+    save_lda_tables_to_excel
 )
 
 __all__ = [
@@ -107,5 +113,12 @@ __all__ = [
     'compare_lda_rda_axes',
     'predict_nonreference_sites',
     'update_data_with_predictions',
-    'compute_lda_variable_importance'
+    'compute_lda_variable_importance',
+    
+    # LDA table formatting functions
+    'create_lda_confusion_matrix_table',
+    'create_lda_classification_report_table',
+    'create_mccv_confusion_matrix_table',
+    'create_mccv_classification_report_table',
+    'save_lda_tables_to_excel'
 ]

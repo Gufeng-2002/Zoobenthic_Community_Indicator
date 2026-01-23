@@ -17,7 +17,13 @@ import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple, Optional, Union, Any
 
 from .pca_analysis import fit_cluster_pcas, hellinger_transform, transform_sites_with_pca
-from .taxa_loadings import plot_taxa_loadings_stacked, plot_taxa_loadings_comparison, plot_taxa_loadings_consistent
+from .taxa_loadings import (
+    plot_taxa_loadings_stacked, 
+    plot_taxa_loadings_comparison, 
+    plot_taxa_loadings_consistent,
+    plot_pc_loadings_ridge,
+    plot_pc_loadings_ridge_all_clusters
+)
 from .zci_calculation import (
     calculate_zci_all_clusters, 
     project_sites_to_pc_space,
@@ -503,6 +509,15 @@ def create_visualizations(
     create_pc_regression: bool = True,
     create_pollution_vs_species_pc: bool = True,
     create_comprehensive: bool = True,
+    # NEW: PC Ridge Plot parameters
+    create_pc_ridge_plot: bool = False,
+    pc_ridge_pcs: Optional[Dict[int, List[int]]] = None,
+    pc_ridge_figsize: Tuple[int, int] = (14, 8),
+    # NEW: Ordination custom reference sites
+    custom_reference_sites: Optional[Dict[int, List[str]]] = None,
+    ordination_show_centroid: bool = True,
+    ordination_ellipse_method: str = 'custom_refs',
+    ordination_label_sites: bool = False,
     verbose: bool = True
 ) -> Dict[str, Any]:
     """
@@ -591,10 +606,31 @@ def create_visualizations(
         if verbose:
             print(f"Created {len(pc_loadings_figs)} PC loadings figures")
     
+    # NEW: PC Ridge Plot (shows individual PC loadings on taxa)
+    if create_pc_ridge_plot:
+        if verbose:
+            print("\n--- Creating PC ridge plots ---")
+        
+        pc_ridge_figs = plot_pc_loadings_ridge_all_clusters(
+            pca_results=pca_results,
+            pcs_to_plot=pc_ridge_pcs,
+            figsize_per_cluster=pc_ridge_figsize,
+            colors=colors,
+            use_hierarchical_order=True
+        )
+        
+        for cluster, fig in pc_ridge_figs.items():
+            figures[f'pc_ridge_cluster_{cluster}'] = fig
+        
+        if verbose:
+            print(f"Created {len(pc_ridge_figs)} PC ridge plot figures")
+    
     if create_ordination:
         if verbose:
             print("\n--- Creating ordination comparison plot ---")
             print(f"PC plane: PC{pc_plane[0]} vs PC{pc_plane[1]}")
+            if custom_reference_sites:
+                print(f"Using custom reference sites for ellipse construction")
         
         fig_ordination = plot_ordination_comparison(
             training_coords=pca_results['pca_coordinates'],
@@ -605,7 +641,11 @@ def create_visualizations(
             variance_explained=pca_results['variance_explained'],
             colors=colors,
             figsize=ordination_figsize,
-            pc_plane=pc_plane
+            pc_plane=pc_plane,
+            custom_reference_sites=custom_reference_sites,
+            show_centroid=ordination_show_centroid,
+            ellipse_method=ordination_ellipse_method,
+            label_sites=ordination_label_sites
         )
         figures['ordination'] = fig_ordination
     
@@ -842,6 +882,15 @@ def community_composition_pipeline(
     create_pc_regression_plot: bool = True,
     create_pollution_vs_species_pc_plot: bool = True,
     create_comprehensive_plot: bool = True,
+    # NEW: PC Ridge Plot parameters
+    create_pc_ridge_plot: bool = False,
+    pc_ridge_pcs: Optional[Dict[int, List[int]]] = None,
+    pc_ridge_figsize: Tuple[int, int] = (14, 8),
+    # NEW: Ordination custom reference sites
+    custom_reference_sites: Optional[Dict[int, List[str]]] = None,
+    ordination_show_centroid: bool = True,
+    ordination_ellipse_method: str = 'custom_refs',
+    ordination_label_sites: bool = False,
     # Visualization style parameters
     use_consistent_taxa_order: bool = True,
     pc_plane: Tuple[int, int] = (1, 2),
@@ -856,6 +905,8 @@ def community_composition_pipeline(
     colors: Optional[Dict] = None,
     # Output control
     save_path: Optional[str] = None,
+    save_tables: bool = False,
+    table_save_path: Optional[str] = None,
     random_state: int = 42,
     verbose: bool = True
 ) -> Dict[str, Any]:
@@ -935,6 +986,10 @@ def community_composition_pipeline(
     ------------------
     save_path : str, optional
         Path to save figures
+    save_tables : bool, default=False
+        Whether to save tables to Excel files
+    table_save_path : str, optional
+        Path to save tables. Required if save_tables=True.
     random_state : int, default=42
         Random state for reproducibility
     verbose : bool, default=True
@@ -1053,6 +1108,15 @@ def community_composition_pipeline(
         create_pc_regression=create_pc_regression_plot,
         create_pollution_vs_species_pc=create_pollution_vs_species_pc_plot,
         create_comprehensive=create_comprehensive_plot,
+        # NEW: PC Ridge Plot parameters
+        create_pc_ridge_plot=create_pc_ridge_plot,
+        pc_ridge_pcs=pc_ridge_pcs,
+        pc_ridge_figsize=pc_ridge_figsize,
+        # NEW: Ordination custom reference sites
+        custom_reference_sites=custom_reference_sites,
+        ordination_show_centroid=ordination_show_centroid,
+        ordination_ellipse_method=ordination_ellipse_method,
+        ordination_label_sites=ordination_label_sites,
         verbose=verbose
     )
     
@@ -1132,6 +1196,58 @@ def community_composition_pipeline(
                     print(f"  ✓ Saved: {filepath}")
     
     # =========================================================================
+    # GENERATE AND SAVE TABLES (Optional)
+    # =========================================================================
+    from .pc_diagnostics import (
+        create_species_pc_loadings_table,
+        create_species_pc_pollution_regression_table,
+        create_pollution_pc_species_pc_regression_table,
+        save_community_composition_tables_to_excel
+    )
+    
+    # Generate tables for pipeline output
+    species_loadings_table = create_species_pc_loadings_table(
+        pca_results=pca_results,
+        top_n_taxa=16
+    )
+    
+    species_pc_pollution_table = create_species_pc_pollution_regression_table(
+        pca_results=pca_results,
+        projected_coords=projected_coords,
+        raw_data=raw_data,
+        pollution_column=pollution_column,
+        cluster_column=cluster_column
+    )
+    
+    pollution_pc_species_pc_table = create_pollution_pc_species_pc_regression_table(
+        pca_results=pca_results,
+        raw_data=raw_data,
+        cluster_column=cluster_column,
+        pollution_pc_prefix=pollution_pc_prefix
+    )
+    
+    tables = {
+        'species_loadings_table': species_loadings_table,
+        'species_pc_pollution_table': species_pc_pollution_table,
+        'pollution_pc_species_pc_table': pollution_pc_species_pc_table
+    }
+    
+    # Save tables to Excel files
+    if save_tables and table_save_path:
+        import os
+        os.makedirs(table_save_path, exist_ok=True)
+        if verbose:
+            print("\n--- Saving tables ---")
+        
+        saved_table_files = save_community_composition_tables_to_excel(
+            species_loadings_table=species_loadings_table,
+            species_pc_pollution_table=species_pc_pollution_table,
+            pollution_pc_species_pc_table=pollution_pc_species_pc_table,
+            save_path=table_save_path,
+            verbose=verbose
+        )
+    
+    # =========================================================================
     # Print final summary
     # =========================================================================
     if verbose:
@@ -1144,6 +1260,9 @@ def community_composition_pipeline(
         print(f"    - Non-training: {summary['n_non_training_sites']}")
         print(f"  Clusters: {summary['n_clusters']}")
         print(f"  Figures generated: {summary['n_figures']}")
+        print(f"  Tables generated: {len([t for t in tables.values() if t is not None and not t.empty])}")
+        if save_tables and table_save_path:
+            print(f"  Tables saved to: {table_save_path}")
         print(f"\nData Updated:")
         print(f"  ✓ updated_raw_data with ZCI and Species PCs")
         print(f"  ✓ updated_multiindex_data with ZCI and Species PCs")
@@ -1157,6 +1276,7 @@ def community_composition_pipeline(
         'reference_points': reference_points,
         'regression_results': regression_results,
         'figures': figures,
+        'tables': tables,
         'updated_raw_data': updated_raw_data,
         'updated_multiindex_data': updated_multiindex_data,
         'summary': summary,
@@ -1164,5 +1284,9 @@ def community_composition_pipeline(
         'pc_regression_details': regression_results['pc_regression_details'],
         'significant_pc_loadings': regression_results['significant_pc_loadings'],
         'pollution_vs_species_pc_table': regression_results['pollution_vs_species_pc_table'],
-        'pollution_vs_species_pc_details': regression_results['pollution_vs_species_pc_details']
+        'pollution_vs_species_pc_details': regression_results['pollution_vs_species_pc_details'],
+        # New formatted tables for Excel export
+        'species_loadings_table': species_loadings_table,
+        'species_pc_pollution_table': species_pc_pollution_table,
+        'pollution_pc_species_pc_table': pollution_pc_species_pc_table
     }

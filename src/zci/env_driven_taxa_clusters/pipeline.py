@@ -22,6 +22,7 @@ import pandas as pd
 from typing import Dict, List, Optional, Tuple, Any
 import matplotlib.pyplot as plt
 import warnings
+from scipy import stats
 
 from .rda_pipeline import (
     perform_rda_analysis,
@@ -38,6 +39,69 @@ from .lda_pipeline import (
     update_data_with_predictions,
     compute_lda_variable_importance
 )
+
+
+def compute_cluster_anova_table(
+    raw_data: pd.DataFrame,
+    variables: List[str],
+    cluster_column: str = 'clusters',
+    variable_type: str = 'env'
+) -> pd.DataFrame:
+    """
+    Compute summary statistics and ANOVA F-stat for variables across clusters.
+    
+    Parameters
+    ----------
+    raw_data : pd.DataFrame
+        Data containing the variables and cluster labels
+    variables : list of str
+        Variable names to analyze
+    cluster_column : str, default='clusters'
+        Column name containing cluster labels
+    variable_type : str, default='env'
+        Type of variables: 'env' for environmental, 'taxa' for species
+    
+    Returns
+    -------
+    pd.DataFrame
+        Summary table with columns: Variable, Cluster 0, Cluster 1, ..., F-stat
+        Each cluster column contains "mean ± std" format
+    """
+    clusters = sorted(raw_data[cluster_column].dropna().unique())
+    
+    results = []
+    for var in variables:
+        if var not in raw_data.columns:
+            continue
+            
+        row = {'Variable': var}
+        
+        # Compute mean ± std for each cluster
+        groups = []
+        for cluster in clusters:
+            cluster_data = raw_data[raw_data[cluster_column] == cluster][var].dropna()
+            mean_val = cluster_data.mean()
+            std_val = cluster_data.std()
+            row[f'Cluster {int(cluster)}'] = f"{mean_val:.2f} ± {std_val:.2f}"
+            groups.append(cluster_data)
+        
+        # Compute ANOVA F-statistic
+        if all(len(g) > 1 for g in groups) and len(groups) >= 2:
+            try:
+                f_stat, p_val = stats.f_oneway(*groups)
+                row['F-stat'] = f_stat
+                row['p-value'] = p_val
+            except:
+                row['F-stat'] = np.nan
+                row['p-value'] = np.nan
+        else:
+            row['F-stat'] = np.nan
+            row['p-value'] = np.nan
+        
+        results.append(row)
+    
+    df = pd.DataFrame(results)
+    return df
 
 
 def perform_env_taxa_analysis(
@@ -70,6 +134,8 @@ def perform_env_taxa_analysis(
     # Control parameters
     random_state: Optional[int] = 42,
     save_path: Optional[str] = None,
+    save_tables: bool = False,
+    table_save_path: Optional[str] = None,
     verbose: bool = True
 ) -> Dict[str, Any]:
     """
@@ -437,6 +503,73 @@ def perform_env_taxa_analysis(
         print("✓ Cluster comparison figure created!")
     
     # ========================================================================
+    # STEP 7: COMPUTE CLUSTER ANOVA TABLES (this is no need now)
+    # ========================================================================
+    # if verbose:
+    #     print("\n" + "="*80)
+    #     print("STEP 7: COMPUTING CLUSTER ANOVA SUMMARIES")
+    #     print("="*80)
+    
+    # # Get taxa columns from multiindex_data
+    # taxa_level_mask = multiindex_data.columns.get_level_values(0) == 'taxa'
+    # taxa_multiindex = multiindex_data.loc[:, taxa_level_mask]
+    # taxa_names = taxa_multiindex.columns.get_level_values(-1).tolist()
+    # taxa_cols = [c for c in taxa_names if c in ref_raw_data.columns]
+
+    
+    # if verbose:
+    #     print(f"  ✓ Environmental ANOVA table: {len(env_anova_table)} variables")
+    #     print(f"  ✓ Taxa ANOVA table: {len(taxa_anova_table)} taxa")
+    
+    # ========================================================================
+    # STEP 8: SAVE TABLES (Optional)
+    # ========================================================================
+    
+    # Import LDA table formatting functions
+    from .lda_pipeline import (
+        create_lda_confusion_matrix_table,
+        create_lda_classification_report_table,
+        create_mccv_confusion_matrix_table,
+        create_mccv_classification_report_table,
+        save_lda_tables_to_excel
+    )
+    
+    # Create LDA tables
+    lda_cm_table = create_lda_confusion_matrix_table(lda_results)
+    lda_report_table = create_lda_classification_report_table(lda_results)
+    mccv_cm_table = create_mccv_confusion_matrix_table(lda_cv_results)
+    mccv_report_table = create_mccv_classification_report_table(lda_cv_results)
+    
+    tables = {
+        'rda_axes_summary': rda_axes_table,
+        'rda_terms_summary': rda_terms_table,
+        'lda_axes_summary': lda_importance['axes_summary'],
+        'lda_variable_importance': lda_importance['variable_importance'],
+        # LDA confusion matrices and classification reports
+        'lda_confusion_matrix': lda_cm_table,
+        'lda_classification_report': lda_report_table,
+        'mccv_confusion_matrix': mccv_cm_table,
+        'mccv_classification_report': mccv_report_table,
+    }
+    
+    if save_tables:
+        from zci.output_saver import save_tables_dict
+        t_path = table_save_path if table_save_path else "../results/tables/03_env_driven_taxa_clusters"
+        
+        if verbose:
+            print("\n" + "="*80)
+            print(f"STEP 8: SAVING TABLES TO {t_path}")
+            print("="*80)
+        
+        save_tables_dict(
+            tables=tables,
+            save_dir=t_path,
+            prefix="table",
+            formats=['xlsx'],
+            verbose=verbose
+        )
+    
+    # ========================================================================
     # SUMMARY STATISTICS
     # ========================================================================
     n_sites_total = len(raw_data)
@@ -529,6 +662,15 @@ def perform_env_taxa_analysis(
         
         # All figures in one place
         'figures': figures,
+        
+        # LDA Confusion Matrix and Classification Report Tables
+        'lda_confusion_matrix_table': lda_cm_table,
+        'lda_classification_report_table': lda_report_table,
+        'mccv_confusion_matrix_table': mccv_cm_table,
+        'mccv_classification_report_table': mccv_report_table,
+        
+        # All tables in one place
+        'tables': tables,
         
         # Summary Statistics
         'n_sites_total': n_sites_total,

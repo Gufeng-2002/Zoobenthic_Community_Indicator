@@ -1,0 +1,134 @@
+# Cell 1: OLS Predictions with CIs Visualization
+# Visualize predictions with CIs on scatter plots
+fig, axes = plt.subplots(1, n_clusters, figsize=(6*n_clusters, 5.5))
+
+if n_clusters == 1:
+    axes = [axes]
+
+for idx, (ax, cluster_id) in enumerate(zip(axes, sorted(regression_results.keys()))):
+    results = regression_results[cluster_id]
+    cluster_data = results['data']
+    X = results['X']
+    y = results['y']
+    ols_model = results['ols_model']
+    
+    # Plot scatter by waterbody
+    for waterbody in sorted(cluster_data['Waterbody'].unique()):
+        wb_data = cluster_data[cluster_data['Waterbody'] == waterbody]
+        ax.scatter(
+            wb_data['Pollution_Score'], 
+            wb_data['ZCI'], 
+            alpha=0.6, 
+            s=80,
+            color=waterbody_colors.get(waterbody, 'gray'),
+            marker=waterbody_markers.get(waterbody, 'o'),
+            label=waterbody_labels.get(waterbody, waterbody),
+            edgecolors='black',
+            linewidth=0.5
+        )
+    
+    # Generate predictions and confidence intervals
+    X_range = np.linspace(X.min() - 0.5, X.max() + 0.5, 100)
+    X_range_with_const = sm.add_constant(X_range)
+    
+    # OLS predictions and CI
+    ols_pred = ols_model.get_prediction(X_range_with_const)
+    ols_pred_summary = ols_pred.summary_frame(alpha=0.05)
+    
+    # Plot OLS line
+    ax.plot(X_range, ols_pred_summary['mean'], 'r-', linewidth=2, label='OLS Fit')
+    
+    # Plot OLS confidence interval
+    ax.fill_between(
+        X_range, 
+        ols_pred_summary['mean_ci_lower'], 
+        ols_pred_summary['mean_ci_upper'],
+        alpha=0.2, 
+        color='red', 
+        label='OLS 95% CI'
+    )
+    
+    ax.set_xlabel('Pollution_Score', fontsize=11)
+    ax.set_ylabel('ZCI', fontsize=11)
+    ax.set_title(f'Cluster {int(cluster_id)} with OLS Fit & CI', fontsize=13, fontweight='bold')
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=8, loc='best')
+
+plt.suptitle('OLS Regression with 95% Confidence Intervals', fontsize=15, fontweight='bold')
+plt.tight_layout()
+plt.show()
+
+print("✓ Visualization of OLS predictions with CIs complete!")
+
+# Cell 2: Quantile Regression Parameters CI Visualization
+# Visualize CIs for quantile regression parameters across different quantile levels
+
+fig, axes = plt.subplots(1, n_clusters, figsize=(8*n_clusters, 5))
+
+if n_clusters == 1:
+    axes = [axes]
+
+for idx, (ax, cluster_id) in enumerate(zip(axes, sorted(regression_results.keys()))):
+    results = regression_results[cluster_id]
+    qr_models = results['qr_models']
+    
+    # Collect slopes and their CIs for each quantile
+    slopes = []
+    slopes_ci_lower = []
+    slopes_ci_upper = []
+    intercepts = []
+    intercepts_ci_lower = []
+    intercepts_ci_upper = []
+    
+    for q in quantile_levels:
+        qr_model = qr_models[q]
+        # Get slope (coefficient for Pollution_Score, which is index 1)
+        slope = qr_model.params[1]
+        slope_ci = qr_model.conf_int(alpha=0.05)
+        
+        slopes.append(slope)
+        slopes_ci_lower.append(slope_ci.iloc[1, 0])
+        slopes_ci_upper.append(slope_ci.iloc[1, 1])
+        
+        intercepts.append(qr_model.params[0])
+        intercepts_ci_lower.append(slope_ci.iloc[0, 0])
+        intercepts_ci_upper.append(slope_ci.iloc[0, 1])
+    
+    slopes = np.array(slopes)
+    slopes_ci_lower = np.array(slopes_ci_lower)
+    slopes_ci_upper = np.array(slopes_ci_upper)
+    
+    # Plot slope estimates with CIs
+    ax.errorbar(
+        quantile_levels, 
+        slopes, 
+        yerr=[slopes - slopes_ci_lower, slopes_ci_upper - slopes],
+        fmt='o-', 
+        capsize=5, 
+        capthick=2,
+        markersize=6,
+        linewidth=2,
+        color='steelblue',
+        ecolor='steelblue',
+        alpha=0.7,
+        label='Slope with 95% CI'
+    )
+    
+    ax.axhline(y=0, color='k', linestyle='--', linewidth=1, alpha=0.3)
+    ax.set_xlabel('Quantile Level', fontsize=12)
+    ax.set_ylabel('Slope Estimate', fontsize=12)
+    ax.set_title(f'Cluster {int(cluster_id)} - Quantile Regression Slopes', fontsize=13, fontweight='bold')
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=10)
+    
+    # Print summary statistics
+    print(f"\nCluster {int(cluster_id)} - Quantile Regression Summary:")
+    print(f"  Slope range: [{slopes.min():.4f}, {slopes.max():.4f}]")
+    print(f"  Slope at q=0.5 (median): {slopes[len(quantile_levels)//2]:.4f}")
+
+plt.suptitle('Quantile Regression: Slope Estimates with 95% CIs Across Quantile Levels', 
+             fontsize=15, fontweight='bold')
+plt.tight_layout()
+plt.show()
+
+print("\n✓ Visualization of Quantile Regression parameters with CIs complete!")

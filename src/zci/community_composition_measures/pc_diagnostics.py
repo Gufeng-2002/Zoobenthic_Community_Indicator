@@ -893,3 +893,346 @@ def create_pollution_species_pc_summary_table(
                  'Significance', 'Slope', 'Var%', 'N_sites']].copy()
     
     return result
+
+
+# =============================================================================
+# NEW TABLE EXPORT FUNCTIONS
+# =============================================================================
+
+def create_species_pc_loadings_table(
+    pca_results: Dict,
+    top_n_taxa: int = 16
+) -> pd.DataFrame:
+    """
+    Create a publication-ready table of species PC loadings for all clusters.
+    
+    For each cluster, extracts the loadings of each species on each PC,
+    focusing on the top N taxa by total absolute loading contribution.
+    
+    Parameters:
+    -----------
+    pca_results : dict
+        Output from fit_cluster_pcas(), containing:
+        - 'pca_models': {cluster_id: fitted PCA model}
+        - 'loadings': {cluster_id: DataFrame with species loadings}
+        - 'variance_explained': {cluster_id: array of variance per PC}
+    top_n_taxa : int, default=16
+        Number of top taxa to include per cluster
+        
+    Returns:
+    --------
+    pd.DataFrame
+        Loadings table with columns: Cluster, Taxon, PC1, PC2, ..., PCn
+        Sorted by absolute loading on PC1 within each cluster.
+    """
+    loadings_dict = pca_results.get('loadings', {})
+    
+    if not loadings_dict:
+        return pd.DataFrame()
+    
+    all_loadings = []
+    
+    for cluster in sorted(loadings_dict.keys()):
+        cluster_loadings = loadings_dict[cluster].copy()
+        
+        if cluster_loadings.empty:
+            continue
+        
+        # Calculate total absolute loading for each taxon
+        cluster_loadings['_total_abs'] = cluster_loadings.abs().sum(axis=1)
+        
+        # Sort by total absolute loading and select top N
+        cluster_loadings = cluster_loadings.sort_values('_total_abs', ascending=False)
+        top_taxa = cluster_loadings.head(top_n_taxa).copy()
+        top_taxa = top_taxa.drop(columns=['_total_abs'])
+        
+        # Reset index to get taxon names as a column
+        top_taxa = top_taxa.reset_index()
+        top_taxa.columns = ['Taxon'] + list(top_taxa.columns[1:])
+        
+        # Add cluster column
+        top_taxa.insert(0, 'Cluster', int(cluster))
+        
+        # Round loadings for display
+        for col in top_taxa.columns:
+            if col.startswith('PC'):
+                top_taxa[col] = top_taxa[col].round(4)
+        
+        all_loadings.append(top_taxa)
+    
+    if not all_loadings:
+        return pd.DataFrame()
+    
+    result = pd.concat(all_loadings, ignore_index=True)
+    return result
+
+
+def create_species_pc_pollution_regression_table(
+    pca_results: Dict,
+    projected_coords: Dict[int, pd.DataFrame],
+    raw_data: pd.DataFrame,
+    pollution_column: str = 'Pollution_Score',
+    cluster_column: str = 'clusters'
+) -> pd.DataFrame:
+    """
+    Create a publication-ready table of ALL Species PC vs Pollution Score regressions.
+    
+    This function computes linear regressions for ALL species PCs (not filtered by
+    variance threshold) against the composite pollution score. This is intended for
+    Table 5.1 format in the thesis.
+    
+    Parameters:
+    -----------
+    pca_results : dict
+        Output from fit_cluster_pcas()
+    projected_coords : dict
+        {cluster_id: DataFrame with PC coordinates for projected sites}
+    raw_data : pd.DataFrame
+        Raw data with pollution scores
+    pollution_column : str
+        Column name for pollution scores
+    cluster_column : str
+        Column name for cluster labels
+        
+    Returns:
+    --------
+    pd.DataFrame
+        Formatted regression table with columns:
+        Cluster, PC, Var.(%), R², R̄², Coef., t-stat, n
+    """
+    training_coords = pca_results.get('pca_coordinates', {})
+    variance_explained = pca_results.get('variance_explained', {})
+    
+    results = []
+    
+    for cluster in sorted(training_coords.keys()):
+        train_coords = training_coords[cluster].copy()
+        proj_coords = projected_coords.get(cluster, pd.DataFrame())
+        var_exp = variance_explained.get(cluster, np.array([]))
+        
+        # Combine training and projected coordinates
+        if not proj_coords.empty:
+            all_coords = pd.concat([train_coords, proj_coords])
+        else:
+            all_coords = train_coords
+        
+        # Get pollution scores for these sites
+        pollution_scores = raw_data.loc[all_coords.index, pollution_column].dropna()
+        
+        # Find common sites
+        common_sites = all_coords.index.intersection(pollution_scores.index)
+        
+        if len(common_sites) < 5:
+            continue
+        
+        all_coords = all_coords.loc[common_sites]
+        pollution_scores = pollution_scores.loc[common_sites]
+        
+        # Iterate over ALL PCs (no variance threshold filter)
+        for pc_idx, var_pct in enumerate(var_exp):
+            pc_col = f'PC{pc_idx + 1}'
+            if pc_col not in all_coords.columns:
+                continue
+            
+            pc_values = all_coords[pc_col].values
+            poll_values = pollution_scores.values
+            
+            # Remove any NaN
+            valid_mask = ~(np.isnan(pc_values) | np.isnan(poll_values))
+            pc_valid = pc_values[valid_mask]
+            poll_valid = poll_values[valid_mask]
+            
+            n = len(pc_valid)
+            if n < 5:
+                continue
+            
+            # Perform linear regression
+            slope, intercept, r_value, p_value, std_err = stats.linregress(poll_valid, pc_valid)
+            
+            r_squared = r_value ** 2
+            adj_r_squared = 1 - (1 - r_squared) * (n - 1) / (n - 2)
+            t_stat = slope / std_err if std_err > 0 else np.nan
+            
+            results.append({
+                'Cluster': int(cluster),
+                'PC': pc_col,
+                'Var.(%)': round(var_pct, 1),
+                'R²': round(r_squared, 4),
+                'R̄²': round(adj_r_squared, 4),
+                'Coef.': round(slope, 4),
+                't-stat': round(t_stat, 2),
+                'n': n
+            })
+    
+    if not results:
+        return pd.DataFrame()
+    
+    df = pd.DataFrame(results)
+    df = df.sort_values(['Cluster', 'PC']).reset_index(drop=True)
+    
+    return df
+
+
+def create_pollution_pc_species_pc_regression_table(
+    pca_results: Dict,
+    raw_data: pd.DataFrame,
+    cluster_column: str = 'clusters',
+    pollution_pc_prefix: str = 'Pollution_PC'
+) -> pd.DataFrame:
+    """
+    Create a publication-ready table of Pollution PC vs Species PC regressions.
+    
+    This function computes linear regressions between each pollution PC
+    (from contamination assessment) and each species PC. This is intended for
+    Table 5.2 format in the thesis.
+    
+    Parameters:
+    -----------
+    pca_results : dict
+        Output from fit_cluster_pcas()
+    raw_data : pd.DataFrame
+        Raw data containing pollution PC columns
+    cluster_column : str
+        Column name for cluster assignments
+    pollution_pc_prefix : str
+        Prefix for pollution PC columns in raw_data
+        
+    Returns:
+    --------
+    pd.DataFrame
+        Formatted regression table with columns:
+        Cluster, Poll. PC, Spec. PC, Var.(%), R², Slope, n
+    """
+    pca_coordinates = pca_results.get('pca_coordinates', {})
+    variance_explained = pca_results.get('variance_explained', {})
+    
+    # Find pollution PC columns in raw_data
+    pollution_pc_cols = sorted([col for col in raw_data.columns if col.startswith(pollution_pc_prefix)])
+    
+    if not pollution_pc_cols:
+        return pd.DataFrame()
+    
+    results = []
+    
+    for cluster in sorted(pca_coordinates.keys()):
+        coords = pca_coordinates[cluster]
+        var_exp = variance_explained.get(cluster, np.array([]))
+        
+        if coords.empty:
+            continue
+        
+        # Get sites in this cluster
+        cluster_mask = raw_data[cluster_column] == cluster
+        cluster_sites = raw_data[cluster_mask].index
+        common_sites = coords.index.intersection(cluster_sites)
+        
+        if len(common_sites) < 5:
+            continue
+        
+        # Get all species PCs (no variance threshold)
+        species_pc_cols = []
+        for i, var_pct in enumerate(var_exp):
+            pc_name = f'PC{i+1}'
+            if pc_name in coords.columns:
+                species_pc_cols.append((pc_name, var_pct))
+        
+        # Perform regressions for each pollution PC vs each species PC
+        for pol_pc in pollution_pc_cols:
+            pollution_values = raw_data.loc[common_sites, pol_pc].values
+            valid_pollution = ~np.isnan(pollution_values)
+            
+            # Format pollution PC name for display
+            pol_pc_display = pol_pc.replace(pollution_pc_prefix, 'PC')
+            
+            for species_pc, var_pct in species_pc_cols:
+                species_values = coords.loc[common_sites, species_pc].values
+                valid = valid_pollution & ~np.isnan(species_values)
+                
+                if valid.sum() < 5:
+                    continue
+                
+                x = pollution_values[valid]
+                y = species_values[valid]
+                
+                # Perform linear regression
+                slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+                r_squared = r_value ** 2
+                
+                results.append({
+                    'Cluster': int(cluster),
+                    'Poll. PC': pol_pc_display,
+                    'Spec. PC': species_pc,
+                    'Var.(%)': round(var_pct, 1),
+                    'R²': round(r_squared, 4),
+                    'Slope': round(slope, 4),
+                    'n': valid.sum()
+                })
+    
+    if not results:
+        return pd.DataFrame()
+    
+    df = pd.DataFrame(results)
+    # Sort by Cluster, then Pollution PC, then Species PC
+    df = df.sort_values(['Cluster', 'Poll. PC', 'Spec. PC']).reset_index(drop=True)
+    
+    return df
+
+
+def save_community_composition_tables_to_excel(
+    species_loadings_table: pd.DataFrame,
+    species_pc_pollution_table: pd.DataFrame,
+    pollution_pc_species_pc_table: pd.DataFrame,
+    save_path: str,
+    verbose: bool = True
+) -> Dict[str, str]:
+    """
+    Save all community composition tables to Excel files.
+    
+    Parameters:
+    -----------
+    species_loadings_table : pd.DataFrame
+        Species PC loadings table from create_species_pc_loadings_table()
+    species_pc_pollution_table : pd.DataFrame
+        Species PC vs Pollution regression table
+    pollution_pc_species_pc_table : pd.DataFrame
+        Pollution PC vs Species PC regression table
+    save_path : str
+        Directory path to save the Excel files
+    verbose : bool
+        Print progress messages
+        
+    Returns:
+    --------
+    dict
+        Dictionary mapping table names to file paths
+    """
+    import os
+    os.makedirs(save_path, exist_ok=True)
+    
+    saved_files = {}
+    
+    # Save species PC loadings table
+    if not species_loadings_table.empty:
+        path = os.path.join(save_path, 'table1_species_pc_loadings.xlsx')
+        species_loadings_table.to_excel(path, index=False)
+        saved_files['species_pc_loadings'] = path
+        if verbose:
+            print(f"  ✓ Saved: {path}")
+    
+    # Save species PC vs pollution score regression table
+    if not species_pc_pollution_table.empty:
+        path = os.path.join(save_path, 'table2_species_pc_pollution_regression.xlsx')
+        species_pc_pollution_table.to_excel(path, index=False)
+        saved_files['species_pc_pollution_regression'] = path
+        if verbose:
+            print(f"  ✓ Saved: {path}")
+    
+    # Save pollution PC vs species PC regression table
+    if not pollution_pc_species_pc_table.empty:
+        path = os.path.join(save_path, 'table3_pollution_pc_species_pc_regression.xlsx')
+        pollution_pc_species_pc_table.to_excel(path, index=False)
+        saved_files['pollution_pc_species_pc_regression'] = path
+        if verbose:
+            print(f"  ✓ Saved: {path}")
+    
+    return saved_files

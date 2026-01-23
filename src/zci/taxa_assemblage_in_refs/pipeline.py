@@ -23,7 +23,11 @@ from .velocity_imputation import impute_velocity_for_all_sites
 from .reference_site_selection import select_reference_sites, compare_habitat_variables
 from .hierarchical_clustering import cluster_species_hierarchical
 from .cluster_visualization import visualize_cluster_analysis
-from .boxcox_anova import perform_boxcox_anova_analysis
+from .boxcox_anova import (
+    perform_boxcox_anova_analysis,
+    create_anova_summary_table,
+    create_anova_excel_table
+)
 
 
 def reference_sites_taxa_assemblage_pipeline(
@@ -41,10 +45,13 @@ def reference_sites_taxa_assemblage_pipeline(
     create_ward_analysis: bool = False,
     create_cluster_visualization: bool = True,
     label_positions: Optional[List[int]] = None,
-    run_boxcox_anova: bool = False,
+    run_boxcox_anova: bool = True,
+    use_boxcox_transform: bool = True,
     anova_taxa_transformation: Optional[str] = None,
-    anova_top_n_taxa: Optional[int] = None,
+    anova_top_n_taxa: Optional[int] = 10,
     save_path: Optional[str] = None,
+    save_tables: bool = False,
+    table_save_path: Optional[str] = None,
     verbose: bool = True
 ) -> Dict[str, Any]:
     """
@@ -94,6 +101,9 @@ def reference_sites_taxa_assemblage_pipeline(
     run_boxcox_anova : bool, default=False
         Whether to perform Box-Cox transformation + ANOVA analysis on
         environmental and taxa variables across clusters.
+    use_boxcox_transform : bool, default=True
+        Whether to apply Box-Cox transformation before ANOVA.
+        If False, performs ANOVA on raw (or taxa-transformed) data directly.
     anova_taxa_transformation : str, optional
         Transformation to apply to taxa before Box-Cox for ANOVA.
         If None, uses the same as species_transformation.
@@ -104,6 +114,11 @@ def reference_sites_taxa_assemblage_pipeline(
     save_path : str, optional
         Directory path to save figures. If provided, figures will be saved
         to this directory with numbered filenames.
+    save_tables : bool, default=False
+        Whether to save ANOVA tables to Excel files.
+    table_save_path : str, optional
+        Directory path to save tables. If None, defaults to
+        '../results/tables/02_taxa_assemblage_in_refs'.
     verbose : bool, default=True
         Whether to print progress messages.
     
@@ -349,11 +364,15 @@ def reference_sites_taxa_assemblage_pipeline(
             print()
     
     # ========================================================================
-    # STEP 7: Box-Cox ANOVA Analysis (Optional)
+    # STEP 7: ANOVA Analysis (Optional)
     # ========================================================================
+    env_anova_table = None
+    taxa_anova_table = None
+    
     if run_boxcox_anova:
         if verbose:
-            print("STEP 7: Performing Box-Cox + ANOVA analysis...")
+            boxcox_status = "with Box-Cox" if use_boxcox_transform else "without Box-Cox"
+            print(f"STEP 7: Performing ANOVA analysis ({boxcox_status})...")
             print()
         
         # Use default env variables if not specified
@@ -373,20 +392,61 @@ def reference_sites_taxa_assemblage_pipeline(
         # Determine number of taxa for ANOVA
         n_taxa_for_anova = anova_top_n_taxa if anova_top_n_taxa is not None else None
         
-        anova_results = perform_boxcox_anova_analysis(
+        # Get taxa column names
+        taxa_level_mask = multiindex_data.columns.get_level_values(0) == 'taxa'
+        taxa_multiindex = multiindex_data.loc[:, taxa_level_mask]
+        taxa_names = taxa_multiindex.columns.get_level_values(-1).tolist()
+        
+        # Limit to top N taxa if specified
+        if n_taxa_for_anova is not None:
+            # Get top N by abundance
+            reference_mask = raw_data['if_ref'] == True
+            taxa_sums = taxa_multiindex[reference_mask].sum().sort_values(ascending=False)
+            taxa_names = taxa_sums.head(n_taxa_for_anova).index.get_level_values(-1).tolist()
+        
+        # Create environmental ANOVA table (publication-ready format for Excel)
+        env_anova_table = create_anova_excel_table(
             raw_data=raw_data,
             multiindex_data=multiindex_data,
+            variables=env_variables,
             cluster_column='clusters',
-            env_variables=env_variables,
+            variable_type='env',
+            use_boxcox=use_boxcox_transform,
+            verbose=verbose
+        )
+        
+        # Create taxa ANOVA table (publication-ready format for Excel)
+        taxa_anova_table = create_anova_excel_table(
+            raw_data=raw_data,
+            multiindex_data=multiindex_data,
+            variables=taxa_names,
+            cluster_column='clusters',
+            variable_type='taxa',
+            use_boxcox=use_boxcox_transform,
             taxa_transformation=taxa_transform_for_anova,
             top_n_taxa=n_taxa_for_anova,
             verbose=verbose
         )
         
-        results['anova_results'] = anova_results
+        results['env_anova_table'] = env_anova_table
+        results['taxa_anova_table'] = taxa_anova_table
+        
+        # Also run the detailed Box-Cox analysis for backward compatibility
+        if use_boxcox_transform:
+            anova_results = perform_boxcox_anova_analysis(
+                raw_data=raw_data,
+                multiindex_data=multiindex_data,
+                cluster_column='clusters',
+                env_variables=env_variables,
+                taxa_transformation=taxa_transform_for_anova,
+                top_n_taxa=n_taxa_for_anova,
+                verbose=verbose
+            )
+            results['anova_results'] = anova_results
         
         if verbose:
-            print(f"  ✓ Box-Cox + ANOVA analysis complete")
+            boxcox_status = "with Box-Cox" if use_boxcox_transform else "without Box-Cox"
+            print(f"  ✓ ANOVA analysis complete ({boxcox_status})")
             print()
     
     # ========================================================================
@@ -400,11 +460,50 @@ def reference_sites_taxa_assemblage_pipeline(
         
         for i, (name, fig) in enumerate(figures.items(), start=1):
             if fig is not None:
-                filepath = os.path.join(save_path, f"figure{i}_{name}.png")
+                filepath = os.path.join(save_path, f"figure{i+1}_{name}.png")
                 fig.savefig(filepath, dpi=300, bbox_inches='tight')
                 if verbose:
                     print(f"  ✓ Saved: {filepath}")
         print()
+    
+    # ========================================================================
+    # STEP 9: Save Tables (Optional)
+    # ========================================================================
+    tables = {}
+    if env_anova_table is not None:
+        tables['env_cluster_anova'] = env_anova_table
+    if taxa_anova_table is not None:
+        tables['taxa_cluster_anova'] = taxa_anova_table
+    
+    results['tables'] = tables
+    
+    if save_tables and tables:
+        import os
+        
+        t_path = table_save_path if table_save_path else "../results/tables/02_taxa_assemblage_in_refs"
+        os.makedirs(t_path, exist_ok=True)
+        
+        if verbose:
+            print(f"STEP 9: Saving tables to {t_path}...")
+        
+        # Save each table as a separate Excel file
+        for i, (table_name, table_df) in enumerate(tables.items()):
+            filepath = os.path.join(t_path, f"table{i}_{table_name}.xlsx")
+            table_df.to_excel(filepath, index=False)
+            if verbose:
+                print(f"  ✓ Saved: {filepath}")
+        
+        # Also save combined tables in a single Excel workbook
+        combined_path = os.path.join(t_path, "cluster_anova_tables.xlsx")
+        with pd.ExcelWriter(combined_path, engine='openpyxl') as writer:
+            if env_anova_table is not None:
+                env_anova_table.to_excel(writer, sheet_name='Environmental', index=False)
+            if taxa_anova_table is not None:
+                taxa_anova_table.to_excel(writer, sheet_name='Taxa', index=False)
+        
+        if verbose:
+            print(f"  ✓ Saved combined workbook: {combined_path}")
+            print()
     
     # Add figures dictionary to results
     results['figures'] = figures
@@ -423,9 +522,17 @@ def reference_sites_taxa_assemblage_pipeline(
         print(f"  - Transformation used: {species_transformation}")
         print(f"  - Linkage method: Ward's")
         if run_boxcox_anova:
-            print(f"  - Box-Cox ANOVA: Performed")
-            print(f"    • Env variables significant: {results['anova_results']['summary']['env_significant']}/{results['anova_results']['summary']['env_variables_analyzed']}")
-            print(f"    • Taxa significant: {results['anova_results']['summary']['taxa_significant']}/{results['anova_results']['summary']['taxa_analyzed']}")
+            boxcox_status = "with Box-Cox" if use_boxcox_transform else "without Box-Cox"
+            print(f"  - ANOVA: Performed ({boxcox_status})")
+            # Count significant results from the tables
+            if env_anova_table is not None:
+                data_rows = env_anova_table.iloc[:-4]  # Exclude footer rows
+                n_env_sig = data_rows['p-value'].apply(lambda x: '*' in str(x)).sum()
+                print(f"    • Env variables significant: {n_env_sig}/{len(data_rows)}")
+            if taxa_anova_table is not None:
+                data_rows = taxa_anova_table.iloc[:-4]  # Exclude footer rows
+                n_taxa_sig = data_rows['p-value'].apply(lambda x: '*' in str(x)).sum()
+                print(f"    • Taxa significant: {n_taxa_sig}/{len(data_rows)}")
         if figures:
             print(f"  - Figures generated: {len(figures)}")
         print()

@@ -31,7 +31,9 @@ from .cluster_visualization import (
 from .boxcox_anova import (
     boxcox_transform_and_anova_env,
     boxcox_transform_and_anova_taxa,
-    perform_boxcox_anova_analysis
+    perform_boxcox_anova_analysis,
+    create_anova_summary_table,
+    create_anova_excel_table
 )
 
 __all__ = [
@@ -54,4 +56,6 @@ __all__ = [
     'boxcox_transform_and_anova_env',
     'boxcox_transform_and_anova_taxa',
     'perform_boxcox_anova_analysis',
+    'create_anova_summary_table',
+    'create_anova_excel_table',
 ]

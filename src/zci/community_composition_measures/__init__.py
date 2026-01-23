@@ -47,7 +47,9 @@ from .taxa_loadings import (
     get_top_taxa_loadings,
     plot_taxa_loadings_stacked,
     plot_taxa_loadings_single_cluster,
-    plot_taxa_loadings_consistent
+    plot_taxa_loadings_consistent,
+    plot_pc_loadings_ridge,
+    plot_pc_loadings_ridge_all_clusters
 )
 
 from .zci_calculation import (
@@ -71,7 +73,11 @@ from .pc_diagnostics import (
     extract_significant_pc_loadings,
     calculate_pollution_pc_vs_species_pc_regressions,
     plot_pollution_pc_vs_species_pc_regressions,
-    create_pollution_species_pc_summary_table
+    create_pollution_species_pc_summary_table,
+    create_species_pc_loadings_table,
+    create_species_pc_pollution_regression_table,
+    create_pollution_pc_species_pc_regression_table,
+    save_community_composition_tables_to_excel
 )
 
 from .pipeline import (
@@ -92,6 +98,8 @@ __all__ = [
     'plot_taxa_loadings_stacked',
     'plot_taxa_loadings_single_cluster',
     'plot_taxa_loadings_consistent',
+    'plot_pc_loadings_ridge',
+    'plot_pc_loadings_ridge_all_clusters',
     # ZCI Calculation
     'calculate_zci_for_cluster',
     'calculate_zci_all_clusters',
@@ -110,6 +118,10 @@ __all__ = [
     'calculate_pollution_pc_vs_species_pc_regressions',
     'plot_pollution_pc_vs_species_pc_regressions',
     'create_pollution_species_pc_summary_table',
+    'create_species_pc_loadings_table',
+    'create_species_pc_pollution_regression_table',
+    'create_pollution_pc_species_pc_regression_table',
+    'save_community_composition_tables_to_excel',
     # Pipeline
     'community_composition_pipeline'
 ]

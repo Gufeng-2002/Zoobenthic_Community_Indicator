@@ -5,12 +5,14 @@ This module provides a high-level pipeline function that orchestrates the entire
 contamination assessment workflow, from data transformation through pollution scoring.
 """
 
+import pandas as pd
 from .transformations import log_z_score_transform, get_clustered_variable_order
 from .pca_analysis import pca_with_PC_loadings
 from .visualizations import create_ridge_plot
 from .validation import rda_pollution_species_analysis
 from .scoring import compute_pollution_scores, merge_pollution_scores_into_data
 from sklearn.preprocessing import StandardScaler
+from zci.output_saver import save_tables_dict
 
 def contamination_assessment_pipeline(
     data,
@@ -23,7 +25,9 @@ def contamination_assessment_pipeline(
     rda_percentile_threshold=50,
     save_figures=False,
     save_individual_pcs=False,
-    save_path=None
+    save_path=None,
+    save_tables=False,
+    table_save_path=None
 ):
     """
     Complete pipeline for contamination assessment from raw data to pollution scores.
@@ -66,6 +70,10 @@ def contamination_assessment_pipeline(
         and ('pollution', 'pc', 'PC1'), etc. to multiindex_data.
     save_path : str, optional
         Directory path to save figures. If None and save_figures=True, uses default path.
+    save_tables : bool, default=False
+        Whether to save output tables (PCA loadings, RDA stats) as Excel files.
+    table_save_path : str, optional
+        Directory path to save tables. If None and save_tables=True, uses default path.
     
     Returns:
     --------
@@ -257,6 +265,73 @@ def contamination_assessment_pipeline(
                 print(f"  ✓ Saved: {filepath}")
     
     # =====================================================================
+    # Step 9: Save Tables (Optional)
+    # =====================================================================
+    tables = {}
+    if save_tables:
+        t_path = table_save_path if table_save_path else "../results/tables/01_contamination_assessment"
+        print(f"\n[Step 9/9] Saving tables to {t_path}...")
+        
+        # Table 1: PCA Loadings
+        tables['pca_loadings'] = PC_loadings
+        
+        # Table 2 & 3: RDA Results (if available)
+        if rda_results is not None:
+            rda_model = rda_results['rda_model']
+            rda_fit = rda_model.fit_
+            
+            # Run permutation tests for axes and terms
+            print("    Running permutation tests for RDA axes...")
+            axes_test = rda_model.test_axes(n_permutations=999)
+            print("    Running permutation tests for RDA terms...")
+            terms_test = rda_model.test_terms(n_permutations=999)
+            
+            # Get biplot scores for predictor loadings on RDA axes
+            rda_scores = rda_model.scores(n_axes=6)
+            biplot_scores = rda_scores.biplot_scores
+            
+            # Create RDA Axes Summary Table (with F-stat and p-value)
+            n_axes = min(6, len(rda_fit.constrained_eigenvalues))
+            rda_axes_df = pd.DataFrame({
+                'Axis': axes_test['axis'].values[:n_axes],
+                'Eigenvalue': axes_test['eigenvalue'].values[:n_axes],
+                'Expl. (%)': (rda_fit.explained_proportion[:n_axes] * 100).values,
+                'Cumul. (%)': (rda_fit.explained_proportion[:n_axes].cumsum() * 100).values,
+                'F-stat': axes_test['F'].values[:n_axes],
+                'p-value': axes_test['p'].values[:n_axes],
+            })
+            tables['rda_axes_summary'] = rda_axes_df
+            
+            # Create RDA Predictor Terms Table (pollution PCs)
+            # Merge delta_inertia, F-stat, p-value from terms_test with biplot scores
+            terms_df = terms_test.copy()
+            terms_df = terms_df.rename(columns={'term': 'Variable', 'delta_inertia': 'Δ Inertia', 'F': 'F-stat', 'p': 'p-value'})
+            
+            # Add biplot scores (loadings on RDA1, RDA2)
+            for i, rda_axis in enumerate(['RDA1', 'RDA2']):
+                if rda_axis in biplot_scores.columns:
+                    terms_df[rda_axis] = terms_df['Variable'].map(
+                        lambda v: biplot_scores.loc[v, rda_axis] if v in biplot_scores.index else None
+                    )
+            
+            # Sort by variable name (PC1, PC2, ...)
+            terms_df = terms_df.sort_values('Variable').reset_index(drop=True)
+            tables['rda_predictor_terms'] = terms_df
+            
+            # Add note about model statistics
+            note = f"Note: Permutations = 999; R² = {rda_fit.r2:.4f}; Adjusted R² = {rda_fit.r2_adj:.4f}; Global test p-value = {axes_test['p'].iloc[0]:.4f}"
+            print(f"    {note}")
+        
+        # Save all tables using output_saver
+        save_tables_dict(
+            tables=tables,
+            save_dir=t_path,
+            prefix="table",
+            formats=['xlsx'],
+            verbose=True
+        )
+    
+    # =====================================================================
     # Compile Results
     # =====================================================================
     print("\n" + "="*70)
@@ -279,7 +354,8 @@ def contamination_assessment_pipeline(
         'pollution_scores': pollution_scores,
         'ordered_variables': ordered_variables,
         'rda_results': rda_results,
-        'figures': figures
+        'figures': figures,
+        'tables': tables
     }
     
     return results

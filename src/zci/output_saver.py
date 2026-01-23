@@ -187,7 +187,7 @@ def save_tables_dict(
     tables: Dict[str, pd.DataFrame],
     save_dir: Union[str, Path],
     prefix: str = "table",
-    formats: List[str] = ['csv', 'xlsx'],
+    formats: List[str] = ['xlsx'],
     verbose: bool = True
 ) -> Dict[str, Dict[str, Path]]:
     """

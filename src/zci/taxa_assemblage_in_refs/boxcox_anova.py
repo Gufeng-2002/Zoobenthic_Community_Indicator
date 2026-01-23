@@ -577,3 +577,394 @@ def perform_boxcox_anova_analysis(
         'taxa_results': taxa_results,
         'summary': summary
     }
+
+
+def _format_pvalue_with_stars(p: float) -> str:
+    """
+    Format p-value with significance stars.
+    
+    Significance levels:
+    - *** : p < 0.001
+    - **  : p < 0.01
+    - *   : p < 0.05
+    - .   : p < 0.1
+    - (blank) : p >= 0.1
+    """
+    if np.isnan(p):
+        return "NA"
+    elif p < 0.001:
+        return f"{p:.4f}***"
+    elif p < 0.01:
+        return f"{p:.3f}**"
+    elif p < 0.05:
+        return f"{p:.3f}*"
+    elif p < 0.1:
+        return f"{p:.3f}."
+    else:
+        return f"{p:.3f}"
+
+
+def create_anova_summary_table(
+    raw_data: pd.DataFrame,
+    multiindex_data: pd.DataFrame,
+    variables: List[str],
+    cluster_column: str = 'clusters',
+    variable_type: str = 'env',
+    use_boxcox: bool = True,
+    taxa_transformation: str = 'hellinger',
+    verbose: bool = False
+) -> pd.DataFrame:
+    """
+    Create ANOVA summary table with optional Box-Cox transformation.
+    
+    Output format matches publication style:
+    Variable | Cluster 0 (mean ± std) | Cluster 1 | ... | F-stat | p-value (with stars)
+    
+    Bottom rows include:
+    - Sample size (n) per cluster
+    - Significance legend: *** p<0.001, ** p<0.01, * p<0.05, . p<0.1
+    
+    Parameters
+    ----------
+    raw_data : pd.DataFrame
+        Raw data containing the variables and cluster labels
+    multiindex_data : pd.DataFrame
+        Multi-index DataFrame (used for taxa extraction)
+    variables : list of str
+        Variable names to analyze
+    cluster_column : str, default='clusters'
+        Column name containing cluster labels
+    variable_type : str, default='env'
+        Type of variables: 'env' for environmental, 'taxa' for species
+    use_boxcox : bool, default=True
+        Whether to apply Box-Cox transformation before ANOVA
+    taxa_transformation : str, default='hellinger'
+        Initial transformation for taxa data ('hellinger', 'chord', 'octave', 'none')
+        Only used when variable_type='taxa'
+    verbose : bool, default=False
+        Whether to print progress
+    
+    Returns
+    -------
+    pd.DataFrame
+        Summary table with columns: Variable, Cluster 0, Cluster 1, ..., F-stat, p-value
+        Includes sample size row and formatted p-values with significance stars.
+    """
+    from .hierarchical_clustering import hellinger_transform, chord_transform, octave_transform
+    
+    # Filter to sites with cluster labels
+    clustered_mask = raw_data[cluster_column].notna()
+    clustered_data = raw_data[clustered_mask].copy()
+    clusters = sorted(clustered_data[cluster_column].unique())
+    
+    # Calculate sample size per cluster
+    sample_sizes = {}
+    for cluster in clusters:
+        n = (clustered_data[cluster_column] == cluster).sum()
+        sample_sizes[f'Cluster {int(cluster)}'] = n
+    
+    # Handle taxa variables
+    if variable_type == 'taxa':
+        # Extract taxa data from multiindex
+        taxa_level_mask = multiindex_data.columns.get_level_values(0) == 'taxa'
+        taxa_multiindex = multiindex_data.loc[clustered_data.index, taxa_level_mask].copy()
+        taxa_multiindex.columns = taxa_multiindex.columns.get_level_values(-1)
+        
+        # Apply initial transformation
+        if taxa_transformation.lower() == 'hellinger':
+            taxa_transformed = hellinger_transform(taxa_multiindex)
+        elif taxa_transformation.lower() == 'chord':
+            taxa_transformed = chord_transform(taxa_multiindex)
+        elif taxa_transformation.lower() == 'octave':
+            taxa_transformed = octave_transform(taxa_multiindex)
+        else:
+            taxa_transformed = taxa_multiindex
+        
+        # Use transformed taxa data
+        data_for_analysis = taxa_transformed
+    else:
+        # Environmental variables - use raw data directly
+        data_for_analysis = clustered_data[variables]
+    
+    results = []
+    for var in variables:
+        if variable_type == 'taxa':
+            if var not in data_for_analysis.columns:
+                continue
+            var_data = data_for_analysis[var]
+        else:
+            if var not in clustered_data.columns:
+                continue
+            var_data = clustered_data[var]
+        
+        row = {'Variable': var}
+        
+        # Compute mean ± std for each cluster (on original scale for display)
+        groups_original = []
+        groups_for_anova = []
+        
+        for cluster in clusters:
+            cluster_mask = clustered_data[cluster_column] == cluster
+            cluster_indices = clustered_data[cluster_mask].index
+            
+            if variable_type == 'taxa':
+                # For taxa: use taxa-transformed values for ANOVA
+                cluster_values = var_data.loc[cluster_indices].dropna()
+                # Get original untransformed taxa values for display
+                original_values = taxa_multiindex.loc[cluster_values.index, var]
+            else:
+                # For env: use raw values
+                cluster_values = var_data.loc[cluster_indices].dropna()
+                original_values = cluster_values
+            
+            mean_val = original_values.mean()
+            std_val = original_values.std()
+            row[f'Cluster {int(cluster)}'] = f"{mean_val:.2f} ± {std_val:.2f}"
+            
+            groups_original.append(original_values.values)
+            
+            # Values for ANOVA - apply Box-Cox only if requested
+            if use_boxcox and len(cluster_values) > 0:
+                # Apply Box-Cox transformation
+                transform_result = _apply_boxcox_transformation(cluster_values, var)
+                groups_for_anova.append(transform_result['transformed'].values)
+            else:
+                # No Box-Cox: use cluster_values directly
+                # For taxa: this is taxa-transformed (hellinger/chord/etc.)
+                # For env: this is the raw environmental values
+                groups_for_anova.append(cluster_values.values)
+        
+        # Perform ANOVA
+        if all(len(g) > 1 for g in groups_for_anova) and len(groups_for_anova) >= 2:
+            try:
+                f_stat, p_val = f_oneway(*groups_for_anova)
+                row['F-stat'] = round(f_stat, 2)
+                row['p-value'] = _format_pvalue_with_stars(p_val)
+            except:
+                row['F-stat'] = np.nan
+                row['p-value'] = "NA"
+        else:
+            row['F-stat'] = np.nan
+            row['p-value'] = "NA"
+        
+        results.append(row)
+    
+    df = pd.DataFrame(results)
+    
+    # Add sample size row
+    sample_row = {'Variable': 'Sample size (n)', 'F-stat': '', 'p-value': ''}
+    for cluster in clusters:
+        sample_row[f'Cluster {int(cluster)}'] = str(sample_sizes[f'Cluster {int(cluster)}'])
+    
+    # Add separator row
+    separator_row = {'Variable': '-' * 30, 'F-stat': '-' * 6, 'p-value': '-' * 10}
+    for cluster in clusters:
+        separator_row[f'Cluster {int(cluster)}'] = '-' * 14
+    
+    # Add significance legend row
+    legend_row = {
+        'Variable': 'Significance: *** p<0.001, ** p<0.01, * p<0.05, . p<0.1',
+        'F-stat': '',
+        'p-value': ''
+    }
+    for cluster in clusters:
+        legend_row[f'Cluster {int(cluster)}'] = ''
+    
+    # Append footer rows
+    df = pd.concat([
+        df,
+        pd.DataFrame([separator_row]),
+        pd.DataFrame([sample_row]),
+        pd.DataFrame([separator_row]),
+        pd.DataFrame([legend_row])
+    ], ignore_index=True)
+    
+    if verbose and len(df) > 0:
+        # Count significant results (excluding footer rows)
+        data_rows = df.iloc[:-4]  # Exclude footer rows
+        n_sig = data_rows['p-value'].apply(lambda x: '*' in str(x)).sum()
+        print(f"  - {variable_type.upper()} ANOVA: {len(data_rows)} variables, {n_sig} significant (p < 0.05)")
+    
+    return df
+
+
+def create_anova_excel_table(
+    raw_data: pd.DataFrame,
+    multiindex_data: pd.DataFrame,
+    variables: List[str],
+    cluster_column: str = 'clusters',
+    variable_type: str = 'env',
+    use_boxcox: bool = True,
+    taxa_transformation: str = 'hellinger',
+    top_n_taxa: Optional[int] = None,
+    verbose: bool = False
+) -> pd.DataFrame:
+    """
+    Create publication-ready ANOVA summary table for Excel export.
+    
+    This function creates a clean table format suitable for saving to Excel,
+    matching the publication style with:
+    - Variable names in first column
+    - Mean ± std for each cluster
+    - F-statistic
+    - p-value with significance stars
+    
+    Parameters
+    ----------
+    raw_data : pd.DataFrame
+        Raw data containing the variables and cluster labels
+    multiindex_data : pd.DataFrame
+        Multi-index DataFrame (used for taxa extraction)
+    variables : list of str
+        Variable names to analyze
+    cluster_column : str, default='clusters'
+        Column name containing cluster labels
+    variable_type : str, default='env'
+        Type of variables: 'env' for environmental, 'taxa' for species
+    use_boxcox : bool, default=True
+        Whether to apply Box-Cox transformation before ANOVA
+    taxa_transformation : str, default='hellinger'
+        Initial transformation for taxa data
+    top_n_taxa : int, optional
+        If specified and variable_type='taxa', limit to top N taxa by abundance
+    verbose : bool, default=False
+        Whether to print progress
+    
+    Returns
+    -------
+    pd.DataFrame
+        Clean table ready for Excel export
+    """
+    from .hierarchical_clustering import hellinger_transform, chord_transform, octave_transform
+    
+    # Filter to sites with cluster labels
+    clustered_mask = raw_data[cluster_column].notna()
+    clustered_data = raw_data[clustered_mask].copy()
+    clusters = sorted(clustered_data[cluster_column].unique())
+    
+    # Calculate sample size per cluster
+    sample_sizes = {}
+    for cluster in clusters:
+        n = (clustered_data[cluster_column] == cluster).sum()
+        sample_sizes[int(cluster)] = n
+    
+    # Handle taxa variables
+    taxa_multiindex = None
+    if variable_type == 'taxa':
+        # Extract taxa data from multiindex
+        taxa_level_mask = multiindex_data.columns.get_level_values(0) == 'taxa'
+        taxa_multiindex = multiindex_data.loc[clustered_data.index, taxa_level_mask].copy()
+        taxa_multiindex.columns = taxa_multiindex.columns.get_level_values(-1)
+        
+        # Limit to top N taxa if specified
+        if top_n_taxa is not None:
+            taxa_sums = taxa_multiindex.sum().sort_values(ascending=False)
+            variables = taxa_sums.head(top_n_taxa).index.tolist()
+        
+        # Apply initial transformation
+        if taxa_transformation.lower() == 'hellinger':
+            taxa_transformed = hellinger_transform(taxa_multiindex)
+        elif taxa_transformation.lower() == 'chord':
+            taxa_transformed = chord_transform(taxa_multiindex)
+        elif taxa_transformation.lower() == 'octave':
+            taxa_transformed = octave_transform(taxa_multiindex)
+        else:
+            taxa_transformed = taxa_multiindex
+        
+        data_for_analysis = taxa_transformed
+    else:
+        data_for_analysis = clustered_data
+    
+    results = []
+    for var in variables:
+        if variable_type == 'taxa':
+            if var not in data_for_analysis.columns:
+                continue
+            var_data = data_for_analysis[var]
+        else:
+            if var not in clustered_data.columns:
+                continue
+            var_data = clustered_data[var]
+        
+        row = {'Variable': var}
+        
+        groups_for_anova = []
+        
+        for cluster in clusters:
+            cluster_int = int(cluster)
+            cluster_mask = clustered_data[cluster_column] == cluster
+            cluster_indices = clustered_data[cluster_mask].index
+            
+            if variable_type == 'taxa':
+                # For taxa: use taxa-transformed values for ANOVA
+                cluster_values = var_data.loc[cluster_indices].dropna()
+                # Get original untransformed taxa values for display (mean ± std)
+                original_values = taxa_multiindex.loc[cluster_values.index, var]
+            else:
+                # For env: use raw values
+                cluster_values = var_data.loc[cluster_indices].dropna()
+                original_values = cluster_values
+            
+            mean_val = original_values.mean()
+            std_val = original_values.std()
+            row[f'Cluster {cluster_int}'] = f"{mean_val:.2f} ± {std_val:.2f}"
+            
+            # Values for ANOVA - apply Box-Cox only if requested
+            if use_boxcox and len(cluster_values) > 0:
+                transform_result = _apply_boxcox_transformation(cluster_values, var)
+                groups_for_anova.append(transform_result['transformed'].values)
+            else:
+                # No Box-Cox: use cluster_values directly
+                # For taxa: this is taxa-transformed (hellinger/chord/etc.)
+                # For env: this is the raw environmental values
+                groups_for_anova.append(cluster_values.values)
+        
+        # Perform ANOVA
+        if all(len(g) > 1 for g in groups_for_anova) and len(groups_for_anova) >= 2:
+            try:
+                f_stat, p_val = f_oneway(*groups_for_anova)
+                row['F-stat'] = round(f_stat, 2)
+                row['p-value'] = _format_pvalue_with_stars(p_val)
+            except:
+                row['F-stat'] = ''
+                row['p-value'] = 'NA'
+        else:
+            row['F-stat'] = ''
+            row['p-value'] = 'NA'
+        
+        results.append(row)
+    
+    df = pd.DataFrame(results)
+    
+    # Add empty row as separator
+    empty_row = {col: '' for col in df.columns}
+    
+    # Add sample size row
+    sample_row = {'Variable': 'Sample size (n)', 'F-stat': '', 'p-value': ''}
+    for cluster in clusters:
+        sample_row[f'Cluster {int(cluster)}'] = sample_sizes[int(cluster)]
+    
+    # Add significance legend row
+    legend_row = {
+        'Variable': 'Significance: *** p<0.001, ** p<0.01, * p<0.05, . p<0.1',
+        'F-stat': '',
+        'p-value': ''
+    }
+    for cluster in clusters:
+        legend_row[f'Cluster {int(cluster)}'] = ''
+    
+    # Append footer
+    df = pd.concat([
+        df,
+        pd.DataFrame([empty_row]),
+        pd.DataFrame([sample_row]),
+        pd.DataFrame([empty_row]),
+        pd.DataFrame([legend_row])
+    ], ignore_index=True)
+    
+    if verbose:
+        data_rows = df.iloc[:-4]
+        n_sig = data_rows['p-value'].apply(lambda x: '*' in str(x)).sum()
+        print(f"  - {variable_type.upper()} ANOVA table: {len(data_rows)} variables, {n_sig} significant")
+    
+    return df

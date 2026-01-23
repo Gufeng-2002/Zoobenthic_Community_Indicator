@@ -1,0 +1,163 @@
+{
+  "timestamp": "01_21_20_02",
+  "KEY_PARAMS": {
+    "stage1": {
+      "transform_method": "log_z_score",
+      "pc_weights": {
+        "PC1": 1.0,
+        "PC2": 1.0,
+        "PC3": 1.0,
+        "PC4": 0.0,
+        "PC5": 1.0,
+        "PC6": 1.0
+      },
+      "standardize_pca_scores": true,
+      "rda_percentile_threshold": 40
+    },
+    "stage2": {
+      "reference_percentile": 50,
+      "species_transformation": "hellinger",
+      "n_clusters": 2,
+      "env_variables": [
+        "Measured Depth (m)",
+        "Velocity  at bottom (m/sec)_Imputed",
+        "Water DO Bottom (mg/L)",
+        "Temperature (oC)",
+        "MPS (Phi)",
+        "LOI (%)"
+      ]
+    },
+    "stage3": {
+      "taxa_transformation": "hellinger",
+      "lda_log_transform_env": false
+    },
+    "stage4": {
+      "taxa_transformation": "hellinger",
+      "training_percentile": 100.0,
+      "least_pollution_threshold": 15,
+      "zci_pc_planes": null,
+      "normalize_pcs": false,
+      "pc_plane": [
+        1,
+        2
+      ],
+      "custom_reference_sites": null
+    },
+    "verbose": true,
+    "random_state": 42
+  },
+  "OTHER_PARAMS": {
+    "stage1": {
+      "run_rda_validation": true,
+      "save_individual_pcs": true
+    },
+    "stage2": {
+      "top_n_taxa": 16,
+      "run_boxcox_anova": true,
+      "use_boxcox_transform": false,
+      "anova_top_n_taxa": 16,
+      "create_cluster_visualization": true,
+      "create_dendrogram_comparison": true,
+      "create_ward_analysis": true,
+      "create_comparison_plots": true,
+      "label_positions": [
+        90,
+        250,
+        380
+      ]
+    },
+    "stage3": {
+      "rda_log_transform_env": false,
+      "rda_standardize_env": true,
+      "rda_n_permutations": 999,
+      "top_n_taxa": null,
+      "lda_standardize_env": true,
+      "lda_n_iterations": 1000,
+      "lda_test_size": 0.2,
+      "rda_arrow_scale": 0.5,
+      "rda_species_scale": 0.5,
+      "rda_figsize": [
+        14,
+        10
+      ],
+      "lda_arrow_scale": 2,
+      "lda_cv_figsize": [
+        14,
+        9
+      ]
+    },
+    "stage4": {
+      "variance_threshold": 0.7,
+      "pc_variance_threshold": 5.0,
+      "pollution_pc_prefix": "Pollution_PC",
+      "use_consistent_taxa_order": true,
+      "zci_method": "least_pollution_threshold",
+      "create_taxa_loadings_plot": false,
+      "create_pc_loadings_plot": false,
+      "create_ordination_plot": true,
+      "create_zci_plot": true,
+      "create_pc_regression_plot": true,
+      "create_pollution_vs_species_pc_plot": true,
+      "create_comprehensive_plot": false,
+      "create_pc_ridge_plot": false,
+      "top_n_taxa": 16,
+      "pc_loadings_top_n_taxa": null,
+      "pc_loadings_show_values": false,
+      "taxa_loadings_pcs": {
+        "0": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "1": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "2": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "taxa_loadings_figsize": [
+        14,
+        12
+      ],
+      "ordination_figsize": [
+        18,
+        6
+      ],
+      "zci_figsize": [
+        16,
+        10
+      ],
+      "ordination_show_centroid": true,
+      "ordination_ellipse_method": "custom_refs",
+      "ordination_label_sites": false
+    }
+  },
+  "DATA_PARAMS": {
+    "data_path": "../data/processed/complete_env_taxa_chemical.xlsx",
+    "sheet_name": "all_data_merged",
+    "pollution_column": "Pollution_Score",
+    "cluster_column": "clusters",
+    "ref_column": "if_ref"
+  },
+  "OUTPUT_PARAMS": {
+    "save_figures": true,
+    "save_tables": true,
+    "save_parameters": true,
+    "figure_formats": [
+      "png"
+    ],
+    "figure_dpi": 300,
+    "timestamp": "01_21_20_02"
+  }
+}

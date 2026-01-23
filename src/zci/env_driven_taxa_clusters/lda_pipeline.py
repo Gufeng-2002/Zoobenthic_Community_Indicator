@@ -1998,3 +1998,364 @@ def plot_cluster_comparison(
         print("\n✓ Cluster comparison figure created successfully!")
     
     return fig, axes
+
+
+# =============================================================================
+# EXCEL TABLE FORMATTING FUNCTIONS FOR LDA RESULTS
+# =============================================================================
+
+def create_lda_confusion_matrix_table(
+    lda_results: Dict[str, Any],
+    table_type: str = 'training'
+) -> pd.DataFrame:
+    """
+    Create a publication-ready confusion matrix table for LDA.
+    
+    Parameters
+    ----------
+    lda_results : dict
+        Results from perform_lda_analysis() containing:
+        - 'confusion_matrix': numpy array confusion matrix
+        - 'cluster_names': list of cluster names
+    table_type : str, default='training'
+        Type of confusion matrix: 'training' for full model
+        
+    Returns
+    -------
+    pd.DataFrame
+        Formatted confusion matrix table ready for Excel export
+    """
+    cm = lda_results['confusion_matrix']
+    cluster_names = lda_results['cluster_names']
+    
+    # Create DataFrame with proper row/column labels
+    row_labels = [f"True {name}" for name in cluster_names]
+    col_labels = [f"Pred. {name}" for name in cluster_names]
+    
+    cm_df = pd.DataFrame(cm, index=row_labels, columns=col_labels)
+    cm_df.index.name = ''
+    
+    return cm_df
+
+
+def create_lda_classification_report_table(
+    lda_results: Dict[str, Any],
+    n_samples: Optional[int] = None
+) -> pd.DataFrame:
+    """
+    Create a publication-ready classification report table for LDA.
+    
+    Formats the classification report with Precision, Recall, F1-Score, 
+    and Support columns, matching the style in the reference image.
+    
+    Parameters
+    ----------
+    lda_results : dict
+        Results from perform_lda_analysis() containing:
+        - 'classification_report': dict with metrics per class
+        - 'accuracy': overall accuracy
+        - 'cluster_names': list of cluster names
+    n_samples : int, optional
+        Total number of samples (for the note at bottom)
+        
+    Returns
+    -------
+    pd.DataFrame
+        Formatted classification report table ready for Excel export
+    """
+    report = lda_results['classification_report']
+    cluster_names = lda_results['cluster_names']
+    accuracy = lda_results['accuracy']
+    
+    # Build the table rows
+    rows = []
+    
+    # Per-class metrics
+    for name in cluster_names:
+        if name in report:
+            rows.append({
+                'Class': name,
+                'Precision': round(report[name]['precision'], 2),
+                'Recall': round(report[name]['recall'], 2),
+                'F1-Score': round(report[name]['f1-score'], 2),
+                'Support': int(report[name]['support'])
+            })
+    
+    # Add empty row before summary metrics
+    rows.append({'Class': '', 'Precision': '', 'Recall': '', 'F1-Score': '', 'Support': ''})
+    
+    # Accuracy row (only F1-Score column filled for accuracy)
+    total_support = sum(report[name]['support'] for name in cluster_names if name in report)
+    rows.append({
+        'Class': 'Accuracy',
+        'Precision': '–',
+        'Recall': '–',
+        'F1-Score': round(accuracy, 2),
+        'Support': total_support
+    })
+    
+    # Macro avg
+    if 'macro avg' in report:
+        rows.append({
+            'Class': 'Macro avg',
+            'Precision': round(report['macro avg']['precision'], 2),
+            'Recall': round(report['macro avg']['recall'], 2),
+            'F1-Score': round(report['macro avg']['f1-score'], 2),
+            'Support': total_support
+        })
+    
+    # Weighted avg
+    if 'weighted avg' in report:
+        rows.append({
+            'Class': 'Weighted avg',
+            'Precision': round(report['weighted avg']['precision'], 2),
+            'Recall': round(report['weighted avg']['recall'], 2),
+            'F1-Score': round(report['weighted avg']['f1-score'], 2),
+            'Support': total_support
+        })
+    
+    # Add note row
+    rows.append({'Class': '', 'Precision': '', 'Recall': '', 'F1-Score': '', 'Support': ''})
+    note = f"Note: Overall Accuracy = {accuracy:.4f}; Number of sites = {total_support}"
+    rows.append({'Class': note, 'Precision': '', 'Recall': '', 'F1-Score': '', 'Support': ''})
+    
+    df = pd.DataFrame(rows)
+    df = df.set_index('Class')
+    df.index.name = ''
+    
+    return df
+
+
+def create_mccv_confusion_matrix_table(
+    cv_results: Dict[str, Any]
+) -> pd.DataFrame:
+    """
+    Create a publication-ready aggregate confusion matrix from Monte Carlo CV.
+    
+    Parameters
+    ----------
+    cv_results : dict
+        Results from perform_monte_carlo_cv() containing:
+        - 'aggregate_confusion_matrix': combined confusion matrix from all iterations
+        - 'cluster_names': list of cluster names
+        - 'n_iterations': number of CV iterations
+        - 'test_size': test set proportion
+        
+    Returns
+    -------
+    pd.DataFrame
+        Formatted aggregate confusion matrix table ready for Excel export
+    """
+    cm = cv_results['aggregate_confusion_matrix']
+    cluster_names = cv_results['cluster_names']
+    n_iterations = cv_results['n_iterations']
+    test_size = cv_results['test_size']
+    
+    # Create DataFrame with proper row/column labels
+    row_labels = [f"True {name}" for name in cluster_names]
+    col_labels = [f"Pred. {name}" for name in cluster_names]
+    
+    cm_df = pd.DataFrame(cm, index=row_labels, columns=col_labels)
+    
+    # Add note row
+    n_clusters = len(cluster_names)
+    note_row = pd.DataFrame(
+        [[''] * n_clusters],
+        index=[''],
+        columns=col_labels
+    )
+    note_row2 = pd.DataFrame(
+        [[f"Note: Combined results from {n_iterations:,} cross-validation iterations"] + [''] * (n_clusters - 1)],
+        index=[f'Test Size: {test_size*100:.1f}% per iteration'],
+        columns=col_labels
+    )
+    
+    cm_df = pd.concat([cm_df, note_row, note_row2])
+    cm_df.index.name = ''
+    
+    return cm_df
+
+
+def create_mccv_classification_report_table(
+    cv_results: Dict[str, Any]
+) -> pd.DataFrame:
+    """
+    Create a publication-ready classification report from Monte Carlo CV.
+    
+    Formats the average classification metrics with mean ± std format,
+    matching the style in the reference image.
+    
+    Parameters
+    ----------
+    cv_results : dict
+        Results from perform_monte_carlo_cv() containing:
+        - 'avg_classification_report': dict with mean±std metrics per class
+        - 'mean_accuracy', 'std_accuracy': accuracy statistics
+        - 'median_accuracy': median accuracy
+        - 'cluster_names': list of cluster names
+        - 'n_iterations': number of CV iterations
+        - 'test_size': test set proportion
+        
+    Returns
+    -------
+    pd.DataFrame
+        Formatted classification report table ready for Excel export
+    """
+    report = cv_results['avg_classification_report']
+    cluster_names = cv_results['cluster_names']
+    mean_acc = cv_results['mean_accuracy']
+    std_acc = cv_results['std_accuracy']
+    median_acc = cv_results['median_accuracy']
+    n_iterations = cv_results['n_iterations']
+    test_size = cv_results['test_size']
+    
+    # Get support values from original data (approximate from first iteration)
+    # Use the mean of test set sizes
+    all_true = cv_results['all_true_labels']
+    unique_clusters = sorted(set(all_true))
+    
+    # Count occurrences per cluster across all iterations
+    cluster_counts = {}
+    for c in unique_clusters:
+        cluster_counts[c] = sum(1 for label in all_true if label == c) / n_iterations
+    
+    def format_mean_std(mean, std):
+        """Format as 'mean ± std'"""
+        return f"{mean:.3f} ± {std:.3f}"
+    
+    # Build the table rows
+    rows = []
+    
+    # Per-class metrics
+    for name in cluster_names:
+        if name in report:
+            cluster_id = int(name.split()[-1])
+            support = int(round(cluster_counts.get(cluster_id, 0)))
+            
+            rows.append({
+                'Class': name,
+                'Precision': format_mean_std(report[name]['precision_mean'], report[name]['precision_std']),
+                'Recall': format_mean_std(report[name]['recall_mean'], report[name]['recall_std']),
+                'F1-Score': format_mean_std(report[name]['f1-score_mean'], report[name]['f1-score_std']),
+                'Support': support
+            })
+    
+    # Add empty row before summary metrics
+    rows.append({'Class': '', 'Precision': '', 'Recall': '', 'F1-Score': '', 'Support': ''})
+    
+    # Weighted avg
+    if 'weighted avg' in report:
+        total_support = sum(int(round(v)) for v in cluster_counts.values())
+        rows.append({
+            'Class': 'Weighted Avg',
+            'Precision': format_mean_std(report['weighted avg']['precision_mean'], 
+                                         report['weighted avg']['precision_std']),
+            'Recall': format_mean_std(report['weighted avg']['recall_mean'], 
+                                      report['weighted avg']['recall_std']),
+            'F1-Score': format_mean_std(report['weighted avg']['f1-score_mean'], 
+                                        report['weighted avg']['f1-score_std']),
+            'Support': total_support
+        })
+    
+    # Add empty row
+    rows.append({'Class': '', 'Precision': '', 'Recall': '', 'F1-Score': '', 'Support': ''})
+    
+    # Mean accuracy row
+    rows.append({
+        'Class': 'Mean accuracy',
+        'Precision': '',
+        'Recall': '',
+        'F1-Score': format_mean_std(mean_acc, std_acc),
+        'Support': ''
+    })
+    
+    # Median accuracy row
+    rows.append({
+        'Class': 'Median accuracy',
+        'Precision': '',
+        'Recall': '',
+        'F1-Score': f"{median_acc:.4f}",
+        'Support': ''
+    })
+    
+    # Add note rows
+    rows.append({'Class': '', 'Precision': '', 'Recall': '', 'F1-Score': '', 'Support': ''})
+    note = f"Note: Classification metrics shown as mean ± standard deviation across {n_iterations:,} CV iterations"
+    rows.append({'Class': note, 'Precision': '', 'Recall': '', 'F1-Score': '', 'Support': ''})
+    
+    df = pd.DataFrame(rows)
+    df = df.set_index('Class')
+    df.index.name = ''
+    
+    return df
+
+
+def save_lda_tables_to_excel(
+    lda_results: Dict[str, Any],
+    cv_results: Dict[str, Any],
+    save_path: str,
+    verbose: bool = True
+) -> Dict[str, str]:
+    """
+    Save all LDA-related tables to Excel files.
+    
+    Creates four Excel files:
+    1. lda_confusion_matrix.xlsx - Full model confusion matrix
+    2. lda_classification_report.xlsx - Full model classification report
+    3. mccv_confusion_matrix.xlsx - Monte Carlo CV aggregate confusion matrix
+    4. mccv_classification_report.xlsx - Monte Carlo CV classification report
+    
+    Parameters
+    ----------
+    lda_results : dict
+        Results from perform_lda_analysis()
+    cv_results : dict
+        Results from perform_monte_carlo_cv()
+    save_path : str
+        Directory path to save the Excel files
+    verbose : bool, default=True
+        Whether to print save confirmations
+        
+    Returns
+    -------
+    dict
+        Dictionary mapping table names to file paths
+    """
+    import os
+    os.makedirs(save_path, exist_ok=True)
+    
+    saved_files = {}
+    
+    # 1. LDA Confusion Matrix (Training Data)
+    cm_table = create_lda_confusion_matrix_table(lda_results)
+    cm_path = os.path.join(save_path, 'lda_confusion_matrix.xlsx')
+    cm_table.to_excel(cm_path)
+    saved_files['lda_confusion_matrix'] = cm_path
+    if verbose:
+        print(f"  ✓ Saved: {cm_path}")
+    
+    # 2. LDA Classification Report (Training Data)
+    report_table = create_lda_classification_report_table(lda_results)
+    report_path = os.path.join(save_path, 'lda_classification_report.xlsx')
+    report_table.to_excel(report_path)
+    saved_files['lda_classification_report'] = report_path
+    if verbose:
+        print(f"  ✓ Saved: {report_path}")
+    
+    # 3. Monte Carlo CV Confusion Matrix
+    mccv_cm_table = create_mccv_confusion_matrix_table(cv_results)
+    mccv_cm_path = os.path.join(save_path, 'mccv_confusion_matrix.xlsx')
+    mccv_cm_table.to_excel(mccv_cm_path)
+    saved_files['mccv_confusion_matrix'] = mccv_cm_path
+    if verbose:
+        print(f"  ✓ Saved: {mccv_cm_path}")
+    
+    # 4. Monte Carlo CV Classification Report
+    mccv_report_table = create_mccv_classification_report_table(cv_results)
+    mccv_report_path = os.path.join(save_path, 'mccv_classification_report.xlsx')
+    mccv_report_table.to_excel(mccv_report_path)
+    saved_files['mccv_classification_report'] = mccv_report_path
+    if verbose:
+        print(f"  ✓ Saved: {mccv_report_path}")
+    
+    return saved_files
