@@ -6,6 +6,7 @@ contamination assessment workflow, from data transformation through pollution sc
 """
 
 import pandas as pd
+import numpy as np
 from .transformations import log_z_score_transform, get_clustered_variable_order
 from .pca_analysis import pca_with_PC_loadings
 from .visualizations import create_ridge_plot
@@ -16,8 +17,9 @@ from zci.output_saver import save_tables_dict
 
 def contamination_assessment_pipeline(
     data,
+    pollution_variables=None,
     transform_method='log_z_score',
-    standardize_pca_scores=True,
+    standardize_pca_scores='min-max',
     pc_weights=None,
     multiindex_levels=('pollution', 'weighted', 'SumRel'),
     visualize=True,
@@ -45,12 +47,17 @@ def contamination_assessment_pipeline(
     -----------
     data : pd.DataFrame
         Multi-index dataframe containing at least ('chemical', 'raw') block with pollution variables
+    pollution_variables : list or None, default=None
+        List of pollution variable names to use. If None, uses all variables in ('chemical', 'raw') block.
     transform_method : str, default='log_z_score'
         Transformation method to apply. Currently supports:
         - 'log_z_score': log transformation followed by z-score standardization
         Future options could include 'robust_scaler', 'min_max', etc.
-    standardize_pca_scores : bool, default=True
-        Whether to standardize PC scores after PCA (mean=0, std=1)
+    standardize_pca_scores : str, default='min_max'
+        Method to standardize PC scores after PCA. Options include:
+        - 'min_max': scale scores to [0, 1]
+        - 'z_score': standardize to mean=0, std=1
+        - None: no standardization
     pc_weights : dict, list, array, or None, default=None
         Weights for computing pollution score from PCs. If None, uses default weights
         with PC3 weighted higher due to RDA biological relevance
@@ -125,8 +132,11 @@ def contamination_assessment_pipeline(
     raw_data = data.copy()
     raw_data.columns = raw_data.columns.droplevel([0, 1])
     
-    # Extract pollution data block
-    pollution_data = data[("chemical", "raw")].copy()
+    # Extract specified variables or pollution data block
+    if pollution_variables is not None:
+        pollution_data = data[("chemical", "raw")][pollution_variables].copy()
+    else:
+        pollution_data = data[("chemical", "raw")].copy()
     print(f"  ✓ Extracted {pollution_data.shape[1]} pollution variables from {pollution_data.shape[0]} sites")
     
     # =====================================================================
@@ -136,8 +146,24 @@ def contamination_assessment_pipeline(
     
     if transform_method == 'log_z_score':
         transformed_pollution = log_z_score_transform(pollution_data)
-        print("  ✓ Applied log transformation (except As, Bi)")
+        print("  ✓ Applied log transformation")
         print("  ✓ Applied z-score standardization")
+        
+    elif transform_method == "log2":
+        # apply log2(x + 1) transformation
+        transformed_pollution = pollution_data.apply(lambda x: np.log2(x + 1))
+        print("  ✓ Applied log2 transformation")
+        # standardize with z-score
+        # scaler = StandardScaler()
+        # transformed_pollution = pd.DataFrame(
+        #     scaler.fit_transform(transformed_pollution),
+        #     index=pollution_data.index,
+        #     columns=pollution_data.columns
+        # )
+        print("  ✓ Applied z-score standardization")
+        
+        
+        
         
     elif transform_method == "z_score":
         scaler = StandardScaler()
@@ -170,7 +196,7 @@ def contamination_assessment_pipeline(
     # Initialize figures dictionary
     figures = {}
     
-    PC_loadings, PC_scores, variance_fig = pca_with_PC_loadings(
+    PC_loadings, PC_scores, variance_fig, variance_info = pca_with_PC_loadings(
         transformed_pollution,
         visualize=visualize,
         PC_scores_standardize=standardize_pca_scores,
@@ -230,7 +256,7 @@ def contamination_assessment_pipeline(
     pollution_scores = compute_pollution_scores(PC_scores, weights=pc_weights)
     
     if pc_weights is None:
-        print("  ✓ Using default weights (PC3 weighted 2x for biological relevance)")
+        print("  ✓ Using default weights")
     else:
         print(f"  ✓ Using custom weights: {pc_weights}")
     
@@ -272,8 +298,22 @@ def contamination_assessment_pipeline(
         t_path = table_save_path if table_save_path else "../results/tables/01_contamination_assessment"
         print(f"\n[Step 9/9] Saving tables to {t_path}...")
         
-        # Table 1: PCA Loadings
-        tables['pca_loadings'] = PC_loadings
+        # Table 1: PCA Loadings with variance statistics
+        # Create a copy of loadings and append variance info rows
+        pca_loadings_with_variance = PC_loadings.copy()
+        
+        # Add an empty row as separator
+        empty_row = pd.DataFrame([[None] * len(PC_loadings.columns)], 
+                                  index=[''], columns=PC_loadings.columns)
+        
+        # Append variance info rows to the loadings table
+        pca_loadings_with_variance = pd.concat([
+            pca_loadings_with_variance, 
+            empty_row,
+            variance_info
+        ])
+        
+        tables['pca_loadings'] = pca_loadings_with_variance
         
         # Table 2 & 3: RDA Results (if available)
         if rda_results is not None:
@@ -351,6 +391,7 @@ def contamination_assessment_pipeline(
         'transformed_pollution': transformed_pollution,
         'PC_loadings': PC_loadings,
         'PC_scores': PC_scores,
+        'variance_info': variance_info,
         'pollution_scores': pollution_scores,
         'ordered_variables': ordered_variables,
         'rda_results': rda_results,

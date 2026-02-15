@@ -15,7 +15,7 @@ import os
 FIGURE_SAVE_PATH = "../results/figures/01_Contamination_assessment/"
 
 
-def pca_with_PC_loadings(df, visualize=True, PC_scores_standardize=True, n_components=6, save_path=None):
+def pca_with_PC_loadings(df, visualize=True, PC_scores_standardize='z-score', n_components=6, save_path=None):
     """
     Apply PCA on transformed pollution variables.
     
@@ -28,8 +28,9 @@ def pca_with_PC_loadings(df, visualize=True, PC_scores_standardize=True, n_compo
         Transformed pollution variables (should already be log-transformed and standardized)
     visualize : bool, default=True
         Whether to create and display variance explanation plots
-    PC_scores_standardize : bool, default=True
-        Whether to standardize PC scores (mean=0, std=1) after extraction
+    PC_scores_standardize : str or bool, default='z-score'
+        Whether to standardize PC scores (mean=0, std=1) after extraction.
+        Options: 'z-score', 'min-max', or False (no standardization)
     n_components : int, default=6
         Number of principal components to retain
     save_path : str, optional
@@ -64,7 +65,7 @@ def pca_with_PC_loadings(df, visualize=True, PC_scores_standardize=True, n_compo
     
     # Extract loadings (variables × components)
     PC_loadings = pd.DataFrame(
-        np.transpose(pca_model.components_[:n_components]),
+        np.transpose(pca_model.components_[:n_components]) * np.sqrt(pca_model.explained_variance_[:n_components]),
         index=df.columns,
         columns=[f"PC{i+1}" for i in range(n_components)]
     )
@@ -76,16 +77,29 @@ def pca_with_PC_loadings(df, visualize=True, PC_scores_standardize=True, n_compo
         columns=[f"PC{i+1}" for i in range(n_components)]
     )
     
+    PC_scores.to_excel('/Users/gufeng/2025_Winter/Thesis_Project/ThesisProject/Project_Code/results/stage1_PC_scores.xlsx')
+    
     # Optionally standardize PC scores
-    if PC_scores_standardize:
+    if PC_scores_standardize == 'z-score':
         PC_scores = (PC_scores - PC_scores.mean()) / PC_scores.std()
+    elif PC_scores_standardize == 'min-max':
+        PC_scores = (PC_scores - PC_scores.min()) / (PC_scores.max() - PC_scores.min())
+    else: 
+        pass  # No standardization
+    
+    # Extract variance information for the retained components
+    variance_info = pd.DataFrame({
+        'Explained Variance': pca_model.explained_variance_[:n_components],
+        'Proportion of Variance': pca_model.explained_variance_ratio_[:n_components],
+        'Cumulative Proportion': pca_model.explained_variance_ratio_[:n_components].cumsum()
+    }, index=[f"PC{i+1}" for i in range(n_components)]).T
     
     # Visualization
     variance_fig = None
     if visualize:
         variance_fig = _plot_pca_variance(pca_model, save_path=save_path)
     
-    return PC_loadings, PC_scores, variance_fig
+    return PC_loadings, PC_scores, variance_fig, variance_info
 
 
 def _plot_pca_variance(pca_model, save_path=None):

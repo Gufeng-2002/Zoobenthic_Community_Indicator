@@ -1,5 +1,5 @@
 # Fdb version 4
-["bibtex main"] 0 "main.aux" "main.bbl" "main" 1769118031.4223 0
+["bibtex main"] 0 "main.aux" "main.bbl" "main" 1769723903.07805 0
   "/usr/local/texlive/2025basic/texmf-dist/bibtex/bst/base/plain.bst" 1292289607 20613 bd3fbfa9f64872b81ac57a0dd2ed855f ""
   "main.aux" 0 -1 0 "pdflatex"
   "sections/Reference.bib" 0 -1 0 ""
@@ -7,17 +7,15 @@
   "main.bbl"
   "main.blg"
   (rewritten before read)
-["pdflatex"] 1769118022.35122 "/Users/gufeng/2025_Winter/Thesis_Project/ThesisProject/Project_Code/Thesis_doc/main.tex" "main.pdf" "main" 1769118031.42257 0
-  "../results/figures/01_contamination_assessment/figure2_pc_loadings_ridge.png" 1769073083.29856 320308 b01d6e6d6e1356d191bc9a1b270adee7 ""
-  "../results/figures/01_contamination_assessment/figure3_rda_validation.png" 1769073083.59756 546132 971fda56eb91177060a4c4c245268cdd ""
-  "../results/figures/02_taxa_assemblage_in_refs/figure2_reference_selection.png" 1768945758.43936 496197 6428de9e5a940c9220a5ca27ee28fe19 ""
-  "../results/figures/02_taxa_assemblage_in_refs/figure5_ward_analysis.png" 1768945759.51908 265675 03aa70cba6a49a4130dba17996a3b005 ""
-  "../results/figures/02_taxa_assemblage_in_refs/figure6_cluster_visualization.png" 1768945759.93433 787959 85fe05fd6cb383954677042526229955 ""
-  "../results/figures/03_env_driven_taxa_clusters/figure1_rda_triplot.png" 1769073094.10923 560400 3dcc73188b23a675938631c274499127 ""
-  "../results/figures/03_env_driven_taxa_clusters/figure2_lda_cv.png" 1769073094.45311 509257 924aa5705dcda8bea6430a805047213e ""
-  "../results/figures/03_env_driven_taxa_clusters/figure4_cluster_comparison.png" 1769073095.20956 587244 1ba9170a42af5d9f8ccdfaf7e0ff14c2 ""
-  "../results/figures/04_community_composition_measures/figure4_ordination.png" 1769028806.7626 378317 628baf495d3c402928501241a60ff373 ""
-  "../results/figures/04_community_composition_measures/figure5_zci_vs_pollution.png" 1769028807.35074 531070 a49f0fb90c6b036350988f99070141ba ""
+["pdflatex"] 1769723895.368 "/Users/gufeng/2025_Winter/Thesis_Project/ThesisProject/Project_Code/Thesis_doc/main.tex" "main.pdf" "main" 1769723903.07826 0
+  "../results/figures/01_contamination_assessment/figure2_pc_loadings_ridge.png" 1769723871.39329 260150 4b841a294e0271b11c94279d35f51a86 ""
+  "../results/figures/01_contamination_assessment/figure3_rda_validation.png" 1769723872.19028 494649 fe357642cf9a6a54ae73c5ee62d9d641 ""
+  "../results/figures/02_taxa_assemblage_in_refs/figure2_reference_selection.png" 1769723875.80842 562216 3e41ffb2bac4c2c4a285453dab2e9a6b ""
+  "../results/figures/02_taxa_assemblage_in_refs/figure5_ward_analysis.png" 1769723878.19632 307655 e7f6333dcc3aa3677b9b9108a79bbcb5 ""
+  "../results/figures/02_taxa_assemblage_in_refs/figure6_cluster_visualization.png" 1769723878.68445 806047 16dc858e6c88b7dcae0a765c961858b7 ""
+  "../results/figures/03_env_driven_taxa_clusters/figure1_rda_triplot.png" 1769723886.0067 556509 8ddd8054ffb2f9f9c4f66c149123aabb ""
+  "../results/figures/03_env_driven_taxa_clusters/figure2_lda_cv.png" 1769723886.40477 505818 dec3c2d52498ebbacf7daec47c44121b ""
+  "../results/figures/03_env_driven_taxa_clusters/figure4_cluster_comparison.png" 1769723887.85895 842819 6f95b628ca63bbce0b39426a89ead1ba ""
   "../results/figures/05_quantile_regressions/c0_CIs_Wild_Bootstraps_quantiles.png" 1769072087.01146 149662 3943888b7a10e9344cbdf07952ad19f2 ""
   "../results/figures/05_quantile_regressions/c1_CIs_Wild_Bootstraps_quantiles.png" 1769072105.5294 140641 a2ce791c811f6a98ce0d98621f1cc20f ""
   "../results/table_latex/01_contamination_assessment/table1_pca_loadings.tex" 1769072474.24705 2524 ace6792dfaa74605782a0507a70cdd64 ""
@@ -36,7 +34,7 @@
   "../results/table_latex/04_community_composition_measures/table1_species_pc_loadings.tex" 1769116986.31604 3160 40c7b66dee72c47793de442f300445fa ""
   "../results/table_latex/04_community_composition_measures/table2_species_pc_pollution_regression.tex" 1769116952.48421 1248 505ce8751a3f593e05bf95cae7bb37ed ""
   "../results/table_latex/04_community_composition_measures/table3_pollution_pc_species_pc_regression.tex" 1769117043.16322 4715 a5c2a8fcce0af375f10779f01494f856 ""
-  "/Users/gufeng/2025_Winter/Thesis_Project/ThesisProject/Project_Code/Thesis_doc/main.tex" 1769118013.71388 5912 0be202315d7049e77a55030b7999456f ""
+  "/Users/gufeng/2025_Winter/Thesis_Project/ThesisProject/Project_Code/Thesis_doc/main.tex" 1769718852.78998 5579 6bd37d77be6902915a7e0b023aaf9ce5 ""
   "/Users/gufeng/Library/texlive/2025basic/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1095.600pk" 1760136809.5171 12644 37976a6fa97324c9370a7024c1497295 ""
   "/Users/gufeng/Library/texlive/2025basic/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1200.600pk" 1760837012.34569 14040 13ab9df30b227e20bc2b09b2c3afe14a ""
   "/usr/local/texlive/2025basic/texmf-dist/fonts/tfm/jknappen/ec/tcrm1095.tfm" 1136768653 1536 02c06700a42be0f5a28664c7273f82e7 ""
@@ -217,11 +215,11 @@
   "/usr/local/texlive/2025basic/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1761692576 158129 fddf3a417720f81ca9e8350f8e871b8f ""
   "/usr/local/texlive/2025basic/texmf-var/web2c/pdftex/pdflatex.fmt" 1753141011 2663826 9e4746f1f11ca47809a060e83d24095c ""
   "/usr/local/texlive/2025basic/texmf.cnf" 1741448314 628 81d1ada0f601fb1ffa62f1323192d946 ""
-  "main.aux" 1769118031.28369 6843 07bfb1f5fd5bb8f7405ce602f1725947 "pdflatex"
+  "main.aux" 1769723902.98286 6843 f07c842576bcea4ab83adfa7067e147b "pdflatex"
   "main.bbl" 0 -1 0 "bibtex main"
-  "main.out" 1769118031.28479 769 798f0df80e1372345826fc9ac4c26372 "pdflatex"
-  "main.tex" 1769118013.71388 5912 0be202315d7049e77a55030b7999456f ""
-  "main.toc" 1769118031.28504 358 b0350fd54326a37532ed71539c21718b "pdflatex"
+  "main.out" 1769723902.9838 769 798f0df80e1372345826fc9ac4c26372 "pdflatex"
+  "main.tex" 1769718852.78998 5579 6bd37d77be6902915a7e0b023aaf9ce5 ""
+  "main.toc" 1769723902.98409 358 b0350fd54326a37532ed71539c21718b "pdflatex"
   "sections/Introduction.tex" 1769112942.54695 4523 0793659ef8ea6389c2bce4d43ba95308 ""
   "sections/packages.sty" 1767866799.12921 2767 b12f56d49cd2902dec071e51a26a5024 ""
   (generated)

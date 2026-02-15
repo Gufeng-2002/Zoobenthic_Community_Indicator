@@ -131,6 +131,7 @@ def perform_env_taxa_analysis(
     rda_figsize: Tuple[float, float] = (14, 10),
     lda_cv_figsize: Tuple[float, float] = (16, 12),
     lda_arrow_scale = 3,
+    anova_transform: str = 'none',
     # Control parameters
     random_state: Optional[int] = 42,
     save_path: Optional[str] = None,
@@ -203,6 +204,8 @@ def perform_env_taxa_analysis(
         Figure size for LDA CV results
     lda_arrow_scale : float, default=3
         Scaling factor for environmental arrows in LDA triplot
+    anova_transform : str, default='none'
+        Transformation to apply for ANOVA: 'none', 'boxcox', or 'log'
     
     Control Parameters
     ------------------
@@ -494,6 +497,7 @@ def perform_env_taxa_analysis(
         ref_column=ref_column,
         env_variables=env_variables,
         taxa_transformation=taxa_transformation,
+        anova_transform=anova_transform,
         top_n_taxa=16,  # Show top 16 taxa in comparison figure
         figsize=(18, 12),
         verbose=verbose
@@ -531,6 +535,7 @@ def perform_env_taxa_analysis(
         create_lda_classification_report_table,
         create_mccv_confusion_matrix_table,
         create_mccv_classification_report_table,
+        create_lda_excel_table,
         save_lda_tables_to_excel
     )
     
@@ -540,11 +545,21 @@ def perform_env_taxa_analysis(
     mccv_cm_table = create_mccv_confusion_matrix_table(lda_cv_results)
     mccv_report_table = create_mccv_classification_report_table(lda_cv_results)
     
+    # Create publication-ready LDA variable importance table
+    lda_excel_table = create_lda_excel_table(
+        lda_results=lda_results,
+        lda_importance=lda_importance,
+        raw_data=ref_raw_data,
+        cluster_column=cluster_column,
+        env_variables=env_variables,
+        verbose=verbose
+    )
+    
     tables = {
         'rda_axes_summary': rda_axes_table,
         'rda_terms_summary': rda_terms_table,
         'lda_axes_summary': lda_importance['axes_summary'],
-        'lda_variable_importance': lda_importance['variable_importance'],
+        'lda_variable_importance': lda_excel_table,  # Use the formatted Excel table
         # LDA confusion matrices and classification reports
         'lda_confusion_matrix': lda_cm_table,
         'lda_classification_report': lda_report_table,
@@ -644,7 +659,8 @@ def perform_env_taxa_analysis(
         'lda_importance': lda_importance,  # LDA variable importance tables
         'lda_axes_table': lda_importance['axes_summary'],  # LDA axes summary
         'lda_coefficients_table': lda_importance['coefficients_table'],  # LDA coefficients
-        'lda_variable_importance_table': lda_importance['variable_importance'],  # Variable importance
+        'lda_variable_importance_table': lda_importance['variable_importance'],  # Variable importance (raw)
+        'lda_excel_table': lda_excel_table,  # Publication-ready LDA table
         'lda_cv_results': lda_cv_results,
         'lda_cv_figure': lda_cv_figure,
         'lda_triplot': lda_triplot_figure,

@@ -35,8 +35,11 @@ def reference_sites_taxa_assemblage_pipeline(
     multiindex_data: pd.DataFrame,
     pollution_column: str = 'Pollution_Score',
     reference_percentile: float = 52,
+    designate_ref_sites: Optional[List[int]] = None,
     species_transformation: str = 'hellinger',
+    distance_measure: str = 'euclidean',
     n_clusters: int = 3,
+    designate_cluster_labels: Optional[Dict[int, int]] = None,
     top_n_taxa: int = 15,
     env_variables: Optional[List[str]] = None,
     create_dendrogram_comparison: bool = False,
@@ -44,9 +47,10 @@ def reference_sites_taxa_assemblage_pipeline(
     create_fusion_plots: bool = False,
     create_ward_analysis: bool = False,
     create_cluster_visualization: bool = True,
+    standardize_env: bool = False,
     label_positions: Optional[List[int]] = None,
     run_boxcox_anova: bool = True,
-    use_boxcox_transform: bool = True,
+    use_transformation: str = 'log',
     anova_taxa_transformation: Optional[str] = None,
     anova_top_n_taxa: Optional[int] = 10,
     save_path: Optional[str] = None,
@@ -74,12 +78,21 @@ def reference_sites_taxa_assemblage_pipeline(
     reference_percentile : float, default=52
         Percentile threshold for selecting reference sites (bottom p% are selected).
         E.g., 52 means sites in the bottom 52% of pollution scores are reference.
+    designate_ref_sites : list of int, optional
+        List of site indices to forcibly designate as reference sites. If provided,
+        these sites will be marked as reference regardless of pollution scores.
     species_transformation : str, default='hellinger'
         Transformation method for taxa data before clustering.
         Options: 'hellinger', 'chord', 'octave', 'none'.
         Note: Clustering always uses Ward's linkage method.
+    distance_measure : str, default='euclidean'
+        Distance measure to use for clustering.
     n_clusters : int, default=3
         Number of clusters to create.
+        Options: 'euclidean', 'braycurtis', 'cityblock', etc.
+    designate_cluster_labels: dict, optional
+        Dictionary mapping site indices to cluster labels for forced designation.
+        E.g., {S1: 0, S2: 1, S3: 2} assigns site S1 to cluster 0, etc.
     top_n_taxa : int, default=15
         Number of most abundant taxa to show in visualization.
     env_variables : list of str, optional
@@ -95,15 +108,18 @@ def reference_sites_taxa_assemblage_pipeline(
         Whether to create Ward's method analysis figure.
     create_cluster_visualization : bool, default=True
         Whether to create the final 3-panel cluster visualization.
+    standardize_env : bool, default=False
+        Whether to standardize environmental variables (mean=0, std=1)
+        for cluster visualization.
     label_positions : list of int, optional
         Manually set x-positions for cluster labels in Ward analysis.
         E.g., [90, 250, 380] for 3 clusters.
     run_boxcox_anova : bool, default=False
         Whether to perform Box-Cox transformation + ANOVA analysis on
         environmental and taxa variables across clusters.
-    use_boxcox_transform : bool, default=True
-        Whether to apply Box-Cox transformation before ANOVA.
-        If False, performs ANOVA on raw (or taxa-transformed) data directly.
+    use_transformation: str = 'log',
+        Transformation to apply before ANOVA ('boxcox', 'log1p', or None).
+        If None, performs ANOVA on raw (or taxa-transformed) data directly.
     anova_taxa_transformation : str, optional
         Transformation to apply to taxa before Box-Cox for ANOVA.
         If None, uses the same as species_transformation.
@@ -256,6 +272,19 @@ def reference_sites_taxa_assemblage_pipeline(
     taxa_ref_simple = taxa_ref.copy()
     taxa_ref_simple.columns = taxa_ref_simple.columns.get_level_values(-1)
     
+    # a violent designation way to choose sites as taxa_ref_simple (for testing purpose to match ref-sites with previous results)
+    if designate_ref_sites is not None:
+        taxa_ref_simple = taxa_data.loc[designate_ref_sites, :]
+        taxa_ref_simple.columns = taxa_ref_simple.columns.get_level_values(-1)
+        # Update raw_data and multiindex_data to reflect new reference sites
+        raw_data['if_ref'] = False
+        raw_data.loc[designate_ref_sites, 'if_ref'] = True
+        # if ('Reference', 'if_ref') not in multiindex_data.columns:
+        #     multiindex_data[('Reference', 'if_ref')] = False
+        # multiindex_data.loc[designate_ref_sites, ('Reference', 'if_ref')] = True
+        n_reference = len(designate_ref_sites)
+        results['reference_sites_count'] = n_reference
+        
     if verbose:
         print(f"  ✓ Extracted taxa data: {taxa_ref_simple.shape[0]} sites × {taxa_ref_simple.shape[1]} species")
         print()
@@ -270,6 +299,7 @@ def reference_sites_taxa_assemblage_pipeline(
         taxa_ref_simple,
         transformation=species_transformation,
         n_clusters=n_clusters,
+        distance_measure = distance_measure,
         create_dendrogram_comparison=create_dendrogram_comparison,
         create_comparison_plots=create_comparison_plots,
         create_fusion_plots=create_fusion_plots,
@@ -278,6 +308,12 @@ def reference_sites_taxa_assemblage_pipeline(
     )
     
     results['cluster_labels'] = cluster_labels
+    
+    # violently designate cluster labels for testing purpose to match previous results
+    if designate_ref_sites is not None and designate_cluster_labels is not None:
+        for site_idx, cluster_id in designate_cluster_labels.items():
+            cluster_labels.loc[site_idx] = cluster_id
+    
     results['clustering_results'] = clustering_results
     
     # Collect clustering figures
@@ -298,7 +334,7 @@ def reference_sites_taxa_assemblage_pipeline(
         print(f"  ✓ Clustering complete!")
         print(f"  ✓ Cluster distribution:")
         for cluster_id, count in cluster_distribution.items():
-            print(f"      Cluster {cluster_id}: {count} sites")
+            print(f"      Cluster {int(cluster_id) + 1}: {count} sites")
         print()
     
     # ========================================================================
@@ -309,14 +345,14 @@ def reference_sites_taxa_assemblage_pipeline(
     
     # Add to raw_data (NaN for non-reference sites)
     raw_data['clusters'] = np.nan
-    raw_data.loc[taxa_ref.index, 'clusters'] = cluster_labels
+    raw_data.loc[taxa_ref_simple.index, 'clusters'] = cluster_labels
     
     # Add to multiindex_data
     if ('Clusters', 'Hierarchical', 'clusters') not in multiindex_data.columns:
         # Create new column in multiindex
         multiindex_data[('Clusters', 'Hierarchical', 'clusters')] = np.nan
     
-    multiindex_data.loc[taxa_ref.index, ('Clusters', 'Hierarchical', 'clusters')] = cluster_labels
+    multiindex_data.loc[taxa_ref_simple.index, ('Clusters', 'Hierarchical', 'clusters')] = cluster_labels
     
     results['raw_data'] = raw_data
     results['multiindex_data'] = multiindex_data
@@ -350,7 +386,8 @@ def reference_sites_taxa_assemblage_pipeline(
             multiindex_data=multiindex_data,
             cluster_column='clusters',
             top_n_taxa=top_n_taxa,
-            env_variables=env_variables
+            env_variables=env_variables,
+            standardize_env = standardize_env
         )
         
         results['cluster_visualization_fig'] = cluster_viz_fig
@@ -371,8 +408,8 @@ def reference_sites_taxa_assemblage_pipeline(
     
     if run_boxcox_anova:
         if verbose:
-            boxcox_status = "with Box-Cox" if use_boxcox_transform else "without Box-Cox"
-            print(f"STEP 7: Performing ANOVA analysis ({boxcox_status})...")
+            transformation_status = f"with {use_transformation}" if use_transformation else "without transformation"
+            print(f"STEP 7: Performing ANOVA analysis ({transformation_status})...")
             print()
         
         # Use default env variables if not specified
@@ -411,7 +448,7 @@ def reference_sites_taxa_assemblage_pipeline(
             variables=env_variables,
             cluster_column='clusters',
             variable_type='env',
-            use_boxcox=use_boxcox_transform,
+            use_transformation=use_transformation,
             verbose=verbose
         )
         
@@ -422,7 +459,7 @@ def reference_sites_taxa_assemblage_pipeline(
             variables=taxa_names,
             cluster_column='clusters',
             variable_type='taxa',
-            use_boxcox=use_boxcox_transform,
+            use_transformation=use_transformation,
             taxa_transformation=taxa_transform_for_anova,
             top_n_taxa=n_taxa_for_anova,
             verbose=verbose
@@ -432,7 +469,7 @@ def reference_sites_taxa_assemblage_pipeline(
         results['taxa_anova_table'] = taxa_anova_table
         
         # Also run the detailed Box-Cox analysis for backward compatibility
-        if use_boxcox_transform:
+        if use_transformation == 'boxcox':
             anova_results = perform_boxcox_anova_analysis(
                 raw_data=raw_data,
                 multiindex_data=multiindex_data,
@@ -445,8 +482,8 @@ def reference_sites_taxa_assemblage_pipeline(
             results['anova_results'] = anova_results
         
         if verbose:
-            boxcox_status = "with Box-Cox" if use_boxcox_transform else "without Box-Cox"
-            print(f"  ✓ ANOVA analysis complete ({boxcox_status})")
+            transformation_status = f"with {use_transformation}" if use_transformation else "without transformation"
+            print(f"  ✓ ANOVA analysis complete ({transformation_status})")
             print()
     
     # ========================================================================
@@ -460,7 +497,7 @@ def reference_sites_taxa_assemblage_pipeline(
         
         for i, (name, fig) in enumerate(figures.items(), start=1):
             if fig is not None:
-                filepath = os.path.join(save_path, f"figure{i+1}_{name}.png")
+                filepath = os.path.join(save_path, f"figure{i}_{name}.png")
                 fig.savefig(filepath, dpi=300, bbox_inches='tight')
                 if verbose:
                     print(f"  ✓ Saved: {filepath}")
@@ -487,23 +524,11 @@ def reference_sites_taxa_assemblage_pipeline(
             print(f"STEP 9: Saving tables to {t_path}...")
         
         # Save each table as a separate Excel file
-        for i, (table_name, table_df) in enumerate(tables.items()):
+        for i, (table_name, table_df) in enumerate(tables.items(), start=1):
             filepath = os.path.join(t_path, f"table{i}_{table_name}.xlsx")
             table_df.to_excel(filepath, index=False)
             if verbose:
                 print(f"  ✓ Saved: {filepath}")
-        
-        # Also save combined tables in a single Excel workbook
-        combined_path = os.path.join(t_path, "cluster_anova_tables.xlsx")
-        with pd.ExcelWriter(combined_path, engine='openpyxl') as writer:
-            if env_anova_table is not None:
-                env_anova_table.to_excel(writer, sheet_name='Environmental', index=False)
-            if taxa_anova_table is not None:
-                taxa_anova_table.to_excel(writer, sheet_name='Taxa', index=False)
-        
-        if verbose:
-            print(f"  ✓ Saved combined workbook: {combined_path}")
-            print()
     
     # Add figures dictionary to results
     results['figures'] = figures
@@ -522,16 +547,16 @@ def reference_sites_taxa_assemblage_pipeline(
         print(f"  - Transformation used: {species_transformation}")
         print(f"  - Linkage method: Ward's")
         if run_boxcox_anova:
-            boxcox_status = "with Box-Cox" if use_boxcox_transform else "without Box-Cox"
-            print(f"  - ANOVA: Performed ({boxcox_status})")
+            transformation_status = f"with {use_transformation}" if use_transformation else "without transformation"
+            print(f"  - ANOVA: Performed ({transformation_status})")
             # Count significant results from the tables
             if env_anova_table is not None:
                 data_rows = env_anova_table.iloc[:-4]  # Exclude footer rows
-                n_env_sig = data_rows['p-value'].apply(lambda x: '*' in str(x)).sum()
+                n_env_sig = data_rows['p'].apply(lambda x: '*' in str(x)).sum()
                 print(f"    • Env variables significant: {n_env_sig}/{len(data_rows)}")
             if taxa_anova_table is not None:
                 data_rows = taxa_anova_table.iloc[:-4]  # Exclude footer rows
-                n_taxa_sig = data_rows['p-value'].apply(lambda x: '*' in str(x)).sum()
+                n_taxa_sig = data_rows['p'].apply(lambda x: '*' in str(x)).sum()
                 print(f"    • Taxa significant: {n_taxa_sig}/{len(data_rows)}")
         if figures:
             print(f"  - Figures generated: {len(figures)}")

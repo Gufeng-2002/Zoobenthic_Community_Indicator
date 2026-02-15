@@ -31,6 +31,12 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.preprocessing import StandardScaler
 import warnings
+from zci.taxa_assemblage_in_refs.hierarchical_clustering import (
+    hellinger_transform,
+    chord_transform,
+    octave_transform,
+    octave_to_relative_abundance,
+)
 
 
 def perform_lda_analysis(
@@ -504,6 +510,151 @@ def compute_lda_variable_importance(
         'overall_significance': overall_significance,
         'significance_dict': significance_dict
     }
+
+
+def create_lda_excel_table(
+    lda_results: Dict[str, Any],
+    lda_importance: Dict[str, Any],
+    raw_data: pd.DataFrame,
+    cluster_column: str = 'clusters',
+    env_variables: Optional[List[str]] = None,
+    verbose: bool = False
+) -> pd.DataFrame:
+    """
+    Create publication-ready LDA variable importance table for Excel export.
+    
+    This function creates a clean table format suitable for saving to Excel,
+    matching the publication style with:
+    - Habitat variable names in first column
+    - Significance level (p < 0.001***, p < 0.01**, etc.)
+    - Mean (± 1SE) for each cluster
+    - Rows sorted by p-value
+    
+    Parameters
+    ----------
+    lda_results : Dict[str, Any]
+        Results from perform_lda_analysis() containing env_data, cluster_labels
+    lda_importance : Dict[str, Any]
+        Results from compute_lda_variable_importance() containing significance_dict
+    raw_data : pd.DataFrame
+        Raw data containing environmental variables and cluster labels
+    cluster_column : str, default='clusters'
+        Column name containing cluster labels
+    env_variables : list of str, optional
+        List of environmental variable names. If None, uses all from lda_results.
+    verbose : bool, default=False
+        Whether to print progress
+    
+    Returns
+    -------
+    pd.DataFrame
+        Clean table ready for Excel export with columns:
+        Habitat variables | Significance level | Cluster C1 | Cluster C2 | ...
+    """
+    # Get data from lda_results
+    cluster_labels = lda_results['cluster_labels']
+    
+    if env_variables is None:
+        env_variables = lda_results['env_variables']
+    
+    # Filter to sites with cluster labels
+    clustered_mask = raw_data[cluster_column].notna()
+    clustered_data = raw_data[clustered_mask].copy()
+    clusters = sorted(clustered_data[cluster_column].unique())
+    
+    # Calculate sample size per cluster
+    sample_sizes = {}
+    for cluster in clusters:
+        n = (clustered_data[cluster_column] == cluster).sum()
+        sample_sizes[int(cluster)] = n
+    
+    # Get significance info from lda_importance
+    significance_dict = lda_importance['significance_dict']
+    
+    results = []
+    for var in env_variables:
+        if var not in clustered_data.columns:
+            continue
+        
+        row = {'Habitat variables': var}
+        
+        # Get p-value and significance from lda_importance
+        if var in significance_dict:
+            p_val = significance_dict[var]['p_value']
+            sig = significance_dict[var]['significance']
+            
+            # Format significance level like image
+            if p_val < 0.001:
+                row['Significance level'] = 'p < 0.001***'
+            elif p_val < 0.01:
+                row['Significance level'] = 'p < 0.01**'
+            elif p_val < 0.05:
+                row['Significance level'] = 'p < 0.05*'
+            else:
+                row['Significance level'] = 'p > 0.05'
+            
+            row['p_value_numeric'] = p_val  # For sorting
+        else:
+            row['Significance level'] = 'p > 0.05'
+            row['p_value_numeric'] = 1.0
+        
+        # Calculate Mean ± 1SE for each cluster
+        for cluster in clusters:
+            cluster_int = int(cluster)
+            cluster_mask = clustered_data[cluster_column] == cluster
+            cluster_values = clustered_data.loc[cluster_mask, var].dropna()
+            
+            if len(cluster_values) > 0:
+                mean_val = cluster_values.mean()
+                n_cluster = len(cluster_values)
+                se_val = cluster_values.std() / np.sqrt(n_cluster) if n_cluster > 1 else 0
+                row[f'Cluster C{cluster_int + 1}'] = f"{mean_val:.2f} ± {se_val:.2f}"
+            else:
+                row[f'Cluster C{cluster_int + 1}'] = ''
+        
+        results.append(row)
+    
+    df = pd.DataFrame(results)
+    
+    # Sort by p-value (ascending, most significant first)
+    df = df.sort_values('p_value_numeric', ascending=True)
+    df = df.drop(columns=['p_value_numeric'])
+    df = df.reset_index(drop=True)
+    
+    # Reorder columns
+    cluster_cols = [f'Cluster C{int(c) + 1}' for c in clusters]
+    col_order = ['Habitat variables', 'Significance level'] + cluster_cols
+    df = df[col_order]
+    
+    # Add empty row as separator
+    empty_row = {col: '' for col in df.columns}
+    
+    # Add sample size row - put sample sizes in the cluster columns
+    sample_row = {col: '' for col in df.columns}
+    sample_row['Habitat variables'] = 'Sample size (n)'
+    for cluster in clusters:
+        cluster_int = int(cluster)
+        sample_row[f'Cluster C{cluster_int + 1}'] = sample_sizes[cluster_int]
+    
+    # Add significance legend row
+    legend_row = {col: '' for col in df.columns}
+    legend_row['Habitat variables'] = 'Significance: *** p<0.001, ** p<0.01, * p<0.05'
+    
+    # Append footer
+    df = pd.concat([
+        df,
+        pd.DataFrame([empty_row]),
+        pd.DataFrame([sample_row]),
+        pd.DataFrame([empty_row]),
+        pd.DataFrame([legend_row])
+    ], ignore_index=True)
+    
+    if verbose:
+        data_rows = df.iloc[:-4]
+        n_sig = data_rows['Significance level'].apply(lambda x: '*' in str(x)).sum()
+        print(f"  - LDA Variable Importance table: {len(data_rows)} variables, {n_sig} significant")
+    
+    return df
 
 
 def perform_monte_carlo_cv(
@@ -1650,19 +1801,25 @@ def plot_cluster_comparison(
     cluster_column: str = 'clusters',
     ref_column: str = 'if_ref',
     env_variables: Optional[List[str]] = None,
+    standardize_env: bool = True,
     taxa_transformation: str = 'hellinger',
+    anova_transform: Optional[str] = None,
     top_n_taxa: int = 16,
+    taxa_order: Optional[List[str]] = ['Oligochaeta', 'Chironomidae', 'Nematoda', 'Sphaeriidae', 'Acari', 
+              'Hexagenia', 'Caenis', 'Hirudinea', 'Turbellaria', 'Gastropoda', 
+              'Hydrozoa', 'Other Trichoptera', 'Amphipoda', 'Hydropsychidae', 
+              'Dreissena', 'Ceratopogonidae'],
     figsize: Tuple[float, float] = (18, 12),
     verbose: bool = True
 ) -> Tuple[plt.Figure, np.ndarray]:
     """
     Create a 4-panel comparison figure showing habitat and taxa patterns across clusters.
     
-    Creates a comprehensive visualization comparing:
-    - Upper left: Standardized habitat features across clusters (all sites)
-    - Upper right: Transformed taxa composition across clusters (reference sites only)
-    - Lower left: Transformed taxa composition across clusters (non-reference sites only)
-    - Lower right: Difference in taxa composition between non-reference and reference sites
+    Panels:
+    - (A) Upper left: Standardized habitat features across clusters (all sites)
+    - (B) Upper right: Taxa composition across clusters (reference sites only)
+    - (C) Lower left: Taxa composition across clusters (non-reference sites only)
+    - (D) Lower right: Difference in taxa composition between non-ref and ref sites
     
     Parameters
     ----------
@@ -1676,10 +1833,16 @@ def plot_cluster_comparison(
         Column name indicating reference sites (True/False or 1/0)
     env_variables : Optional[List[str]], default=None
         List of environmental variables. If None, uses predefined subset
+    standardize_env: bool = False,
+        Whether to standardize environmental variables for panel A
     taxa_transformation : str, default='hellinger'
-        Transformation for taxa data ('hellinger', 'log', or 'none')
+        Transformation for taxa data: 'hellinger', 'chord', 'octave', or 'none'
+    anova_transform : Optional[str], default=None
+        Transformation for ANOVA tests: None/'none', 'log', or 'box-cox'
     top_n_taxa : int, default=16
         Number of top taxa to display (by total abundance)
+    taxa_order : Optional[List[str]], default=None
+        Custom ordering of taxa on x-axis. If None, uses abundance-based order
     figsize : Tuple[float, float], default=(18, 12)
         Figure size in inches
     verbose : bool, default=True
@@ -1691,128 +1854,99 @@ def plot_cluster_comparison(
         The figure object
     axes : np.ndarray
         Array of axes objects (2x2)
-        
-    Notes
-    -----
-    The comparison figure provides:
-    - Habitat standardization: Z-score normalized environmental variables
-    - Taxa transformation: Hellinger-transformed abundance data
-    - Statistical comparison: Mean ± SEM for each cluster and site type
-    - Visual difference assessment: Bar chart showing ref vs non-ref patterns
     """
     from zci.data_process import get_block
     from sklearn.preprocessing import StandardScaler
+    from scipy import stats
     
-    if verbose:
-        print("\n" + "="*80)
-        print("CREATING CLUSTER COMPARISON FIGURE")
-        print("="*80)
+    # ======================== HELPER FUNCTIONS ========================
     
-    # Extract data blocks - try multiindex first, fall back to raw_data
-    try:
-        env_data_raw = get_block(multiindex_data, block='environmental', subblock='raw')
-        taxa_data_raw = get_block(multiindex_data, block='taxa', subblock='raw')
-        if verbose:
-            print(f"\nExtracted taxa data from multiindex block 'taxa/raw'")
-            print(f"Taxa columns: {taxa_data_raw.columns.tolist()[:10]}...")
-    except (KeyError, AttributeError) as e:
-        if verbose:
-            print(f"\nCould not extract using get_block: {e}")
-        # Fallback: Extract taxa columns directly from multiindex if it has proper structure
-        try:
-            if hasattr(multiindex_data.columns, 'get_level_values'):
-                # MultiIndex columns - find taxa columns at level 0
-                level0 = multiindex_data.columns.get_level_values(0)
-                taxa_mask = level0 == 'taxa'
-                if taxa_mask.any():
-                    taxa_data_raw = multiindex_data.loc[:, taxa_mask].copy()
-                    # Flatten column names to the lowest level (variable names)
-                    taxa_data_raw.columns = taxa_data_raw.columns.get_level_values(-1)
-                    if verbose:
-                        print(f"\nExtracted taxa data from multiindex level 0 = 'taxa'")
-                        print(f"Taxa columns: {taxa_data_raw.columns.tolist()[:10]}...")
-                else:
-                    raise ValueError("No 'taxa' block found in multiindex")
+    def transform_for_anova(data: pd.DataFrame, transform_type: Optional[str]) -> pd.DataFrame:
+        """Apply transformation to data for ANOVA testing."""
+        if transform_type is None or transform_type == 'none':
+            return data.copy()
+        elif transform_type == 'log':
+            return np.log1p(data)
+        elif transform_type in ('box-cox', 'boxcox'):
+            transformed = data.copy()
+            for col in transformed.columns:
+                col_data = transformed[col].values.copy()
+                if col_data.min() <= 0:
+                    col_data = col_data - col_data.min() + 1e-6
+                try:
+                    transformed[col], _ = stats.boxcox(col_data)
+                except:
+                    transformed[col] = np.log1p(col_data)
+            return transformed
+        return data.copy()
+    
+    def perform_anova_test(data: pd.DataFrame, cluster_labels: pd.Series, 
+                           transform_type: Optional[str] = None) -> Dict[str, float]:
+        """Perform one-way ANOVA for each variable across clusters."""
+        data_transformed = transform_for_anova(data, transform_type)
+        p_values = {}
+        
+        for col in data_transformed.columns:
+            groups = []
+            for cluster in sorted(cluster_labels.unique()):
+                cluster_sites = cluster_labels[cluster_labels == cluster].index
+                available = [s for s in cluster_sites if s in data_transformed.index]
+                if available:
+                    groups.append(data_transformed.loc[available, col].dropna().values)
+            
+            if len(groups) >= 2 and all(len(g) >= 2 for g in groups):
+                try:
+                    _, p_val = stats.f_oneway(*groups)
+                    p_values[col] = p_val
+                except:
+                    p_values[col] = 1.0
             else:
-                raise ValueError("Cannot extract taxa data from provided data")
-        except Exception as e2:
-            if verbose:
-                print(f"\nFallback extraction also failed: {e2}")
-            raise ValueError("multiindex_data must have proper structure with taxa block")
+                p_values[col] = 1.0
+        return p_values
+    
+    def perform_ttest_difference(data: pd.DataFrame, ref_mask: pd.Series,
+                                  transform_type: Optional[str] = None) -> Dict[str, float]:
+        """Perform independent samples t-test between non-ref and ref sites."""
+        data_transformed = transform_for_anova(data, transform_type)
+        p_values = {}
         
-        # Extract environmental variables directly
-        if env_variables is None:
-            env_variables = ['MPS (Phi)', 'Measured Depth (m)', 
-                            'Velocity  at bottom (m/sec)_Imputed', 'Temperature (oC)',
-                            'Water DO Bottom (mg/L)', 'LOI (%)']
-        
-        # Try to extract from raw_data
-        available_env_vars = [v for v in env_variables if v in raw_data.columns]
-        if not available_env_vars:
-            raise ValueError("Cannot extract environmental data. raw_data must contain environmental variable columns.")
-        
-        env_data_raw = raw_data[available_env_vars].copy()
+        for col in data_transformed.columns:
+            ref_idx = ref_mask[ref_mask].index.intersection(data_transformed.index)
+            nonref_idx = (~ref_mask)[~ref_mask].index.intersection(data_transformed.index)
+            ref_data = data_transformed.loc[ref_idx, col].dropna()
+            nonref_data = data_transformed.loc[nonref_idx, col].dropna()
+            
+            if len(ref_data) >= 2 and len(nonref_data) >= 2:
+                try:
+                    _, p_val = stats.ttest_ind(nonref_data, ref_data)
+                    p_values[col] = p_val
+                except:
+                    p_values[col] = 1.0
+            else:
+                p_values[col] = 1.0
+        return p_values
     
-    # Standardize habitat features
-    scaler = StandardScaler()
-    env_data_standardized = scaler.fit_transform(env_data_raw)
-    env_data = pd.DataFrame(
-        env_data_standardized,
-        columns=env_data_raw.columns,
-        index=env_data_raw.index
-    )
+    def get_significance_marker(p_value: float) -> str:
+        """Convert p-value to significance marker."""
+        if p_value < 0.001:
+            return '***'
+        elif p_value < 0.01:
+            return '**'
+        elif p_value < 0.05:
+            return '*'
+        return ''
     
-    # Ensure taxa data contains only numeric columns
-    taxa_data_raw = taxa_data_raw.select_dtypes(include=[np.number])
-    
-    # Select top N taxa by total abundance
-    if top_n_taxa is not None and top_n_taxa > 0:
-        taxa_totals = taxa_data_raw.sum(axis=0)
-        top_taxa_cols = taxa_totals.nlargest(top_n_taxa).index.tolist()
-        taxa_data_raw = taxa_data_raw[top_taxa_cols]
-        if verbose:
-            print(f"\nSelected top {top_n_taxa} taxa by total abundance")
-    
-    # Transform taxa data
-    if taxa_transformation == 'hellinger':
-        row_sums = taxa_data_raw.sum(axis=1)
-        taxa_data = np.sqrt(taxa_data_raw.div(row_sums, axis=0))
-    elif taxa_transformation == 'log':
-        taxa_data = np.log1p(taxa_data_raw)
-    else:
-        taxa_data = taxa_data_raw.copy()
-    
-    # Select environmental variables
-    if env_variables is None:
-        env_variables = ['MPS (Phi)', 'Measured Depth (m)', 
-                        'Velocity  at bottom (m/sec)_Imputed', 'Temperature (oC)',
-                        'Water DO Bottom (mg/L)', 'LOI (%)']
-    env_data = env_data[[c for c in env_variables if c in env_data.columns]]
-    
-    # Separate reference and non-reference sites
-    ref_mask = raw_data[ref_column].astype(bool)
-    ref_data = raw_data[ref_mask].copy()
-    nonref_data = raw_data[~ref_mask].copy()
-    
-    if verbose:
-        print(f"\nReference sites: {ref_mask.sum()}")
-        print(f"Non-reference sites: {(~ref_mask).sum()}")
-        print(f"Taxa variables: {len(taxa_data.columns)}")
-    
-    # Helper function to calculate mean and SEM by cluster
-    def calc_cluster_stats(site_subset, data):
+    def calc_cluster_stats(site_subset: pd.DataFrame, data: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Calculate mean and SEM for each cluster."""
         site_subset = site_subset.dropna(subset=[cluster_column])
-        means = []
-        sems = []
         clusters = sorted(site_subset[cluster_column].unique())
+        means, sems = [], []
         
         for cluster in clusters:
             cluster_sites = site_subset[site_subset[cluster_column] == cluster].index
-            cluster_sites_available = [s for s in cluster_sites if s in data.index]
-            
-            if cluster_sites_available:
-                cluster_data = data.loc[cluster_sites_available]
+            available = [s for s in cluster_sites if s in data.index]
+            if available:
+                cluster_data = data.loc[available]
                 means.append(cluster_data.mean())
                 sems.append(cluster_data.sem())
             else:
@@ -1821,69 +1955,197 @@ def plot_cluster_comparison(
         
         mean_df = pd.DataFrame(means, index=[f'Cluster {int(c)}' for c in clusters])
         sem_df = pd.DataFrame(sems, index=[f'Cluster {int(c)}' for c in clusters])
-        
         return mean_df, sem_df
     
-    # Calculate statistics
-    # All sites with cluster labels for habitat
-    sites_with_clusters = raw_data.dropna(subset=[cluster_column])
-    habitat_mean, habitat_sem = calc_cluster_stats(sites_with_clusters, env_data)
-    
-    # Reference and non-reference sites for taxa
-    taxa_ref_mean, taxa_ref_sem = calc_cluster_stats(ref_data, taxa_data)
-    taxa_nonref_mean, taxa_nonref_sem = calc_cluster_stats(nonref_data, taxa_data)
+    # ======================== DATA EXTRACTION ========================
     
     if verbose:
-        print(f"\nClusters found: {len(habitat_mean)}")
-        print(f"Habitat variables: {len(env_data.columns)}")
-        print(f"Taxa: {len(taxa_data.columns)}")
+        print("\n" + "="*80)
+        print("CREATING CLUSTER COMPARISON FIGURE")
+        print("="*80)
     
-    # Create figure
+    # Extract environmental and taxa data blocks
+    try:
+        env_data_raw = get_block(multiindex_data, block='environmental', subblock='raw')
+        taxa_data_raw = get_block(multiindex_data, block='taxa', subblock='raw')
+        if verbose:
+            print(f"\nExtracted data from multiindex blocks")
+    except (KeyError, AttributeError):
+        # Fallback extraction
+        if hasattr(multiindex_data.columns, 'get_level_values'):
+            level0 = multiindex_data.columns.get_level_values(0)
+            taxa_mask = level0 == 'taxa'
+            if taxa_mask.any():
+                taxa_data_raw = multiindex_data.loc[:, taxa_mask].copy()
+                taxa_data_raw.columns = taxa_data_raw.columns.get_level_values(-1)
+            else:
+                raise ValueError("No 'taxa' block found in multiindex")
+        else:
+            raise ValueError("Cannot extract taxa data from provided data")
+        
+        if env_variables is None:
+            env_variables = ['MPS (Phi)', 'Measured Depth (m)', 
+                            'Velocity  at bottom (m/sec)_Imputed', 'Temperature (oC)',
+                            'Water DO Bottom (mg/L)', 'LOI (%)']
+        available_env = [v for v in env_variables if v in raw_data.columns]
+        env_data_raw = raw_data[available_env].copy()
+    
+    # Standardize habitat features if requested
+    if standardize_env:
+        scaler = StandardScaler()
+        env_data = pd.DataFrame(
+            scaler.fit_transform(env_data_raw),
+            columns=env_data_raw.columns,
+            index=env_data_raw.index
+        )
+    else:
+        env_data = env_data_raw.copy()
+    
+    # Process taxa data
+    taxa_data_raw = taxa_data_raw.select_dtypes(include=[np.number])
+    
+    # Select top N taxa by abundance
+    if top_n_taxa is not None and top_n_taxa > 0:
+        taxa_totals = taxa_data_raw.sum(axis=0)
+        top_taxa_cols = taxa_totals.nlargest(top_n_taxa).index.tolist()
+        taxa_data_raw = taxa_data_raw[top_taxa_cols]
+        if verbose:
+            print(f"Selected top {top_n_taxa} taxa by total abundance")
+    
+    # Apply custom taxa order if provided
+    if taxa_order is not None:
+        available_taxa = [t for t in taxa_order if t in taxa_data_raw.columns]
+        taxa_data_raw = taxa_data_raw[available_taxa]
+        if verbose:
+            print(f"Applied custom taxa order: {len(available_taxa)} taxa")
+    
+    # Transform taxa data
+    if taxa_transformation == 'hellinger':
+        taxa_data = hellinger_transform(taxa_data_raw)
+    elif taxa_transformation == 'chord':
+        taxa_data = chord_transform(taxa_data_raw)
+    elif taxa_transformation == 'octave':
+        taxa_data = octave_transform(taxa_data_raw)
+    else:
+        taxa_data = taxa_data_raw.copy()
+    
+    # Filter environmental variables
+    if env_variables is None:
+        env_variables = ['MPS (Phi)', 'Measured Depth (m)', 
+                        'Velocity  at bottom (m/sec)_Imputed', 'Temperature (oC)',
+                        'Water DO Bottom (mg/L)', 'LOI (%)']
+    env_data = env_data[[c for c in env_variables if c in env_data.columns]]
+    
+    # ======================== SPLIT BY REFERENCE STATUS ========================
+    
+    ref_mask = raw_data[ref_column].astype(bool)
+    ref_data = raw_data[ref_mask].copy()
+    nonref_data = raw_data[~ref_mask].copy()
+    sites_with_clusters = raw_data.dropna(subset=[cluster_column])
+    
+    if verbose:
+        print(f"\nReference sites: {ref_mask.sum()}, Non-reference: {(~ref_mask).sum()}")
+        print(f"Taxa variables: {len(taxa_data.columns)}")
+    
+    # ======================== COMPUTE STATISTICS ========================
+    
+    # Habitat statistics (all sites)
+    habitat_mean, habitat_sem = calc_cluster_stats(sites_with_clusters, env_data)
+    
+    # Taxa statistics for ANOVA (using transformed data)
+    taxa_ref_mean_anova, taxa_ref_sem_anova = calc_cluster_stats(ref_data, taxa_data)
+    taxa_nonref_mean_anova, taxa_nonref_sem_anova = calc_cluster_stats(nonref_data, taxa_data)
+    
+    # Taxa statistics for visualization (using relative abundance)
+    taxa_relative = octave_to_relative_abundance(taxa_data)
+    taxa_ref_mean, taxa_ref_sem = calc_cluster_stats(ref_data, taxa_relative)
+    taxa_nonref_mean, taxa_nonref_sem = calc_cluster_stats(nonref_data, taxa_relative)
+    
+    # ======================== ANOVA TESTS ========================
+    
+    if verbose:
+        print(f"\nPerforming ANOVA tests (transform: {anova_transform})...")
+    
+    all_cluster_labels = sites_with_clusters[cluster_column]
+    habitat_pvalues = perform_anova_test(env_data, all_cluster_labels, anova_transform)
+    
+    # Use octave-transformed taxa data for ANOVA tests (proper for parametric tests)
+    ref_cluster_labels = ref_data.dropna(subset=[cluster_column])[cluster_column]
+    taxa_ref_pvalues = perform_anova_test(taxa_data, ref_cluster_labels, anova_transform)
+    
+    nonref_cluster_labels = nonref_data.dropna(subset=[cluster_column])[cluster_column]
+    taxa_nonref_pvalues = perform_anova_test(taxa_data, nonref_cluster_labels, anova_transform)
+    
+    taxa_diff_pvalues = perform_ttest_difference(taxa_data, ref_mask, anova_transform)
+    
+    # ======================== CREATE FIGURE ========================
+    
     fig, axes = plt.subplots(2, 2, figsize=figsize)
     cluster_colors = {0: '#1f77b4', 1: '#ff7f0e', 2: '#2ca02c'}
+    width = 0.25
     
-    # ==================== PANEL A: HABITAT FEATURES ====================
+    # -------------------- PANEL A: HABITAT FEATURES --------------------
     ax1 = axes[0, 0]
-    
-    var_names = habitat_mean.columns
+    var_names = list(habitat_mean.columns)
     n_vars = len(var_names)
     n_clusters = len(habitat_mean)
     x = np.arange(n_vars)
-    width = 0.25
     
     for i, (cluster_name, row) in enumerate(habitat_mean.iterrows()):
         cluster_num = int(cluster_name.split()[-1])
         offset = (i - n_clusters/2 + 0.5) * width
-        
         err_values = habitat_sem.loc[cluster_name].values
-        lower_errors = np.where(row.values < 0, err_values, 0)
-        upper_errors = np.where(row.values >= 0, err_values, 0)
+        lower_err = np.where(row.values < 0, err_values, 0)
+        upper_err = np.where(row.values >= 0, err_values, 0)
         
-        ax1.bar(x + offset, row.values, width,
-                yerr=[lower_errors, upper_errors],
-                label=cluster_name,
-                color=cluster_colors[cluster_num],
-                alpha=0.8,
-                edgecolor='black',
-                linewidth=0.5,
-                capsize=3,
+        ax1.bar(x + offset, row.values, width, yerr=[lower_err, upper_err],
+                label=cluster_name, color=cluster_colors[cluster_num], alpha=0.8,
+                edgecolor='black', linewidth=0.5, capsize=3,
                 error_kw={'linewidth': 1, 'elinewidth': 1})
     
-    ax1.set_xlabel('Habitat Variables', fontsize=10, fontweight='bold')
-    ax1.set_ylabel('Mean Z-Score (±SE)', fontsize=10, fontweight='bold')
-    ax1.set_title('(A) Standardized Habitat Features Across Clusters (All Sites)', 
-                  fontsize=11, fontweight='bold')
+    # ax1.set_xlabel('Habitat Variables', fontsize=14, fontweight='bold')
+    ax1.set_ylabel('Z-standardized Environmental Variables (±SE)', fontsize=14, fontweight='bold')
+    ax1.set_title('Standardized Habitat Features Across Clusters (All Sites)', 
+                  fontsize=14, fontweight='bold')
     ax1.set_xticks(x)
-    ax1.set_xticklabels(var_names, rotation=45, ha='right', fontsize=8)
-    ax1.legend(loc='upper right', fontsize=9)
+    ax1.set_xticklabels(var_names, rotation=30, ha='right', fontsize=12)
+    ax1.tick_params(axis='y', labelsize=12)
+    ax1.legend(loc='upper left', fontsize=14)
     ax1.grid(axis='y', alpha=0.3)
     
-    # ==================== PANEL B: REFERENCE TAXA ====================
-    ax2 = axes[0, 1]
+    # Add significance markers for Panel A
+    for i, var_name in enumerate(var_names):
+        marker = get_significance_marker(habitat_pvalues.get(var_name, 1.0))
+        if marker:
+            # Find the cluster with max absolute mean value for this variable
+            max_abs_cluster = None
+            max_abs_val = -1
+            for cn in habitat_mean.index:
+                abs_val = abs(habitat_mean.loc[cn, var_name])
+                if abs_val > max_abs_val:
+                    max_abs_val = abs_val
+                    max_abs_cluster = cn
+            
+            mean_val = habitat_mean.loc[max_abs_cluster, var_name]
+            sem_val = habitat_sem.loc[max_abs_cluster, var_name]
+            
+            if mean_val >= 0:
+                # Positive value: place marker above the bar
+                marker_y = mean_val - 0.1
+                va = 'bottom'
+            else:
+                # Negative value: place marker below the bar
+                marker_y = mean_val + 0.1
+                va = 'top'
+            
+            ax1.text(x[i] + offset + 0.15, marker_y, marker, ha='left', va=va,
+                    fontsize=10, fontweight='bold', color='black')
     
-    def plot_taxa_bars(ax, mean_df, sem_df, title):
-        """Plot taxa with upper-only error bars."""
-        taxa_names = mean_df.columns
+    # -------------------- PANELS B, C: TAXA BY CLUSTER --------------------
+    
+    def plot_taxa_panel(ax, mean_df, sem_df, title, p_values):
+        """Plot taxa bars with significance markers."""
+        taxa_names = list(mean_df.columns)
         n_taxa = len(taxa_names)
         n_clust = len(mean_df)
         x_taxa = np.arange(n_taxa)
@@ -1891,106 +2153,135 @@ def plot_cluster_comparison(
         for i, (cluster_name, row) in enumerate(mean_df.iterrows()):
             cluster_num = int(cluster_name.split()[-1])
             offset = (i - n_clust/2 + 0.5) * width
-            
             err_values = sem_df.loc[cluster_name].values
-            error_bars = [np.zeros_like(err_values), err_values]
             
             ax.bar(x_taxa + offset, row.values, width,
-                   yerr=error_bars,
-                   label=cluster_name,
-                   color=cluster_colors[cluster_num],
-                   alpha=0.8,
-                   edgecolor='black',
-                   linewidth=0.5,
-                   capsize=2,
+                   yerr=[np.zeros_like(err_values), err_values],
+                   label=cluster_name, color=cluster_colors[cluster_num], alpha=0.8,
+                   edgecolor='black', linewidth=0.5, capsize=2,
                    error_kw={'linewidth': 0.8, 'elinewidth': 0.8})
         
-        ax.set_xlabel('Taxa', fontsize=10, fontweight='bold')
-        ax.set_ylabel(f'Mean {taxa_transformation.capitalize()} Abundance (+SE)', 
-                     fontsize=10, fontweight='bold')
-        ax.set_title(title, fontsize=11, fontweight='bold')
+        ax.set_xlabel('Taxa', fontsize=14, fontweight='bold')
+        ax.set_ylabel(f'Zoobenthic Relative Abundance(±SE) (%)', 
+                     fontsize=14, fontweight='bold')
+        ax.set_title(title, fontsize=14, fontweight='bold')
         ax.set_xticks(x_taxa)
-        ax.set_xticklabels(taxa_names, rotation=45, ha='right', fontsize=8)
-        ax.legend(loc='upper right', fontsize=9)
+        ax.set_xticklabels(taxa_names, rotation=30, ha='right', fontsize=12)
+        ax.tick_params(axis='y', labelsize=12)
+        # ax.legend(loc='upper right', fontsize=9)
         ax.grid(axis='y', alpha=0.3)
+        
+        # Add significance markers next to highest bar
+        for i, var_name in enumerate(taxa_names):
+            marker = get_significance_marker(p_values.get(var_name, 1.0))
+            if marker:
+                # Find the bar with largest absolute value
+                max_val = max(mean_df.loc[cn, var_name] for cn in mean_df.index)
+                min_val = min(mean_df.loc[cn, var_name] for cn in mean_df.index)
+            
+                if abs(max_val) >= abs(min_val):
+                    # Positive bar is dominant - place marker above positive bar
+                    marker_y = max_val - 0.01
+                    va = 'top'
+                else:
+                    # Negative bar is dominant - place marker below negative bar
+                    marker_y = min_val + 0.01
+                    va = 'bottom'
+                
+                ax.text(x_taxa[i] + offset + 0.2, marker_y, marker, ha='left', va=va,
+                       fontsize=9, fontweight='bold', color='black')
     
+    ax2 = axes[0, 1]
     if not taxa_ref_mean.empty:
-        plot_taxa_bars(ax2, taxa_ref_mean, taxa_ref_sem,
-                      '(B) Reference Sites: Taxa by Cluster')
+        plot_taxa_panel(ax2, taxa_ref_mean, taxa_ref_sem,
+                       'Reference Sites: Taxa by Cluster', taxa_ref_pvalues)
     else:
         ax2.text(0.5, 0.5, 'No reference sites\nwith cluster labels',
                 ha='center', va='center', fontsize=12, transform=ax2.transAxes)
-        ax2.set_title('(B) Reference Sites: Taxa by Cluster', fontsize=11, fontweight='bold')
+        ax2.set_title('Reference Sites: Taxa by Cluster', fontsize=14, fontweight='bold')
     
-    # ==================== PANEL C: NON-REFERENCE TAXA ====================
     ax3 = axes[1, 0]
-    
     if not taxa_nonref_mean.empty:
-        plot_taxa_bars(ax3, taxa_nonref_mean, taxa_nonref_sem,
-                      '(C) Non-Reference Sites: Taxa by Cluster')
+        plot_taxa_panel(ax3, taxa_nonref_mean, taxa_nonref_sem,
+                       'Non-Reference Sites: Taxa by Cluster', taxa_nonref_pvalues)
     else:
         ax3.text(0.5, 0.5, 'No non-reference sites\nwith cluster labels',
                 ha='center', va='center', fontsize=12, transform=ax3.transAxes)
-        ax3.set_title('(C) Non-Reference Sites: Taxa by Cluster', fontsize=11, fontweight='bold')
+        ax3.set_title('Non-Reference Sites: Taxa by Cluster', fontsize=14, fontweight='bold')
     
-    # ==================== PANEL D: DIFFERENCE (NON-REF - REF) ====================
+    # -------------------- PANEL D: DIFFERENCE (NON-REF - REF) --------------------
     ax4 = axes[1, 1]
     
     if not taxa_ref_mean.empty and not taxa_nonref_mean.empty:
-        # Calculate differences (non-ref - ref) for matching clusters
-        common_clusters = list(set(taxa_nonref_mean.index) & set(taxa_ref_mean.index))
+        common_clusters = sorted(set(taxa_nonref_mean.index) & set(taxa_ref_mean.index))
         
         if common_clusters:
-            taxa_names = taxa_ref_mean.columns
+            taxa_names = list(taxa_ref_mean.columns)
             n_taxa = len(taxa_names)
             x_taxa = np.arange(n_taxa)
             
-            for cluster_name in sorted(common_clusters):
+            for cluster_name in common_clusters:
                 cluster_num = int(cluster_name.split()[-1])
-                
-                # Calculate difference
                 diff = taxa_nonref_mean.loc[cluster_name] - taxa_ref_mean.loc[cluster_name]
+                diff_sem = np.sqrt(taxa_nonref_sem.loc[cluster_name]**2 + 
+                                  taxa_ref_sem.loc[cluster_name]**2)
                 
-                # Propagate errors (add in quadrature for independent samples)
-                sem_nonref = taxa_nonref_sem.loc[cluster_name]
-                sem_ref = taxa_ref_sem.loc[cluster_name]
-                diff_sem = np.sqrt(sem_nonref**2 + sem_ref**2)
-                
-                offset = (sorted(common_clusters).index(cluster_name) - len(common_clusters)/2 + 0.5) * width
-                
-                # Create asymmetric error bars from center line
-                lower_errors = np.where(diff.values < 0, diff_sem.values, 0)
-                upper_errors = np.where(diff.values >= 0, diff_sem.values, 0)
+                offset = (common_clusters.index(cluster_name) - len(common_clusters)/2 + 0.5) * width
+                lower_err = np.where(diff.values < 0, diff_sem.values, 0)
+                upper_err = np.where(diff.values >= 0, diff_sem.values, 0)
                 
                 ax4.bar(x_taxa + offset, diff.values, width,
-                       yerr=[lower_errors, upper_errors],
-                       label=cluster_name,
-                       color=cluster_colors[cluster_num],
-                       alpha=0.8,
-                       edgecolor='black',
-                       linewidth=0.5,
-                       capsize=2,
+                       yerr=[lower_err, upper_err], label=cluster_name,
+                       color=cluster_colors[cluster_num], alpha=0.8,
+                       edgecolor='black', linewidth=0.5, capsize=2,
                        error_kw={'linewidth': 0.8, 'elinewidth': 0.8})
             
             ax4.axhline(y=0, color='black', linestyle='-', linewidth=1.5, alpha=0.7)
-            ax4.set_xlabel('Taxa', fontsize=10, fontweight='bold')
-            ax4.set_ylabel(f'Difference (Non-Ref - Ref) ±SE', fontsize=10, fontweight='bold')
-            ax4.set_title('(D) Taxa Difference: Non-Reference vs Reference', 
-                         fontsize=11, fontweight='bold')
+            ax4.set_xlabel('Taxa', fontsize=14, fontweight='bold')
+            ax4.set_ylabel('Difference of Relative Abundance(±SE) (%)', fontsize=14, fontweight='bold')
+            ax4.set_title('Average Difference in Taxa Composition\nbetween Non-Reference and Reference Sites', 
+                         fontsize=14, fontweight='bold')
             ax4.set_xticks(x_taxa)
-            ax4.set_xticklabels(taxa_names, rotation=45, ha='right', fontsize=8)
-            ax4.legend(loc='upper right', fontsize=9)
+            ax4.set_xticklabels(taxa_names, rotation=30, ha='right', fontsize=12)
+            ax4.tick_params(axis='y', labelsize=12)
+            # ax4.legend(loc='upper right', fontsize=9)
             ax4.grid(axis='y', alpha=0.3)
+            
+            # Add test annotation
+            ax4.text(0.98, 0.95, r'(One-Sample $t$-test for $H_0$: $\Delta \mu = 0$)', 
+                    transform=ax4.transAxes, fontsize=14, fontstyle='italic',
+                    ha='right', va='top')
+            
+            # Add significance markers
+            for i, var_name in enumerate(taxa_names):
+                marker = get_significance_marker(taxa_diff_pvalues.get(var_name, 1.0))
+                if marker:
+                    # Find the bar with largest absolute difference value
+                    diff_values = [(cn, taxa_nonref_mean.loc[cn, var_name] - taxa_ref_mean.loc[cn, var_name]) 
+                                   for cn in common_clusters]
+                    max_diff_cluster, max_diff = max(diff_values, key=lambda x: abs(x[1]))
+                    
+                    if max_diff >= 0:
+                        # Positive bar is dominant - place marker above
+                        marker_y = max_diff - 0.01
+                        va = 'top'
+                    else:
+                        # Negative bar is dominant - place marker below
+                        marker_y = max_diff + 0.01
+                        va = 'bottom'
+                    
+                    ax4.text(x_taxa[i] + offset + 0.2, marker_y, marker, ha='left', va=va,
+                           fontsize=9, fontweight='bold', color='black')
         else:
-            ax4.text(0.5, 0.5, 'No matching clusters\nbetween ref and non-ref',
-                    ha='center', va='center', fontsize=12, transform=ax4.transAxes)
-            ax4.set_title('(D) Taxa Difference: Non-Reference vs Reference',
-                         fontsize=11, fontweight='bold')
+            ax4.text(0.5, 0.5, 'No matching clusters', ha='center', va='center', 
+                    fontsize=12, transform=ax4.transAxes)
+            ax4.set_title('Average Difference in Taxa Composition\nbetween Non-Reference and Reference Sites',
+                         fontsize=14, fontweight='bold')
     else:
-        ax4.text(0.5, 0.5, 'Insufficient data\nfor comparison',
-                ha='center', va='center', fontsize=12, transform=ax4.transAxes)
-        ax4.set_title('(D) Taxa Difference: Non-Reference vs Reference',
-                     fontsize=11, fontweight='bold')
+        ax4.text(0.5, 0.5, 'Insufficient data', ha='center', va='center',
+                fontsize=12, transform=ax4.transAxes)
+        ax4.set_title('Average Difference in Taxa Composition\nbetween Non-Reference and Reference Sites',
+                     fontsize=14, fontweight='bold')
     
     plt.tight_layout()
     
@@ -2011,6 +2302,12 @@ def create_lda_confusion_matrix_table(
     """
     Create a publication-ready confusion matrix table for LDA.
     
+    Format matches publication style with:
+    - Group column with cluster names
+    - % Correct column showing classification accuracy per cluster
+    - Predicted cluster columns with counts
+    - Total row with overall accuracy and column totals
+    
     Parameters
     ----------
     lda_results : dict
@@ -2027,15 +2324,47 @@ def create_lda_confusion_matrix_table(
     """
     cm = lda_results['confusion_matrix']
     cluster_names = lda_results['cluster_names']
+    n_clusters = len(cluster_names)
     
-    # Create DataFrame with proper row/column labels
-    row_labels = [f"True {name}" for name in cluster_names]
-    col_labels = [f"Pred. {name}" for name in cluster_names]
+    # Calculate % Correct for each cluster (row-wise accuracy)
+    row_totals = cm.sum(axis=1)
+    correct_counts = np.diag(cm)
+    pct_correct = np.where(row_totals > 0, (correct_counts / row_totals) * 100, 0)
     
-    cm_df = pd.DataFrame(cm, index=row_labels, columns=col_labels)
-    cm_df.index.name = ''
+    # Build rows
+    rows = []
+    for i, name in enumerate(cluster_names):
+        cluster_num = int(name.split()[-1])
+        row = {
+            'Group': f'Cluster C{cluster_num + 1}',
+            '% Correct': int(round(pct_correct[i]))
+        }
+        # Add predicted cluster columns
+        for j, pred_name in enumerate(cluster_names):
+            pred_num = int(pred_name.split()[-1])
+            row[f'Cluster C{pred_num + 1}'] = int(cm[i, j])
+        rows.append(row)
     
-    return cm_df
+    # Add Total row
+    total_correct = correct_counts.sum()
+    total_samples = row_totals.sum()
+    overall_pct = int(round((total_correct / total_samples) * 100)) if total_samples > 0 else 0
+    col_totals = cm.sum(axis=0)
+    
+    total_row = {
+        'Group': 'Total',
+        '% Correct': overall_pct
+    }
+    for j, pred_name in enumerate(cluster_names):
+        pred_num = int(pred_name.split()[-1])
+        total_row[f'Cluster C{pred_num + 1}'] = int(col_totals[j])
+    rows.append(total_row)
+    
+    df = pd.DataFrame(rows)
+    df = df.set_index('Group')
+    df.index.name = ''
+    
+    return df
 
 
 def create_lda_classification_report_table(
@@ -2132,6 +2461,12 @@ def create_mccv_confusion_matrix_table(
     """
     Create a publication-ready aggregate confusion matrix from Monte Carlo CV.
     
+    Format matches publication style with:
+    - Group column with cluster names
+    - % Correct column showing classification accuracy per cluster
+    - Predicted cluster columns with counts
+    - Total row with overall accuracy and column totals
+    
     Parameters
     ----------
     cv_results : dict
@@ -2150,30 +2485,55 @@ def create_mccv_confusion_matrix_table(
     cluster_names = cv_results['cluster_names']
     n_iterations = cv_results['n_iterations']
     test_size = cv_results['test_size']
-    
-    # Create DataFrame with proper row/column labels
-    row_labels = [f"True {name}" for name in cluster_names]
-    col_labels = [f"Pred. {name}" for name in cluster_names]
-    
-    cm_df = pd.DataFrame(cm, index=row_labels, columns=col_labels)
-    
-    # Add note row
     n_clusters = len(cluster_names)
-    note_row = pd.DataFrame(
-        [[''] * n_clusters],
-        index=[''],
-        columns=col_labels
-    )
-    note_row2 = pd.DataFrame(
-        [[f"Note: Combined results from {n_iterations:,} cross-validation iterations"] + [''] * (n_clusters - 1)],
-        index=[f'Test Size: {test_size*100:.1f}% per iteration'],
-        columns=col_labels
-    )
     
-    cm_df = pd.concat([cm_df, note_row, note_row2])
-    cm_df.index.name = ''
+    # Calculate % Correct for each cluster (row-wise accuracy)
+    row_totals = cm.sum(axis=1)
+    correct_counts = np.diag(cm)
+    pct_correct = np.where(row_totals > 0, (correct_counts / row_totals) * 100, 0)
     
-    return cm_df
+    # Build rows
+    rows = []
+    for i, name in enumerate(cluster_names):
+        cluster_num = int(name.split()[-1])
+        row = {
+            'Group': f'Cluster C{cluster_num + 1}',
+            '% Correct': int(round(pct_correct[i]))
+        }
+        # Add predicted cluster columns
+        for j, pred_name in enumerate(cluster_names):
+            pred_num = int(pred_name.split()[-1])
+            row[f'Cluster C{pred_num + 1}'] = int(cm[i, j])
+        rows.append(row)
+    
+    # Add Total row
+    total_correct = correct_counts.sum()
+    total_samples = row_totals.sum()
+    overall_pct = int(round((total_correct / total_samples) * 100)) if total_samples > 0 else 0
+    col_totals = cm.sum(axis=0)
+    
+    total_row = {
+        'Group': 'Total',
+        '% Correct': overall_pct
+    }
+    for j, pred_name in enumerate(cluster_names):
+        pred_num = int(pred_name.split()[-1])
+        total_row[f'Cluster C{pred_num + 1}'] = int(col_totals[j])
+    rows.append(total_row)
+    
+    # Add empty row then note row
+    empty_row = {col: '' for col in ['Group', '% Correct'] + [f'Cluster C{int(n.split()[-1]) + 1}' for n in cluster_names]}
+    rows.append(empty_row)
+    
+    note_row = empty_row.copy()
+    note_row['Group'] = f"Note: Combined results from {n_iterations:,} CV iterations (test size: {test_size*100:.0f}%)"
+    rows.append(note_row)
+    
+    df = pd.DataFrame(rows)
+    df = df.set_index('Group')
+    df.index.name = ''
+    
+    return df
 
 
 def create_mccv_classification_report_table(

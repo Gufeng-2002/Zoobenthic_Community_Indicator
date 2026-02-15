@@ -8,11 +8,7 @@ def hellinger_transform(df: pd.DataFrame) -> pd.DataFrame:
     Returns a DataFrame with the same index/columns and values in [0, 1].
     """
     X = df.to_numpy(dtype=float, copy=True)
-    if np.any(X < 0):
-        raise ValueError("hellinger_transform requires nonnegative inputs.")
-    row_sums = X.sum(axis=1, keepdims=True)
-    row_sums[row_sums == 0] = 1.0  # avoid division by zero
-    H = np.sqrt(X / row_sums)
+    H = np.sqrt(X)
     return pd.DataFrame(H, index=df.index, columns=df.columns)
 
 def log1p_standardize(df: pd.DataFrame) -> pd.DataFrame:

@@ -610,7 +610,7 @@ def create_anova_summary_table(
     variables: List[str],
     cluster_column: str = 'clusters',
     variable_type: str = 'env',
-    use_boxcox: bool = True,
+    use_transformation: str = None,
     taxa_transformation: str = 'hellinger',
     verbose: bool = False
 ) -> pd.DataFrame:
@@ -636,8 +636,8 @@ def create_anova_summary_table(
         Column name containing cluster labels
     variable_type : str, default='env'
         Type of variables: 'env' for environmental, 'taxa' for species
-    use_boxcox : bool, default=True
-        Whether to apply Box-Cox transformation before ANOVA
+    use_transformation: str = None,
+        Transformation to apply before ANOVA ('boxcox', 'log1p', or None)
     taxa_transformation : str, default='hellinger'
         Initial transformation for taxa data ('hellinger', 'chord', 'octave', 'none')
         Only used when variable_type='taxa'
@@ -661,7 +661,7 @@ def create_anova_summary_table(
     sample_sizes = {}
     for cluster in clusters:
         n = (clustered_data[cluster_column] == cluster).sum()
-        sample_sizes[f'Cluster {int(cluster)}'] = n
+        sample_sizes[f'Cluster {int(cluster) + 1}'] = n
     
     # Handle taxa variables
     if variable_type == 'taxa':
@@ -719,15 +719,19 @@ def create_anova_summary_table(
             
             mean_val = original_values.mean()
             std_val = original_values.std()
-            row[f'Cluster {int(cluster)}'] = f"{mean_val:.2f} ± {std_val:.2f}"
+            row[f'Cluster {int(cluster) + 1}'] = f"{mean_val:.2f} ± {std_val:.2f}"
             
             groups_original.append(original_values.values)
             
             # Values for ANOVA - apply Box-Cox only if requested
-            if use_boxcox and len(cluster_values) > 0:
+            if use_transformation == 'boxcox' and len(cluster_values) > 0:
                 # Apply Box-Cox transformation
                 transform_result = _apply_boxcox_transformation(cluster_values, var)
                 groups_for_anova.append(transform_result['transformed'].values)
+            elif use_transformation == 'log1p' and len(cluster_values) > 0:
+                # Apply log1p transformation
+                transformed_values = np.log1p(cluster_values)
+                groups_for_anova.append(transformed_values.values)
             else:
                 # No Box-Cox: use cluster_values directly
                 # For taxa: this is taxa-transformed (hellinger/chord/etc.)
@@ -754,12 +758,12 @@ def create_anova_summary_table(
     # Add sample size row
     sample_row = {'Variable': 'Sample size (n)', 'F-stat': '', 'p-value': ''}
     for cluster in clusters:
-        sample_row[f'Cluster {int(cluster)}'] = str(sample_sizes[f'Cluster {int(cluster)}'])
+        sample_row[f'Cluster {int(cluster) + 1}'] = str(sample_sizes[f'Cluster {int(cluster) + 1}'])
     
     # Add separator row
     separator_row = {'Variable': '-' * 30, 'F-stat': '-' * 6, 'p-value': '-' * 10}
     for cluster in clusters:
-        separator_row[f'Cluster {int(cluster)}'] = '-' * 14
+        separator_row[f'Cluster {int(cluster) + 1}'] = '-' * 14
     
     # Add significance legend row
     legend_row = {
@@ -768,7 +772,7 @@ def create_anova_summary_table(
         'p-value': ''
     }
     for cluster in clusters:
-        legend_row[f'Cluster {int(cluster)}'] = ''
+        legend_row[f'Cluster {int(cluster) + 1}'] = ''
     
     # Append footer rows
     df = pd.concat([
@@ -794,7 +798,7 @@ def create_anova_excel_table(
     variables: List[str],
     cluster_column: str = 'clusters',
     variable_type: str = 'env',
-    use_boxcox: bool = True,
+    use_transformation: str = 'log1p',
     taxa_transformation: str = 'hellinger',
     top_n_taxa: Optional[int] = None,
     verbose: bool = False
@@ -804,10 +808,10 @@ def create_anova_excel_table(
     
     This function creates a clean table format suitable for saving to Excel,
     matching the publication style with:
-    - Variable names in first column
-    - Mean ± std for each cluster
-    - F-statistic
-    - p-value with significance stars
+    - Variable/Taxon names in first column
+    - SS Between, df, SS Within, df columns
+    - F-statistic and p-value with significance stars
+    - Mean (± 1SE) Relative Abundance for each cluster
     
     Parameters
     ----------
@@ -821,8 +825,9 @@ def create_anova_excel_table(
         Column name containing cluster labels
     variable_type : str, default='env'
         Type of variables: 'env' for environmental, 'taxa' for species
-    use_boxcox : bool, default=True
-        Whether to apply Box-Cox transformation before ANOVA
+    use_transformation: str = 'log1p',
+        Transformation to apply before ANOVA ('boxcox', 'log1p', or None).
+        If None, performs ANOVA on raw (or taxa-transformed) data directly.
     taxa_transformation : str, default='hellinger'
         Initial transformation for taxa data
     top_n_taxa : int, optional
@@ -833,7 +838,8 @@ def create_anova_excel_table(
     Returns
     -------
     pd.DataFrame
-        Clean table ready for Excel export
+        Clean table ready for Excel export with columns:
+        Taxon/Variable | SS Between | df | SS Within | df | F | p | Cluster C1 | Cluster C2
     """
     from .hierarchical_clustering import hellinger_transform, chord_transform, octave_transform
     
@@ -841,12 +847,16 @@ def create_anova_excel_table(
     clustered_mask = raw_data[cluster_column].notna()
     clustered_data = raw_data[clustered_mask].copy()
     clusters = sorted(clustered_data[cluster_column].unique())
+    n_clusters = len(clusters)
     
     # Calculate sample size per cluster
     sample_sizes = {}
     for cluster in clusters:
         n = (clustered_data[cluster_column] == cluster).sum()
         sample_sizes[int(cluster)] = n
+    
+    # Total sample size
+    n_total = sum(sample_sizes.values())
     
     # Handle taxa variables
     taxa_multiindex = None
@@ -875,6 +885,9 @@ def create_anova_excel_table(
     else:
         data_for_analysis = clustered_data
     
+    # Column name for variable
+    var_col_name = 'Taxon' if variable_type == 'taxa' else 'Variable'
+    
     results = []
     for var in variables:
         if variable_type == 'taxa':
@@ -886,9 +899,10 @@ def create_anova_excel_table(
                 continue
             var_data = clustered_data[var]
         
-        row = {'Variable': var}
+        row = {var_col_name: var}
         
         groups_for_anova = []
+        cluster_stats = {}  # Store mean and SE for each cluster
         
         for cluster in clusters:
             cluster_int = int(cluster)
@@ -898,60 +912,117 @@ def create_anova_excel_table(
             if variable_type == 'taxa':
                 # For taxa: use taxa-transformed values for ANOVA
                 cluster_values = var_data.loc[cluster_indices].dropna()
-                # Get original untransformed taxa values for display (mean ± std)
+                # Get original untransformed taxa values for display (mean ± 1SE)
                 original_values = taxa_multiindex.loc[cluster_values.index, var]
             else:
                 # For env: use raw values
                 cluster_values = var_data.loc[cluster_indices].dropna()
                 original_values = cluster_values
             
+            # Calculate mean and standard error (SE = std / sqrt(n))
             mean_val = original_values.mean()
-            std_val = original_values.std()
-            row[f'Cluster {cluster_int}'] = f"{mean_val:.2f} ± {std_val:.2f}"
+            n_cluster = len(original_values)
+            se_val = original_values.std() / np.sqrt(n_cluster) if n_cluster > 0 else 0
+            cluster_stats[cluster_int] = {'mean': mean_val, 'se': se_val, 'n': n_cluster}
             
             # Values for ANOVA - apply Box-Cox only if requested
-            if use_boxcox and len(cluster_values) > 0:
+            if use_transformation == 'boxcox' and len(cluster_values) > 0:
                 transform_result = _apply_boxcox_transformation(cluster_values, var)
                 groups_for_anova.append(transform_result['transformed'].values)
+            elif use_transformation == 'log1p' and len(cluster_values) > 0:
+                # Apply log1p transformation
+                transformed_values = np.log1p(cluster_values)
+                groups_for_anova.append(transformed_values.values)
             else:
                 # No Box-Cox: use cluster_values directly
-                # For taxa: this is taxa-transformed (hellinger/chord/etc.)
-                # For env: this is the raw environmental values
                 groups_for_anova.append(cluster_values.values)
         
-        # Perform ANOVA
+        # Perform ANOVA and calculate SS Between and SS Within
         if all(len(g) > 1 for g in groups_for_anova) and len(groups_for_anova) >= 2:
             try:
-                f_stat, p_val = f_oneway(*groups_for_anova)
-                row['F-stat'] = round(f_stat, 2)
-                row['p-value'] = _format_pvalue_with_stars(p_val)
+                # Calculate SS Between and SS Within manually
+                all_values = np.concatenate(groups_for_anova)
+                grand_mean = np.mean(all_values)
+                
+                # SS Between: sum of n_i * (group_mean - grand_mean)^2
+                ss_between = 0
+                for g in groups_for_anova:
+                    group_mean = np.mean(g)
+                    ss_between += len(g) * (group_mean - grand_mean) ** 2
+                
+                # SS Within: sum of (x_ij - group_mean)^2 for all groups
+                ss_within = 0
+                for g in groups_for_anova:
+                    group_mean = np.mean(g)
+                    ss_within += np.sum((g - group_mean) ** 2)
+                
+                # Degrees of freedom
+                df_between = n_clusters - 1
+                df_within = n_total - n_clusters
+                
+                # F-statistic
+                ms_between = ss_between / df_between
+                ms_within = ss_within / df_within
+                f_stat = ms_between / ms_within
+                
+                # Get p-value from f_oneway
+                _, p_val = f_oneway(*groups_for_anova)
+                
+                row['SS Between'] = round(ss_between, 2)
+                row['df'] = df_between
+                row['SS Within'] = round(ss_within, 2)
+                row['df '] = df_within  # Note: space to differentiate from first df column
+                row['F'] = round(f_stat, 2)
+                row['p'] = _format_pvalue_with_stars(p_val)
             except:
-                row['F-stat'] = ''
-                row['p-value'] = 'NA'
+                row['SS Between'] = ''
+                row['df'] = ''
+                row['SS Within'] = ''
+                row['df '] = ''
+                row['F'] = ''
+                row['p'] = 'NA'
         else:
-            row['F-stat'] = ''
-            row['p-value'] = 'NA'
+            row['SS Between'] = ''
+            row['df'] = ''
+            row['SS Within'] = ''
+            row['df '] = ''
+            row['F'] = ''
+            row['p'] = 'NA'
+        
+        # Add cluster columns with Mean ± 1SE
+        for cluster in clusters:
+            cluster_int = int(cluster)
+            stats = cluster_stats[cluster_int]
+            row[f'Cluster C{cluster_int + 1}'] = f"{stats['mean']:.2f} ± {stats['se']:.2f}"
         
         results.append(row)
     
     df = pd.DataFrame(results)
     
+    # Sort by F-statistic in descending order
+    # Convert 'F' to numeric for sorting, treating empty strings as NaN
+    df['F_numeric'] = pd.to_numeric(df['F'], errors='coerce')
+    df = df.sort_values('F_numeric', ascending=False).drop(columns=['F_numeric'])
+    df = df.reset_index(drop=True)
+    
+    # Reorder columns to match the image format
+    cluster_cols = [f'Cluster C{int(c) + 1}' for c in clusters]
+    col_order = [var_col_name, 'SS Between', 'df', 'SS Within', 'df ', 'F', 'p'] + cluster_cols
+    df = df[col_order]
+    
     # Add empty row as separator
     empty_row = {col: '' for col in df.columns}
     
-    # Add sample size row
-    sample_row = {'Variable': 'Sample size (n)', 'F-stat': '', 'p-value': ''}
+    # Add sample size row - put sample sizes in the cluster columns
+    sample_row = {col: '' for col in df.columns}
+    sample_row[var_col_name] = 'Sample size (n)'
     for cluster in clusters:
-        sample_row[f'Cluster {int(cluster)}'] = sample_sizes[int(cluster)]
+        cluster_int = int(cluster)
+        sample_row[f'Cluster C{cluster_int + 1}'] = sample_sizes[cluster_int]
     
     # Add significance legend row
-    legend_row = {
-        'Variable': 'Significance: *** p<0.001, ** p<0.01, * p<0.05, . p<0.1',
-        'F-stat': '',
-        'p-value': ''
-    }
-    for cluster in clusters:
-        legend_row[f'Cluster {int(cluster)}'] = ''
+    legend_row = {col: '' for col in df.columns}
+    legend_row[var_col_name] = 'Significance: *** p<0.001, ** p<0.01, * p<0.05'
     
     # Append footer
     df = pd.concat([
@@ -964,7 +1035,7 @@ def create_anova_excel_table(
     
     if verbose:
         data_rows = df.iloc[:-4]
-        n_sig = data_rows['p-value'].apply(lambda x: '*' in str(x)).sum()
+        n_sig = data_rows['p'].apply(lambda x: '*' in str(x)).sum()
         print(f"  - {variable_type.upper()} ANOVA table: {len(data_rows)} variables, {n_sig} significant")
     
     return df

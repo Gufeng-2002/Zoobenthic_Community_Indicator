@@ -59,8 +59,8 @@ def compute_pollution_scores(pca_scores, weights=None):
         pc_weights = {
             'PC1': 1,     # Highest variance, general contamination
             'PC2': 1,     # Second highest variance
-            'PC3': 2,     # High biological impact (from RDA results)
-            'PC4': 0,     # Low relevance
+            'PC3': 1,     # High biological impact (from RDA results)
+            'PC4': 1,     # Low relevance
             'PC5': 1,     # Moderate relevance
             'PC6': 1      # Moderate relevance
         }

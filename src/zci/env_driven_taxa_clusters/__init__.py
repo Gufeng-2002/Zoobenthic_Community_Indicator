@@ -83,6 +83,7 @@ from .lda_pipeline import (
     predict_nonreference_sites,
     update_data_with_predictions,
     compute_lda_variable_importance,
+    create_lda_excel_table,
     # LDA table formatting functions
     create_lda_confusion_matrix_table,
     create_lda_classification_report_table,
@@ -114,6 +115,7 @@ __all__ = [
     'predict_nonreference_sites',
     'update_data_with_predictions',
     'compute_lda_variable_importance',
+    'create_lda_excel_table',
     
     # LDA table formatting functions
     'create_lda_confusion_matrix_table',

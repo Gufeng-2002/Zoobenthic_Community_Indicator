@@ -405,11 +405,11 @@ class RDA:
                     text_alpha = 0.5
                 
                 # Draw arrow with appropriate style
-                ax.arrow(0, 0, x, y, head_width=0.02, head_length=0.03,
-                        fc='blue', ec='blue', alpha=arrow_alpha, linewidth=1.5, 
+                ax.arrow(0, 0, x, y, head_width=0.1, head_length=0.1,
+                        fc='blue', ec='blue', alpha=arrow_alpha, linewidth=2, 
                         linestyle=linestyle, zorder=4)
                 
-                ax.text(x * 1.2, y * 1.2, var + p_text, fontsize=13, color='blue',
+                ax.text(x * 1.1, y * 1.1, var + p_text, fontsize=13, color='blue',
                        fontweight='bold', ha='center', va='center', alpha=text_alpha, zorder=5)
         
         # Add reference lines

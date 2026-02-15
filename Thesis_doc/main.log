@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.7.21)  22 JAN 2026 13:40
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.7.21)  29 JAN 2026 13:58
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -909,33 +909,33 @@ File: ../results/figures/01_contamination_assessment/figure2_pc_loadings_ridge.p
 <use ../results/figures/01_contamination_assessment/figure2_pc_loadings_ridge.png>
 Package pdftex.def Info: ../results/figures/01_contamination_assessment/figure2_pc_loadings_ridge.png  used on input line 99.
 (pdftex.def)             Requested size: 381.6517pt x 237.07515pt.
-<../results/figures/01_contamination_assessment/figure3_rda_validation.png, id=98, 1004.0712pt x 714.5094pt>
+<../results/figures/01_contamination_assessment/figure3_rda_validation.png, id=98, 1003.8303pt x 714.5094pt>
 File: ../results/figures/01_contamination_assessment/figure3_rda_validation.png Graphic file (type png)
 <use ../results/figures/01_contamination_assessment/figure3_rda_validation.png>
 Package pdftex.def Info: ../results/figures/01_contamination_assessment/figure3_rda_validation.png  used on input line 106.
-(pdftex.def)             Requested size: 381.6517pt x 271.5818pt.
-<../results/figures/02_taxa_assemblage_in_refs/figure2_reference_selection.png, id=99, 950.8323pt x 475.5366pt>
+(pdftex.def)             Requested size: 381.6517pt x 271.64722pt.
+<../results/figures/02_taxa_assemblage_in_refs/figure2_reference_selection.png, id=99, 1016.598pt x 475.5366pt>
 File: ../results/figures/02_taxa_assemblage_in_refs/figure2_reference_selection.png Graphic file (type png)
 <use ../results/figures/02_taxa_assemblage_in_refs/figure2_reference_selection.png>
 Package pdftex.def Info: ../results/figures/02_taxa_assemblage_in_refs/figure2_reference_selection.png  used on input line 113.
-(pdftex.def)             Requested size: 381.6517pt x 190.87157pt.
+(pdftex.def)             Requested size: 381.6517pt x 178.5217pt.
 
 
 LaTeX Warning: `!h' float specifier changed to `!ht'.
 
-<../results/figures/02_taxa_assemblage_in_refs/figure5_ward_analysis.png, id=100, 1149.093pt x 428.5611pt>
+<../results/figures/02_taxa_assemblage_in_refs/figure5_ward_analysis.png, id=100, 1149.093pt x 428.3202pt>
 File: ../results/figures/02_taxa_assemblage_in_refs/figure5_ward_analysis.png Graphic file (type png)
 <use ../results/figures/02_taxa_assemblage_in_refs/figure5_ward_analysis.png>
 Package pdftex.def Info: ../results/figures/02_taxa_assemblage_in_refs/figure5_ward_analysis.png  used on input line 120.
-(pdftex.def)             Requested size: 381.6517pt x 142.3411pt.
+(pdftex.def)             Requested size: 381.6517pt x 142.26108pt.
 
 LaTeX Warning: `!h' float specifier changed to `!ht'.
 
-<../results/figures/02_taxa_assemblage_in_refs/figure6_cluster_visualization.png, id=101, 1003.3485pt x 714.7503pt>
+<../results/figures/02_taxa_assemblage_in_refs/figure6_cluster_visualization.png, id=101, 985.0401pt x 692.1057pt>
 File: ../results/figures/02_taxa_assemblage_in_refs/figure6_cluster_visualization.png Graphic file (type png)
 <use ../results/figures/02_taxa_assemblage_in_refs/figure6_cluster_visualization.png>
 Package pdftex.def Info: ../results/figures/02_taxa_assemblage_in_refs/figure6_cluster_visualization.png  used on input line 126.
-(pdftex.def)             Requested size: 381.6517pt x 271.86969pt.
+(pdftex.def)             Requested size: 381.6517pt x 268.15651pt.
 
 LaTeX Warning: `!h' float specifier changed to `!ht'.
 
@@ -949,29 +949,29 @@ LaTeX Warning: `!h' float specifier changed to `!ht'.
 File: ../results/figures/01_contamination_assessment/figure3_rda_validation.png Graphic file (type png)
 <use ../results/figures/01_contamination_assessment/figure3_rda_validation.png>
 Package pdftex.def Info: ../results/figures/01_contamination_assessment/figure3_rda_validation.png  used on input line 140.
-(pdftex.def)             Requested size: 381.6517pt x 271.5818pt.
+(pdftex.def)             Requested size: 381.6517pt x 271.64722pt.
 
 LaTeX Warning: `!h' float specifier changed to `!ht'.
 
 File: ../results/figures/02_taxa_assemblage_in_refs/figure2_reference_selection.png Graphic file (type png)
 <use ../results/figures/02_taxa_assemblage_in_refs/figure2_reference_selection.png>
 Package pdftex.def Info: ../results/figures/02_taxa_assemblage_in_refs/figure2_reference_selection.png  used on input line 147.
-(pdftex.def)             Requested size: 381.6517pt x 190.87157pt.
+(pdftex.def)             Requested size: 381.6517pt x 178.5217pt.
 
 LaTeX Warning: `!h' float specifier changed to `!ht'.
 
 File: ../results/figures/02_taxa_assemblage_in_refs/figure5_ward_analysis.png Graphic file (type png)
 <use ../results/figures/02_taxa_assemblage_in_refs/figure5_ward_analysis.png>
 Package pdftex.def Info: ../results/figures/02_taxa_assemblage_in_refs/figure5_ward_analysis.png  used on input line 154.
-(pdftex.def)             Requested size: 381.6517pt x 142.3411pt.
+(pdftex.def)             Requested size: 381.6517pt x 142.26108pt.
 
 LaTeX Warning: `!h' float specifier changed to `!ht'.
 
-<../results/figures/03_env_driven_taxa_clusters/figure1_rda_triplot.png, id=102, 1004.7939pt x 715.473pt>
+<../results/figures/03_env_driven_taxa_clusters/figure1_rda_triplot.png, id=102, 1004.553pt x 715.473pt>
 File: ../results/figures/03_env_driven_taxa_clusters/figure1_rda_triplot.png Graphic file (type png)
 <use ../results/figures/03_env_driven_taxa_clusters/figure1_rda_triplot.png>
 Package pdftex.def Info: ../results/figures/03_env_driven_taxa_clusters/figure1_rda_triplot.png  used on input line 160.
-(pdftex.def)             Requested size: 381.6517pt x 271.75156pt.
+(pdftex.def)             Requested size: 381.6517pt x 271.82799pt.
 
 LaTeX Warning: `!h' float specifier changed to `!ht'.
 
@@ -983,33 +983,23 @@ Package pdftex.def Info: ../results/figures/03_env_driven_taxa_clusters/figure2_
 
 LaTeX Warning: `!h' float specifier changed to `!ht'.
 
-<../results/figures/03_env_driven_taxa_clusters/figure4_cluster_comparison.png, id=104, 1293.633pt x 860.013pt>
+<../results/figures/03_env_driven_taxa_clusters/figure4_cluster_comparison.png, id=104, 1293.633pt x 858.5676pt>
 File: ../results/figures/03_env_driven_taxa_clusters/figure4_cluster_comparison.png Graphic file (type png)
 <use ../results/figures/03_env_driven_taxa_clusters/figure4_cluster_comparison.png>
 Package pdftex.def Info: ../results/figures/03_env_driven_taxa_clusters/figure4_cluster_comparison.png  used on input line 174.
-(pdftex.def)             Requested size: 381.6517pt x 253.71475pt.
+(pdftex.def)             Requested size: 381.6517pt x 253.28835pt.
 
 LaTeX Warning: `!h' float specifier changed to `!ht'.
 
-<../results/figures/04_community_composition_measures/figure4_ordination.png, id=105, 1293.1512pt x 445.9059pt>
-File: ../results/figures/04_community_composition_measures/figure4_ordination.png Graphic file (type png)
-<use ../results/figures/04_community_composition_measures/figure4_ordination.png>
-Package pdftex.def Info: ../results/figures/04_community_composition_measures/figure4_ordination.png  used on input line 179.
-(pdftex.def)             Requested size: 381.6517pt x 131.60233pt.
-<../results/figures/04_community_composition_measures/figure5_zci_vs_pollution.png, id=106, 948.4233pt x 703.9098pt>
-File: ../results/figures/04_community_composition_measures/figure5_zci_vs_pollution.png Graphic file (type png)
-<use ../results/figures/04_community_composition_measures/figure5_zci_vs_pollution.png>
-Package pdftex.def Info: ../results/figures/04_community_composition_measures/figure5_zci_vs_pollution.png  used on input line 184.
-(pdftex.def)             Requested size: 381.6517pt x 283.25598pt.
-<../results/figures/05_quantile_regressions/c0_CIs_Wild_Bootstraps_quantiles.png, id=107, 1148.3703pt x 853.5087pt>
+<../results/figures/05_quantile_regressions/c0_CIs_Wild_Bootstraps_quantiles.png, id=105, 1148.3703pt x 853.5087pt>
 File: ../results/figures/05_quantile_regressions/c0_CIs_Wild_Bootstraps_quantiles.png Graphic file (type png)
 <use ../results/figures/05_quantile_regressions/c0_CIs_Wild_Bootstraps_quantiles.png>
-Package pdftex.def Info: ../results/figures/05_quantile_regressions/c0_CIs_Wild_Bootstraps_quantiles.png  used on input line 190.
+Package pdftex.def Info: ../results/figures/05_quantile_regressions/c0_CIs_Wild_Bootstraps_quantiles.png  used on input line 179.
 (pdftex.def)             Requested size: 381.6517pt x 283.65134pt.
-<../results/figures/05_quantile_regressions/c1_CIs_Wild_Bootstraps_quantiles.png, id=108, 1149.093pt x 853.5087pt>
+<../results/figures/05_quantile_regressions/c1_CIs_Wild_Bootstraps_quantiles.png, id=106, 1149.093pt x 853.5087pt>
 File: ../results/figures/05_quantile_regressions/c1_CIs_Wild_Bootstraps_quantiles.png Graphic file (type png)
 <use ../results/figures/05_quantile_regressions/c1_CIs_Wild_Bootstraps_quantiles.png>
-Package pdftex.def Info: ../results/figures/05_quantile_regressions/c1_CIs_Wild_Bootstraps_quantiles.png  used on input line 196.
+Package pdftex.def Info: ../results/figures/05_quantile_regressions/c1_CIs_Wild_Bootstraps_quantiles.png  used on input line 185.
 (pdftex.def)             Requested size: 381.6517pt x 283.48203pt.
 
 
@@ -1023,6 +1013,10 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 [10
 
  <../results/figures/01_contamination_assessment/figure2_pc_loadings_ridge.png> <../results/figures/01_contamination_assessment/figure3_rda_validation.png>]
+
+LaTeX Warning: Text page 11 contains only floats.
+
+
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -1058,7 +1052,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
 
-[14 <../results/figures/03_env_driven_taxa_clusters/figure2_lda_cv.png> <../results/figures/03_env_driven_taxa_clusters/figure4_cluster_comparison.png> <../results/figures/04_community_composition_measures/figure4_ordination.png>]
+[14 <../results/figures/03_env_driven_taxa_clusters/figure2_lda_cv.png> <../results/figures/03_env_driven_taxa_clusters/figure4_cluster_comparison.png>]
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -1067,16 +1061,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller:
 (fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
 
-[15 <../results/figures/04_community_composition_measures/figure5_zci_vs_pollution.png> <../results/figures/05_quantile_regressions/c0_CIs_Wild_Bootstraps_quantiles.png>]
-
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 14.49998pt, for example:
-(fancyhdr)                \setlength{\headheight}{14.49998pt}.
-(fancyhdr)                You might also make \topmargin smaller:
-(fancyhdr)                \addtolength{\topmargin}{-2.49998pt}.
-
-[16 <../results/figures/05_quantile_regressions/c1_CIs_Wild_Bootstraps_quantiles.png>]
+[15 <../results/figures/05_quantile_regressions/c0_CIs_Wild_Bootstraps_quantiles.png> <../results/figures/05_quantile_regressions/c1_CIs_Wild_Bootstraps_quantiles.png>]
 No file main.bbl.
 (./main.aux)
  ***********
@@ -1087,18 +1072,18 @@ Package rerunfilecheck Info: File `main.out' has not changed.
 (rerunfilecheck)             Checksum: 798F0DF80E1372345826FC9AC4C26372;769.
  ) 
 Here is how much of TeX's memory you used:
- 27453 strings out of 474662
- 534720 string characters out of 5751109
+ 27436 strings out of 474662
+ 533491 string characters out of 5751109
  1075628 words of memory out of 5000000
- 49952 multiletter control sequences out of 15000+600000
+ 49938 multiletter control sequences out of 15000+600000
  567832 words of font info for 69 fonts, out of 8000000 for 9000
  319 hyphenation exceptions out of 8191
  113i,11n,115p,520b,479s stack positions out of 10000i,1000n,20000p,200000b,200000s
  </Users/gufeng/Library/texlive/2025basic/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1200.600pk> </Users/gufeng/Library/texlive/2025basic/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1095.600pk></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></usr/local/texlive/2025basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb>
-Output written on main.pdf (18 pages, 5043999 bytes).
+Output written on main.pdf (17 pages, 4375111 bytes).
 PDF statistics:
- 219 PDF objects out of 1000 (max. 8388607)
- 158 compressed objects within 2 object streams
- 55 named destinations out of 1000 (max. 500000)
- 105 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 208 PDF objects out of 1000 (max. 8388607)
+ 152 compressed objects within 2 object streams
+ 52 named destinations out of 1000 (max. 500000)
+ 95 words of extra memory for PDF output out of 10000 (max. 10000000)
 

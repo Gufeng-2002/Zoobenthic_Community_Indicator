@@ -64,10 +64,11 @@ def visualize_cluster_analysis(
     raw_data: pd.DataFrame,
     multiindex_data: pd.DataFrame,
     cluster_column: str = 'clusters',
-    top_n_taxa: int = 15,
+    top_n_taxa: int = 16,
     env_variables: Optional[List[str]] = None,
     figsize: Tuple[int, int] = (18, 10),
-    cluster_colors: Optional[Dict[int, str]] = None
+    cluster_colors: Optional[Dict[int, str]] = None,
+    standardize_env: bool = False
 ) -> plt.Figure:
     """
     Create a comprehensive 3-panel visualization of cluster analysis results.
@@ -95,6 +96,9 @@ def visualize_cluster_analysis(
     cluster_colors : dict, optional
         Mapping of cluster IDs to colors. If None, uses default color scheme.
         Example: {0: 'orange', 1: 'green', 2: 'red'}
+    standardize_env : bool, default=False
+        If True, plot z-scores of environmental variables.
+        If False, plot raw mean values.
         
     Returns:
     -------
@@ -139,7 +143,7 @@ def visualize_cluster_analysis(
     # Create figure with 3 panels
     fig = plt.figure(figsize=figsize)
     gs = fig.add_gridspec(2, 2, width_ratios=[1.2, 1], height_ratios=[1, 1],
-                          hspace=0.3, wspace=0.2)  # Reduced wspace from 0.3 to 0.2
+                          hspace=0.3, wspace=0.05)  # Reduced wspace from 0.3 to 0.2
     
     # Left panel: Map
     ax_map = fig.add_subplot(gs[:, 0])
@@ -148,7 +152,8 @@ def visualize_cluster_analysis(
     # Upper right: Environmental variables
     ax_env = fig.add_subplot(gs[0, 1])
     _plot_environmental_variables(ref_data, ref_multiindex, cluster_column, 
-                                  cluster_colors, cluster_ids, env_variables, ax_env)
+                                  cluster_colors, cluster_ids, env_variables, ax_env,
+                                  standardize=standardize_env)
     
     # Lower right: Taxa composition
     ax_taxa = fig.add_subplot(gs[1, 1])
@@ -192,7 +197,7 @@ def _plot_cluster_map(ref_data: pd.DataFrame,
         ax.scatter(cluster_sites['Longitude'], cluster_sites['Latitude'],
                   c=cluster_colors[cluster_id], s=120, alpha=0.8,
                   edgecolors='black', linewidth=1.5,
-                  label=f'Cluster {cluster_id} (n={len(cluster_sites)})',
+                  label=f'Cluster {int(cluster_id) + 1} (n={len(cluster_sites)})',
                   zorder=3)
         
         # Add site labels near scatter points
@@ -215,8 +220,17 @@ def _plot_environmental_variables(ref_data: pd.DataFrame,
                                   cluster_colors: Dict[int, str],
                                   cluster_ids: List[int],
                                   env_variables: Optional[List[str]],
-                                  ax: plt.Axes) -> None:
-    """Plot environmental variable means across clusters."""
+                                  ax: plt.Axes,
+                                  standardize: bool = False) -> None:
+    """
+    Plot environmental variable means across clusters.
+    
+    Parameters:
+    ----------
+    standardize : bool, default=False
+        If True, plot z-scores of environmental variables.
+        If False, plot raw mean values.
+    """
     # Default environmental variables if not specified
     if env_variables is None:
         # Try to find common environmental variables
@@ -301,8 +315,8 @@ def _plot_environmental_variables(ref_data: pd.DataFrame,
         ax.set_title('Environmental Variables', fontsize=12, fontweight='bold')
         return
     
-    # Calculate z-scores and SEM for each variable across all reference sites
-    standardized_means = []
+    # Calculate means and SEM for each variable across all reference sites
+    plot_means = []
     sem_values = []
     
     for i, var in enumerate(env_variables):
@@ -315,12 +329,12 @@ def _plot_environmental_variables(ref_data: pd.DataFrame,
                 all_values.extend(vals)
         
         if len(all_values) > 0:
-            # Calculate overall mean and std for z-score
+            # Calculate overall mean and std for z-score (if standardizing)
             overall_mean = np.mean(all_values)
             overall_std = np.std(all_values, ddof=1)
             
-            # Calculate z-scores for each cluster mean
-            cluster_z_scores = []
+            # Calculate means/z-scores for each cluster
+            cluster_values = []
             cluster_sems = []
             for cluster_id in cluster_ids:
                 cluster_mask = ref_data[cluster_column] == cluster_id
@@ -328,23 +342,28 @@ def _plot_environmental_variables(ref_data: pd.DataFrame,
                     cluster_vals = ref_data.loc[cluster_mask, var].dropna().values
                     if len(cluster_vals) > 0:
                         cluster_mean = np.mean(cluster_vals)
-                        # Z-score
-                        z_score = (cluster_mean - overall_mean) / overall_std if overall_std > 0 else 0
-                        # SEM
                         sem = stats.sem(cluster_vals)
-                        cluster_z_scores.append(z_score)
-                        cluster_sems.append(sem / overall_std if overall_std > 0 else 0)  # SEM in z-score units
+                        
+                        if standardize:
+                            # Z-score
+                            z_score = (cluster_mean - overall_mean) / overall_std if overall_std > 0 else 0
+                            cluster_values.append(z_score)
+                            cluster_sems.append(sem / overall_std if overall_std > 0 else 0)  # SEM in z-score units
+                        else:
+                            # Raw mean
+                            cluster_values.append(cluster_mean)
+                            cluster_sems.append(sem)
                     else:
-                        cluster_z_scores.append(0)
+                        cluster_values.append(0)
                         cluster_sems.append(0)
             
-            standardized_means.append(cluster_z_scores)
+            plot_means.append(cluster_values)
             sem_values.append(cluster_sems)
         else:
-            standardized_means.append([0] * len(cluster_ids))
+            plot_means.append([0] * len(cluster_ids))
             sem_values.append([0] * len(cluster_ids))
     
-    standardized_means = np.array(standardized_means).T  # Transpose to get cluster x variable
+    plot_means = np.array(plot_means).T  # Transpose to get cluster x variable
     sem_values = np.array(sem_values).T
     
     # Create grouped bar plot with asymmetric error bars
@@ -358,8 +377,8 @@ def _plot_environmental_variables(ref_data: pd.DataFrame,
         lower_errors = np.zeros_like(sem_values[i])
         upper_errors = np.zeros_like(sem_values[i])
         
-        for j in range(len(standardized_means[i])):
-            if standardized_means[i][j] >= 0:
+        for j in range(len(plot_means[i])):
+            if plot_means[i][j] >= 0:
                 # Positive value: show only upper error bar
                 upper_errors[j] = sem_values[i][j]
                 lower_errors[j] = 0
@@ -370,9 +389,9 @@ def _plot_environmental_variables(ref_data: pd.DataFrame,
         
         yerr_array = np.array([lower_errors, upper_errors])
         
-        ax.bar(x + offset, standardized_means[i], width,
+        ax.bar(x + offset, plot_means[i], width,
               yerr=yerr_array,
-              label=f'Cluster {cluster_id}',
+              label=f'Cluster {int(cluster_id) + 1}',
               color=cluster_colors[cluster_id], alpha=0.8, edgecolor='black',
               error_kw={'linewidth': 1.5, 'ecolor': 'black', 'capsize': 3})
     
@@ -381,7 +400,7 @@ def _plot_environmental_variables(ref_data: pd.DataFrame,
     for var in env_variables:
         # Create shorter versions of common variable names
         short_name = var.replace('Measured Depth (m)', 'Depth')\
-                        .replace('Velocity  at bottom (m/sec)', 'Velocity')\
+                        .replace('Velocity  at bottom (m/sec)_Imputed', 'Velocity')\
                         .replace('Water DO Bottom (mg/L)', 'DO')\
                         .replace('Temperature (oC)', 'Temp')\
                         .replace('MPS (Phi)', 'Sediment')\
@@ -389,15 +408,19 @@ def _plot_environmental_variables(ref_data: pd.DataFrame,
                         .replace('_', ' ').title()
         clean_names.append(short_name)
     
-    ax.axhline(y=0, color='black', linestyle='-', linewidth=0.8, alpha=0.5)
-    ax.set_ylabel('Mean z-score (± SEM)', fontsize=11, fontweight='bold')
-    ax.set_title('(A) Standardized Habitat Features Across Clusters',
-                fontsize=12, fontweight='bold', loc='left')
+    if standardize:
+        ax.axhline(y=0, color='black', linestyle='-', linewidth=0.8, alpha=0.5)
+        ax.set_ylabel('Mean z-score (± SEM)', fontsize=11, fontweight='bold')
+        ax.set_title('(A) Standardized Habitat Features Across Clusters',
+                    fontsize=12, fontweight='bold', loc='left')
+    else:
+        ax.set_ylabel('Mean Value (± SEM)', fontsize=11, fontweight='bold')
+        ax.set_title('(A) Habitat Features Across Clusters',
+                    fontsize=12, fontweight='bold', loc='left')
     ax.set_xticks(x)
-    ax.set_xticklabels(clean_names, rotation=45, ha='right')
+    ax.set_xticklabels(clean_names, rotation=30, ha='right')
     ax.legend(loc='upper right', fontsize=9)
     ax.grid(axis='y', alpha=0.3, linestyle='--')
-    ax.set_ylim([-1.5, 1.5])
 
 
 def _plot_taxa_composition(ref_multiindex: pd.DataFrame,
@@ -454,7 +477,7 @@ def _plot_taxa_composition(ref_multiindex: pd.DataFrame,
         
         ax.bar(x + offset, cluster_taxa_means[i], width,
               yerr=yerr_array,
-              label=f'Cluster {cluster_id}',
+              label=f'Cluster {int(cluster_id) + 1}',
               color=cluster_colors[cluster_id], alpha=0.8, edgecolor='black',
               error_kw={'linewidth': 1.5, 'ecolor': 'black', 'capsize': 3})
     
@@ -465,7 +488,7 @@ def _plot_taxa_composition(ref_multiindex: pd.DataFrame,
     ax.set_title(f'(B) Reference Sites: Taxa by Cluster',
                 fontsize=12, fontweight='bold', loc='left')
     ax.set_xticks(x)
-    ax.set_xticklabels(clean_taxa, rotation=60, ha='right', fontsize=8)
+    ax.set_xticklabels(clean_taxa, rotation=30, ha='right', fontsize=8)
     ax.legend(loc='upper right', fontsize=9)
     ax.grid(axis='y', alpha=0.3, linestyle='--')
 

@@ -16,94 +16,17 @@ import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from typing import Dict, List, Tuple, Optional, Union
+from zci.taxa_assemblage_in_refs.hierarchical_clustering import (
+    hellinger_transform,
+    chord_transform,
+    octave_transform
+)
+
 
 
 # =============================================================================
 # TAXA TRANSFORMATION FUNCTIONS
 # =============================================================================
-
-def hellinger_transform(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Apply Hellinger transformation to taxa abundance data.
-    
-    The Hellinger transformation is: sqrt(abundance / row_total)
-    This transformation is appropriate for species abundance data because:
-    - It gives less weight to abundant species
-    - It makes Euclidean distance meaningful for community data
-    - The resulting Euclidean distance equals Hellinger distance
-    
-    Parameters:
-    -----------
-    df : pd.DataFrame
-        Taxa abundance data (sites x species)
-        
-    Returns:
-    --------
-    pd.DataFrame
-        Hellinger-transformed data with same shape and indices
-    """
-    row_sums = df.sum(axis=1)
-    # Avoid division by zero
-    row_sums = row_sums.replace(0, np.nan)
-    transformed = np.sqrt(df.div(row_sums, axis=0))
-    # Fill NaN with 0 for rows with zero total
-    transformed = transformed.fillna(0)
-    return transformed
-
-
-def chord_transform(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Apply Chord transformation to taxa abundance data.
-    
-    The Chord transformation is: abundance / sqrt(sum of squared abundances)
-    This transformation:
-    - Normalizes each site to unit length (L2 normalization)
-    - Makes Euclidean distance equal to Chord distance
-    - Useful for comparing proportional composition
-    
-    Parameters:
-    -----------
-    df : pd.DataFrame
-        Taxa abundance data (sites x species)
-        
-    Returns:
-    --------
-    pd.DataFrame
-        Chord-transformed data with same shape and indices
-    """
-    # Calculate L2 norm (Euclidean length) for each row
-    row_norms = np.sqrt((df ** 2).sum(axis=1))
-    # Avoid division by zero
-    row_norms = row_norms.replace(0, np.nan)
-    transformed = df.div(row_norms, axis=0)
-    # Fill NaN with 0 for rows with zero total
-    transformed = transformed.fillna(0)
-    return transformed
-
-
-def octave_transform(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Apply Octave (log2) transformation to taxa abundance data.
-    
-    The Octave transformation is: log2(abundance + 1)
-    This transformation:
-    - Compresses the range of abundance values
-    - Reduces the influence of highly abundant species
-    - Each unit increase represents a doubling of abundance
-    
-    Parameters:
-    -----------
-    df : pd.DataFrame
-        Taxa abundance data (sites x species)
-        
-    Returns:
-    --------
-    pd.DataFrame
-        Octave-transformed data with same shape and indices
-    """
-    transformed = np.log2(df + 1)
-    return transformed
-
 
 def bray_curtis_transform(df: pd.DataFrame, standardize: bool = True) -> pd.DataFrame:
     """
@@ -111,7 +34,7 @@ def bray_curtis_transform(df: pd.DataFrame, standardize: bool = True) -> pd.Data
     
     This transformation prepares data for PCA while maintaining some properties
     relevant to Bray-Curtis dissimilarity. It involves:
-    1. Converting abundances to proportions (row-wise)
+    1. Converting abundances to proportions (row-wise) - skipped if already proportions
     2. Optional standardization (column-wise z-score)
     
     Note: True Bray-Curtis is a dissimilarity metric, not a transformation.
@@ -121,7 +44,8 @@ def bray_curtis_transform(df: pd.DataFrame, standardize: bool = True) -> pd.Data
     Parameters:
     -----------
     df : pd.DataFrame
-        Taxa abundance data (sites x species)
+        Taxa abundance data (sites x species). Can be raw counts or
+        relative abundances (proportions).
     standardize : bool
         Whether to standardize columns after proportional transformation
         
@@ -130,11 +54,15 @@ def bray_curtis_transform(df: pd.DataFrame, standardize: bool = True) -> pd.Data
     pd.DataFrame
         Transformed data with same shape and indices
     """
-    # Convert to proportions (row-wise)
-    row_sums = df.sum(axis=1)
-    row_sums = row_sums.replace(0, np.nan)
-    proportions = df.div(row_sums, axis=0)
-    proportions = proportions.fillna(0)
+    if is_relative_abundance:
+        # Data is already proportions
+        proportions = df.copy()
+    else:
+        # Convert to proportions (row-wise)
+        row_sums = df.sum(axis=1)
+        row_sums = row_sums.replace(0, np.nan)
+        proportions = df.div(row_sums, axis=0)
+        proportions = proportions.fillna(0)
     
     if standardize:
         # Standardize each column (species) to mean=0, std=1
@@ -153,7 +81,8 @@ def bray_curtis_transform(df: pd.DataFrame, standardize: bool = True) -> pd.Data
 
 def transform_taxa_data(
     df: pd.DataFrame, 
-    method: str = 'hellinger'
+    method: str = 'hellinger',
+    is_relative_abundance: bool = False
 ) -> pd.DataFrame:
     """
     Apply a specified transformation to taxa abundance data.
@@ -161,7 +90,8 @@ def transform_taxa_data(
     Parameters:
     -----------
     df : pd.DataFrame
-        Taxa abundance data (sites x species)
+        Taxa abundance data (sites x species). Can be raw counts or
+        relative abundances (proportions).
     method : str
         Transformation method. Options:
         - 'hellinger': Hellinger transformation (default)
@@ -169,6 +99,11 @@ def transform_taxa_data(
         - 'octave': Log2 transformation
         - 'bray-curtis' or 'bray_curtis': Proportional + standardization
         - 'none' or None: No transformation (raw data)
+    is_relative_abundance : bool, default=False
+        If True, the input data is already in relative abundance format
+        (proportions that sum to 1 for each row/site). This skips the
+        proportion/relative abundance calculation step in transformations
+        that would otherwise compute it.
         
     Returns:
     --------
