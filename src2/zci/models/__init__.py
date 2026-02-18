@@ -1,3 +1,4 @@
 """Models layer — lightweight dataclasses for structured results."""
 
-from .results import PCAResult
+from .pca import PCAResult
+from .rda import RDAFit, RDAScores, PermutationTestResult, RDAResult

@@ -64,7 +64,7 @@ def save_figure(
     fig: plt.Figure,
     path: Union[str, Path],
     *,
-    formats: Sequence[str] = ("png", "pdf"),
+    formats: Sequence[str] = ("png",),
     dpi: int = 300,
     bbox_inches: str = "tight",
     verbose: bool = True,

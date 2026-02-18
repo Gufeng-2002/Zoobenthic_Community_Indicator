@@ -8,7 +8,9 @@ Usage (from project root):
 
 Reads  : data/processed/complete_env_taxa_chemical_Feb_3.xlsx
 Writes : results2/01_pollution_assessment/tables/  (pc_loadings, site_scores)
-         results2/01_pollution_assessment/figures/ (variance_explained, ridge_loadings)
+         results2/01_pollution_assessment/figures/ (variance_explained, ridge_loadings,
+                                                    corridor_bifurcation)
+         results2/01_pollution_assessment/artifacts/01_updated_data.xlsx
 """
 
 from pathlib import Path
@@ -19,6 +21,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Paths
 DATA_PATH = PROJECT_ROOT / "data" / "processed" / "complete_env_taxa_chemical_Feb_3.xlsx"
 OUTPUT_DIR = PROJECT_ROOT / "results2" / "01_pollution_assessment"
+MAPS_DIR   = PROJECT_ROOT / "data" / "maps"
 
 # Import the pipeline
 from zci.pipeline.pollution_assessment import pollution_pca_pipeline
@@ -30,6 +33,11 @@ if __name__ == "__main__":
         output_dir=OUTPUT_DIR,
         n_components=5,
         standardise_scores="min-max",
+        selected_pcs=None,               # None → all 5 PCs
+        composite_transform="min-max",    # 'min-max' or 'z-score'
+        composite_weights=None,           # None → equal weights
+        maps_dir=MAPS_DIR,               # shapefile folder
+        threshold_quantile=0.20,          # bottom 20 % bifurcation
         save_plots=True,
     )
 

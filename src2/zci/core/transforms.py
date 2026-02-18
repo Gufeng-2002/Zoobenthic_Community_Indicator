@@ -29,6 +29,78 @@ def log2_transform(df: pd.DataFrame) -> pd.DataFrame:
     return df.apply(lambda col: np.log2(col + 1))
 
 
+# ---------------------------------------------------------------------------
+# Composite pollution scoring
+# ---------------------------------------------------------------------------
+
+
+def composite_pollution_score(
+    scores: pd.DataFrame,
+    selected_pcs: Sequence[str] | None = None,
+    transform: str = "min-max",
+    weights: dict[str, float] | Sequence[float] | None = None,
+) -> pd.Series:
+    """Compute a single composite pollution score per site.
+
+    Steps
+    -----
+    1. Select a subset of PCs from *scores*.
+    2. Apply *transform* (``"min-max"`` or ``"z-score"``) to each selected PC.
+    3. Weighted-sum across PCs → one scalar per site.
+
+    Parameters
+    ----------
+    scores : pd.DataFrame
+        Site-score matrix (sites × PCs).  Already standardised or raw.
+    selected_pcs : list of str, optional
+        Which PCs to include (e.g. ``["PC1", "PC2", "PC3"]``).
+        *None* → all columns.
+    transform : str
+        ``"min-max"`` rescales each PC to [0, 1]; ``"z-score"`` centres
+        to mean 0 / std 1.
+    weights : dict, list, or None
+        Per-PC weights.  ``None`` → equal weights (all 1).
+        A *dict* maps ``{"PC1": 1.0, "PC3": 2.0, …}``;
+        a *list/array* must match *selected_pcs* length.
+
+    Returns
+    -------
+    pd.Series
+        Named ``"Pollution_Score"`` with the same row index as *scores*.
+    """
+    # 1. Select PCs
+    if selected_pcs is None:
+        selected_pcs = list(scores.columns)
+    missing = set(selected_pcs) - set(scores.columns)
+    if missing:
+        raise KeyError(f"PCs not found in scores: {sorted(missing)}")
+    sub = scores[list(selected_pcs)].copy()
+
+    # 2. Transform
+    if transform == "min-max":
+        sub = (sub - sub.min()) / (sub.max() - sub.min())
+    elif transform == "z-score":
+        sub = (sub - sub.mean()) / sub.std()
+    else:
+        raise ValueError(f"Unsupported transform: {transform!r}. Use 'min-max' or 'z-score'.")
+
+    # 3. Build weight array
+    n = len(selected_pcs)
+    if weights is None:
+        w = np.ones(n)
+    elif isinstance(weights, dict):
+        w = np.array([weights.get(pc, 0.0) for pc in selected_pcs])
+    else:
+        w = np.array(weights)
+        if len(w) != n:
+            raise ValueError(
+                f"Length of weights ({len(w)}) != number of selected PCs ({n})"
+            )
+
+    composite = sub.values @ w
+    return pd.Series(composite, index=scores.index, name="Pollution_Score")
+
+
 def log1p_zscore_transform(
     df: pd.DataFrame,
     skip_log_cols: Sequence[str] = ("As", "Bi"),
@@ -60,3 +132,40 @@ def log1p_zscore_transform(
 
     scaled = StandardScaler().fit_transform(out)
     return pd.DataFrame(scaled, index=df.index, columns=df.columns)
+
+
+# ---------------------------------------------------------------------------
+# Taxa (octave) transforms
+# ---------------------------------------------------------------------------
+
+
+def octave_to_relative_abundance(octave_df: pd.DataFrame) -> pd.DataFrame:
+    """Convert octave-transformed values back to relative abundances.
+
+    Inverse of  ``o_ij = log₂(100 · (p_ij + 0.01))``:
+        ``p = (2^o − 0.0625)``, clipped to ≥ 0, then row-normalised.
+
+    Parameters
+    ----------
+    octave_df : pd.DataFrame
+        Sites × taxa matrix in octave scale.
+
+    Returns
+    -------
+    pd.DataFrame
+        Relative-abundance matrix (rows sum to 1).
+    """
+    p = np.power(2, octave_df) - 0.0625
+    p = p.clip(lower=0)
+    row_sum = p.sum(axis=1)
+    p = p.div(row_sum, axis=0).fillna(0)
+    return p
+
+
+def octave_transform(octave_df: pd.DataFrame) -> pd.DataFrame:
+    """Identity — the data are *already* in octave scale.
+
+    This function exists so callers can use a uniform
+    ``transform="octave"`` keyword without special-casing.
+    """
+    return octave_df.copy()

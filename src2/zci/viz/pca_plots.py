@@ -14,7 +14,7 @@ from scipy.cluster.hierarchy import linkage, leaves_list
 from scipy.spatial.distance import pdist
 import pandas as pd
 
-from ..models.results import PCAResult
+from ..models.pca import PCAResult
 
 
 # ---------------------------------------------------------------------------

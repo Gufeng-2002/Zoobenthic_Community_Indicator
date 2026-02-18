@@ -81,3 +81,42 @@ def extract_block(
     # Flatten to the leaf variable names
     block.columns = block.columns.get_level_values(-1)
     return block
+
+
+# ---------------------------------------------------------------------------
+# MultiIndex helpers
+# ---------------------------------------------------------------------------
+
+
+def wrap_columns(
+    df: pd.DataFrame,
+    level0: str,
+    level1: str,
+) -> pd.DataFrame:
+    """Wrap plain columns into a 2-level ``(level0, level1, var)`` MultiIndex.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with plain (string) columns.
+    level0 : str
+        First level label (e.g. ``"01_pollution_assessment"``).
+    level1 : str
+        Second level label (e.g. ``"raw"``).
+
+    Returns
+    -------
+    pd.DataFrame
+        Copy with a 3-level column MultiIndex.
+    """
+    out = df.copy()
+    tuples = [(level0, level1, col) for col in df.columns]
+    out.columns = pd.MultiIndex.from_tuples(tuples, names=["block", "subblock", "var"])
+    return out
+
+
+def concat_blocks(blocks: list[pd.DataFrame]) -> pd.DataFrame:
+    """Column-wise concat of already-wrapped MultiIndex DataFrames."""
+    if not blocks:
+        return pd.DataFrame()
+    return pd.concat(blocks, axis=1)
