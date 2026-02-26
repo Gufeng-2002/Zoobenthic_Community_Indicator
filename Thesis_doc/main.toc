@@ -1,5 +1,0 @@
-\contentsline {chapter}{\numberline {1}Introduction}{1}{chapter.1}%
-\contentsline {section}{\numberline {1.1}01 pollution assessment}{1}{section.1.1}%
-\contentsline {section}{\numberline {1.2}02 Taxa Assemblage in Reference Sites}{1}{section.1.2}%
-\contentsline {section}{\numberline {1.3}03 Env-Driven Taxa clusters (LDA)}{1}{section.1.3}%
-\contentsfinish 
