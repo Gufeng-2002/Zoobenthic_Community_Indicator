@@ -18,7 +18,6 @@ src/zci/community_composition_measures/zci_calculation.py
 src/zci/contamination_assessment/__init__.py
 src/zci/contamination_assessment/pca_analysis.py
 src/zci/contamination_assessment/pca_pollution_scores.py
-src/zci/contamination_assessment/pca_pollution_scores_old.py
 src/zci/contamination_assessment/pipeline.py
 src/zci/contamination_assessment/scoring.py
 src/zci/contamination_assessment/transformations.py
@@ -33,6 +32,11 @@ src/zci/env_driven_taxa_clusters/pipeline.py
 src/zci/env_driven_taxa_clusters/rda.py
 src/zci/env_driven_taxa_clusters/rda_pipeline.py
 src/zci/map_plots/SCDRC_map.py
+src/zci/piecewise_quantile_regression/__init__.py
+src/zci/piecewise_quantile_regression/bootstrap.py
+src/zci/piecewise_quantile_regression/pipeline.py
+src/zci/piecewise_quantile_regression/pqrm_model.py
+src/zci/piecewise_quantile_regression/visualizations.py
 src/zci/taxa_assemblage_in_refs/__init__.py
 src/zci/taxa_assemblage_in_refs/boxcox_anova.py
 src/zci/taxa_assemblage_in_refs/cluster_visualization.py

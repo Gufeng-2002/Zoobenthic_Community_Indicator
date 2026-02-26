@@ -4,5 +4,6 @@
     "jupyter.kernels.filter": [],
     "notebook.defaultKernels": {
         "python": "/Users/gufeng/2025_winter/Thesis_Project/ThesisProject/envThesisProject/bin/python"
-    }
+    },
+    "python-envs.pythonProjects": []
 }

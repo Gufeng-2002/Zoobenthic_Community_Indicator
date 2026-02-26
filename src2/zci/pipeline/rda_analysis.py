@@ -283,7 +283,7 @@ def rda_pipeline(
         _log("[9/10] Loading cluster labels for triplot …")
         try:
             stage2_artifact_path = (
-                Path(output_dir).parent / "02_taxa_assemblage" / "artifacts" / "02_updated_data.xlsx"
+                Path(output_dir).parent / "02_taxa_assemblage" / "artifacts" / "02_hindsight_updated_data.xlsx"
             )
             stage2 = pd.read_excel(stage2_artifact_path, header=[0, 1, 2], index_col=0)
             cluster_labels = stage2.loc[

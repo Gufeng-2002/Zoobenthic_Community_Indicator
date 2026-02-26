@@ -48,7 +48,6 @@ OUTPUT_PATH = (
 
 LABEL_MAP: dict[int, int] = {
     3: 1,
-    # 1: 3,
 }
 
 
