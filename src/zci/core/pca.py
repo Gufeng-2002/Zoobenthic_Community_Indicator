@@ -12,10 +12,36 @@ from sklearn.decomposition import PCA
 from ..models.pca import PCAResult
 
 
+def _orient_contamination(
+    scores_raw: pd.DataFrame,
+    loadings: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Flip PC sign so that higher score = greater contamination.
+
+    Heuristic: for each PC, if the majority of the highest-magnitude
+    loadings are negative, flip both the scores and the loadings for
+    that component.  This ensures larger score values always indicate
+    higher contamination intensity.
+
+    Returns copies; originals are not mutated.
+    """
+    scores_out = scores_raw.copy()
+    loadings_out = loadings.copy()
+    for pc in loadings_out.columns:
+        col = loadings_out[pc]
+        # Sign of the loading with the largest absolute value
+        dominant_sign = np.sign(col.iloc[col.abs().argmax()])
+        if dominant_sign < 0:
+            loadings_out[pc] = -col
+            scores_out[pc] = -scores_out[pc]
+    return scores_out, loadings_out
+
+
 def run_pca(
     df: pd.DataFrame,
     n_components: int = 5,
     standardise_scores: str = "min-max",
+    orient_positive: bool = True,
 ) -> PCAResult:
     """Fit PCA and return a structured result.
 
@@ -31,6 +57,9 @@ def run_pca(
         ``"min-max"`` → [0, 1] per column.
         ``"z-score"`` → mean 0, std 1 per column.
         ``None``      → raw projection scores.
+    orient_positive : bool, default True
+        If True, flip each PC so that higher scores indicate greater
+        contamination intensity.
 
     Returns
     -------
@@ -66,6 +95,10 @@ def run_pca(
         index=df.index,
         columns=pc_names,
     )
+
+    # --- orient so that higher = more contaminated --------------------------
+    if orient_positive:
+        scores_raw, loadings = _orient_contamination(scores_raw, loadings)
 
     if standardise_scores == "min-max":
         scores = (scores_raw - scores_raw.min()) / (scores_raw.max() - scores_raw.min())

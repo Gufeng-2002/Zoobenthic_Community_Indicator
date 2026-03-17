@@ -1,0 +1,1349 @@
+% =============================================================================
+%  Thesis Pipeline — Computational Summary
+%  Auto-generated from src/ code analysis
+% =============================================================================
+\documentclass[11pt,a4paper]{article}
+
+% ── packages ─────────────────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{caption}
+\usepackage{graphicx}
+\usepackage{tabularx}
+\usepackage{pdflscape}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!60!black,
+    citecolor=green!50!black,
+    urlcolor=blue!70!black,
+}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\var}[1]{\textit{#1}}
+\newcommand{\mat}[1]{\mathbf{#1}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\PS}{\mathrm{PS}}
+\newcommand{\ZCI}{\mathrm{ZCI}}
+\newcommand{\BC}{\mathrm{BC}}
+
+\title{Computational Pipeline Summary:\\
+       Zoobenthic Community Index Construction\\[6pt]
+       \large Methods, Data Flow, and Quality Assessment}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\clearpage
+
+% ═════════════════════════════════════════════════════════════════════════════
+\section{Overview}
+\label{sec:overview}
+% ═════════════════════════════════════════════════════════════════════════════
+
+The pipeline constructs a \emph{Zoobenthic Community Index} (ZCI) that
+quantifies benthic community condition along a sediment-contamination
+gradient in the St.~Clair--Detroit River System (SCDRS) corridor.
+The corridor-wide workflow is orchestrated by
+\code{run\_SCDRS\_full\_pipeline.py} and proceeds through the following stages:
+
+\begin{enumerate}
+    \item \textbf{Stage~1} — Pollution PCA: derive a composite \emph{Pollution Score}
+          from 16 sediment-chemistry variables.
+    \item \textbf{Stage~RDA} — Redundancy Analysis (complementary validation):
+          quantify how much of the community variation is explained by
+          environmental predictors.
+    \item \textbf{Stage~2} — Taxa assemblage clustering: partition
+          least-polluted (reference) sites into habitat groups using
+          Ward's hierarchical clustering on taxa data.
+    \item \textbf{Hindsight relabel + ANOVA}: merge small clusters and
+          test environmental/taxa differences across habitat groups.
+    \item \textbf{Stage~3} — LDA classification: train a Linear
+          Discriminant Analysis on reference sites to classify all
+          remaining (non-reference) sites into habitat groups.
+    \item \textbf{Stage~4} — Bray--Curtis NMDS + ZCI: ordinate taxa
+          communities by non-metric multidimensional scaling (NMDS) on
+          Bray--Curtis dissimilarities, then compute a ZCI for every site.
+    \item \textbf{Stage~5} — Piecewise quantile regression: model the
+          ZCI--Pollution relationship with piecewise linear quantile
+          regression and wild-bootstrap confidence intervals.
+\end{enumerate}
+
+Stages~1--4 and the hindsight step form the \textbf{core analytical
+stream}; Stage~RDA is \textbf{complementary/validation}; Stage~5 is a
+\textbf{post-hoc inference} layer.  A prospective \textbf{TITAN}
+(Threshold Indicator Taxa ANalysis) module is discussed in
+\cref{sec:titan}.
+
+Each stage reads one or more \emph{artifact} Excel workbooks produced by
+its predecessors, adds new columns, and writes an updated artifact.
+All workbooks use a three-level \code{MultiIndex} column header
+\code{(block, level, variable)}.
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+\section{Data Dictionary and Notation}
+\label{sec:data}
+% ═════════════════════════════════════════════════════════════════════════════
+
+\subsection{Workbook Structure}
+\label{sec:data:workbook}
+
+The master workbook
+(\code{complete\_env\_taxa\_chemical\_Feb\_3.xlsx}) is read by
+\code{read\_study\_data()} (module \code{zci.io.readers}) into a
+\code{pandas.DataFrame} with a three-level column \code{MultiIndex}:
+\[
+    \Bigl(\underbrace{\text{block}}_{\text{e.g.\ ``chemical''}},\;
+          \underbrace{\text{level}}_{\text{``raw''}},\;
+          \underbrace{\text{variable}}_{\text{e.g.\ ``Cu''}}\Bigr).
+\]
+The helper \code{extract\_block(data, block, level)} returns a flat
+\code{DataFrame} containing only the columns belonging to the requested
+block and level.  Four blocks are used:
+
+\begin{center}
+\begin{tabular}{lp{9cm}}
+\toprule
+Block key & Content \\
+\midrule
+\code{chemical / raw} & 16 sediment-chemistry concentrations \\
+\code{taxa / raw} & 16 benthic invertebrate taxa in \textbf{octave scale} \\
+\code{environmental / raw} & Physical habitat variables (depth, DO, temperature,
+      MPS, LOI, velocity) \\
+\code{sample\_info / raw} & Site identifiers, coordinates, waterbody \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+\subsection{Key Symbols and Variable Types}
+\label{sec:data:symbols}
+
+Throughout, we index \(n\) sites by \(i\) and suppress the site subscript
+where unambiguous.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\textwidth}{l l l X}
+\toprule
+Symbol & Dimensions & Code name & Description \\
+\midrule
+$\mat{C}$
+    & $\R^{n \times 16}$
+    & \code{pollution\_raw}
+    & Raw sediment-chemistry matrix (sites $\times$ 16 variables) \\
+$\tilde{\mat{C}}$
+    & $\R^{n \times 16}$
+    & \code{pollution\_transformed}
+    & $\log_2$-transformed chemistry: $\tilde{c}_{ij}=\log_2(1+c_{ij})$ \\
+$\mat{O}$
+    & $\R^{n \times p}$
+    & \code{taxa\_all}
+    & Taxa matrix in \emph{octave} scale ($p=16$ study taxa) \\
+$\mat{P}$
+    & $\R^{n \times p}$
+    & \code{taxa\_relabd}
+    & Relative-abundance matrix recovered from octave; rows sum to~1 \\
+$\mat{E}$
+    & $\R^{n \times q}$
+    & \code{env\_ref} or \code{env\_data}
+    & Environmental predictor matrix ($q=5$ unless otherwise stated) \\
+$\mathbf{s}$
+    & $\R^{n}$
+    & \code{Pollution\_Score}
+    & Composite pollution score (Stage~1 output) \\
+$\mathbf{g}$
+    & $\{1,\dots,K\}^{n}$
+    & \code{Predicted\_Cluster}
+    & Habitat-cluster label for each site (Stage~3 output) \\
+$\mathbf{x}$
+    & $\R^{n \times 2}$
+    & \code{coords\_df[NMDS1, NMDS2]}
+    & NMDS ordination coordinates (Stage~4) \\
+$\mathbf{z}$
+    & $[0,1]^{n}$
+    & \code{ZCI}
+    & Zoobenthic Community Index (Stage~4 output) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+
+\subsection{Characters of the Raw Data}
+\label{sec:data:raw}
+
+\subsubsection{Taxa Data in Octave Scale}
+\label{sec:data:octave}
+
+The 16 taxa variables are stored in \textbf{octave-transformed} form.
+The octave scale encodes the original proportional abundance $p_{ij}$
+(taxon $j$ at site~$i$) as
+\begin{equation}
+    o_{ij} \;=\; \log_{2}\bigl(100\,(p_{ij} + 0.01)\bigr).
+    \label{eq:octave_forward}
+\end{equation}
+Hence $o_{ij}$ increases monotonically with $p_{ij}$ but is not a count;
+absolute abundances are \textbf{not recoverable} from the data.
+
+The inverse used by the pipeline (\code{octave\_to\_relative\_abundance()}
+in module \code{zci.core.transforms}) is
+\begin{equation}
+    \hat{p}_{ij} \;=\; \max\!\bigl(0,\; 2^{o_{ij}} - 0.0625\bigr),
+    \qquad
+    p_{ij}^{\mathrm{RA}} \;=\; \frac{\hat{p}_{ij}}{\sum_{j'}\hat{p}_{ij'}},
+    \label{eq:octave_inverse}
+\end{equation}
+producing a row-normalised relative-abundance matrix $\mat{P}$
+($p_{i\cdot}^{\mathrm{RA}}\in[0,1]$, $\sum_j p_{ij}^{\mathrm{RA}} = 1$).
+
+\paragraph{Usage in downstream stages.}
+\begin{itemize}[nosep]
+    \item \textbf{Stage~2 clustering} uses octave values directly (identity
+          transform) when \code{taxa\_transform="octave"} is specified.
+    \item \textbf{Stage~4 NMDS / ZCI} converts to relative abundance via
+          \eqref{eq:octave_inverse} so that the Bray--Curtis dissimilarity
+          operates on compositional proportions.
+    \item \textbf{ANOVA} (hindsight step) presents per-taxon means on the
+          un-transformed octave scale for interpretability.
+    \item \textbf{RDA} can receive either octave or Hellinger-transformed
+          taxa (configurable via \code{taxa\_transform}).
+\end{itemize}
+
+
+\subsubsection{Mean Particle Size — MPS(Phi)}
+\label{sec:data:mps}
+
+Sediment grain size is stored as \textbf{MPS\,(Phi)}, the mean particle
+size after the Krumbein phi transformation:
+\begin{equation}
+    \phi \;=\; -\log_{2}(\text{particle size in mm}).
+    \label{eq:phi}
+\end{equation}
+The column \code{MPS\,(Phi)} exists in the input workbook as a
+pre-computed field; the pipeline reads it directly and does not
+recompute $\phi$ from raw particle-size measurements.  It enters
+Stage~RDA and Stage~3 (LDA) as one of the environmental predictors
+$\mat{E}$.
+
+
+\subsubsection{Selection of 16 Chemical Variables}
+\label{sec:data:chemicals}
+
+The 2004/5 corridor-wide survey measured 19 elements (18 metals plus
+arsenic); the 1991 and 1999 Detroit River surveys reported 13 and 19
+elements respectively.  The intersection yielded \textbf{13 elements}
+(12~metals plus arsenic) that were common to all three surveys.
+
+All three surveys reported PCB congener concentrations, but
+methodology and detection limits changed substantially between 1990 and
+2004, making congener-by-congener analysis unreliable.  Therefore the
+\textbf{sum of PCBs} ($\Sigma$PCBs, recorded as \code{total PCB}) was
+used instead.
+
+Pesticide and petrochemical data were variably available across
+surveys.  Two single-variable surrogates were chosen:
+\begin{itemize}[nosep]
+    \item \textbf{p,p'-DDE}: a representative insecticide degradation
+          product (surrogate for agricultural pesticides).
+    \item \textbf{OCS} (octachlorostyrene): a petrochemical byproduct
+          (surrogate for industrial petrochemical contamination).
+\end{itemize}
+
+This yields a total of $13 + 1 + 1 + 1 = 16$ chemical variables compiled
+into the site-by-contaminant matrix $\mat{C}$.  The exact column names
+used in the code (constant \code{POLLUTION\_VARS\_2008} in module
+\code{zci.pipeline.pollution\_assessment}) are:
+
+\begin{quote}
+\code{Co, Al, Ni, Mn, Fe, Cr, Cu, Hg, Pb, Zn,
+      total PCB, Cd, OCS, p,p'-DDE, As, Ca.}
+\end{quote}
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+\section{Core Analytical Stream}
+\label{sec:core}
+% ═════════════════════════════════════════════════════════════════════════════
+
+% ────────────────────────────────────────────────────────────────────────────
+\subsection{Stage 1 — Pollution PCA}
+\label{sec:core:s1}
+% ────────────────────────────────────────────────────────────────────────────
+
+\paragraph{Module.}
+\code{zci.pipeline.pollution\_assessment.pollution\_pca\_pipeline()}.
+
+\paragraph{Input.}
+Chemical block $\mat{C}\in\R^{n\times 16}$
+(\code{extract\_block(data, "chemical", "raw")[POLLUTION\_VARS\_2008]}).
+
+\paragraph{Step 1 — Log transformation.}
+Each concentration is log-transformed element-wise
+(\code{zci.core.transforms.log2\_transform}):
+\begin{equation}
+    \tilde{c}_{ij} \;=\; \log_2(1 + c_{ij}),
+    \qquad i=1,\dots,n,\;\; j=1,\dots,16.
+    \label{eq:log2}
+\end{equation}
+This yields the transformed matrix
+$\tilde{\mat{C}}\in\R^{n\times 16}$
+(\code{pollution\_transformed: pd.DataFrame}).
+
+\paragraph{Step 2 — PCA.}
+Principal Component Analysis is performed on $\tilde{\mat{C}}$
+(\code{zci.core.pca.run\_pca}):
+\begin{enumerate}[nosep]
+    \item Centre: $\mat{T} = \tilde{\mat{C}} - \mathbf{1}\,\bar{\tilde{\mathbf{c}}}^{\!\top}$.
+    \item SVD:  $\mat{T} \approx \mat{U}_k\,\mat{\Sigma}_k\,\mat{V}_k^{\top}$
+          with $k$ retained components (default $k=5$).
+    \item \textbf{Scaled loadings}:
+          $L_{jm} = v_{jm}\sqrt{\lambda_m}$,
+          where $\lambda_m$ is the $m$-th eigenvalue and $v_{jm}$ the
+          corresponding eigenvector element.
+          (\code{result.loadings: pd.DataFrame}, shape $16\times k$.)
+    \item \textbf{Site scores}:
+          $\mat{S}_{\mathrm{raw}} = \mat{T}\,\mat{V}_k \in\R^{n\times k}$
+          (\code{result.scores\_raw}).
+    \item \textbf{Standardised scores}: each column of $\mat{S}_{\mathrm{raw}}$
+          is min--max rescaled to $[0,1]$
+          (\code{result.scores: pd.DataFrame}):
+          \begin{equation}
+              s_{im}^{*} = \frac{s_{im} - \min_i s_{im}}
+                                {\max_i s_{im} - \min_i s_{im}}.
+              \label{eq:minmax}
+          \end{equation}
+\end{enumerate}
+
+\noindent
+\textbf{Note.}  The PCA is fit on $\tilde{\mat{C}}$ \emph{without} prior
+unit-variance scaling; variables with larger log-scale variance therefore
+have more influence on the leading PCs.  This is a deliberate design
+choice, not an oversight, but it means that the pollution score is
+weighted towards high-variance contaminants.
+
+\paragraph{Step 3 — Composite Pollution Score.}
+Selected PCs (by default all $k$) are individually min--max-scaled and
+then summed with equal weights
+(\code{zci.core.transforms.composite\_pollution\_score}):
+\begin{equation}
+    s_i \;=\; \sum_{m=1}^{k} w_m \cdot s_{im}^{*},
+    \qquad w_m = 1 \;\;\forall\, m \text{ (default)}.
+    \label{eq:ps}
+\end{equation}
+Result: \code{Pollution\_Score: pd.Series} ($\mathbf{s}\in\R^n$).
+Higher values indicate greater contamination.
+
+\paragraph{Artifact written.}
+\code{01\_updated\_data.xlsx} — the original workbook augmented with
+columns \code{PC1}--\code{PC$k$} and \code{Pollution\_Score}, under the
+block header
+\code{("01\_pollution\_assessment", "raw", *)}.
+
+
+% ────────────────────────────────────────────────────────────────────────────
+\subsection{Stage 2 — Taxa Assemblage Clustering}
+\label{sec:core:s2}
+% ────────────────────────────────────────────────────────────────────────────
+
+\paragraph{Module.}
+\code{zci.pipeline.taxa\_assemblage.taxa\_assemblage\_pipeline()}.
+
+\paragraph{Input.}
+\begin{itemize}[nosep]
+    \item Taxa block $\mat{O}\in\R^{n\times 16}$ (octave scale).
+    \item Pollution Score $\mathbf{s}$ from Stage~1 artifact.
+\end{itemize}
+
+\paragraph{Step 1 — Reference-site selection.}
+A Boolean mask selects the least-polluted fraction of sites
+(\code{zci.core.clustering.select\_reference\_sites}):
+\begin{equation}
+    \mathcal{R} \;=\; \bigl\{\, i : s_i \;\le\; s_{(n_{\mathrm{ref}})}\,\bigr\},
+    \qquad
+    n_{\mathrm{ref}} = \lfloor 0.20\,n \rfloor,
+    \label{eq:refmask}
+\end{equation}
+where $s_{(n_{\mathrm{ref}})}$ is the $n_{\mathrm{ref}}$-th smallest
+value of~$\mathbf{s}$.  Default: bottom 20\,\% of pollution scores.
+Result: \code{ref\_mask: pd.Series[bool]}.
+
+\paragraph{Step 2 — Taxa transform.}
+When \code{taxa\_transform="octave"} (the default), the taxa matrix is
+used as-is; no numerical transformation is applied.  The function
+\code{zci.core.transforms.octave\_transform()} simply returns a copy.
+
+\paragraph{Step 3 — Ward's hierarchical clustering.}
+\code{zci.core.clustering.ward\_cluster(taxa\_ref, n\_clusters=$K$)}
+performs agglomerative clustering with Ward's linkage (minimum
+within-cluster variance) and Euclidean distance:
+\begin{equation}
+    d_{\mathrm{merge}}(A,B) \;=\;
+    \sqrt{\frac{2\,|A|\,|B|}{|A|+|B|}}\,
+    \|\bar{\mathbf{o}}_A - \bar{\mathbf{o}}_B\|,
+    \label{eq:ward}
+\end{equation}
+where $\bar{\mathbf{o}}_A$ denotes the centroid of cluster~$A$ in
+octave space.  The dendrogram is cut at $K$ clusters (default $K=3$
+for the corridor-wide run, later merged to $K=2$ in the hindsight step).
+
+Result: \code{labels\_ref: pd.Series} (1-indexed cluster labels for
+reference sites only; non-reference sites are \code{NaN}).
+
+\paragraph{Artifact written.}
+\code{02\_updated\_data.xlsx} — block
+\code{("02\_taxa\_assemblage", "raw", "Cluster")} populated for
+$|\mathcal{R}|$ reference sites.
+
+
+% ────────────────────────────────────────────────────────────────────────────
+\subsection{Hindsight Relabel and ANOVA}
+\label{sec:core:hindsight}
+% ────────────────────────────────────────────────────────────────────────────
+
+\paragraph{Module.}
+\code{run\_hindsight\_relabel.py}; ANOVA core in
+\code{zci.core.anova.anova\_table()}.
+
+\paragraph{Cluster relabelling.}
+After inspecting Stage~2 dendrograms and cluster membership, smaller
+clusters may be merged.  In the corridor-wide run the mapping
+$\{3 \to 1\}$ is applied, effectively merging the smallest cluster into
+Cluster~1, yielding $K=2$ habitat groups.
+
+\paragraph{One-way ANOVA.}
+For each environmental variable $e$ (from $\mat{E}$) and each taxon
+(from $\mat{O}$, restricted to reference sites), a one-way ANOVA across
+the $K$ clusters is computed:
+\begin{equation}
+    F = \frac{\mathrm{SS}_{\text{between}} / (K-1)}
+             {\mathrm{SS}_{\text{within}} / (n_{\mathrm{ref}}-K)},
+    \label{eq:anova}
+\end{equation}
+where
+\[
+    \mathrm{SS}_{\text{between}} = \sum_{g=1}^{K} n_g\,
+        (\bar{e}_g - \bar{e})^2,
+    \qquad
+    \mathrm{SS}_{\text{within}} = \sum_{g=1}^{K}
+        \sum_{i\in g} (e_i - \bar{e}_g)^2.
+\]
+The $p$-value is obtained from \code{scipy.stats.f\_oneway}.
+
+The code supports an optional pre-ANOVA transform controlled by the
+parameter \code{transform}:
+\begin{itemize}[nosep]
+    \item \code{"none"} — no transformation (default for the corridor run).
+    \item \code{"log"} — $\ln(1+x)$ applied to each variable.
+    \item \code{"boxcox"} — Box--Cox power transformation (with fallback
+          to $\ln(1+x)$ on failure).
+\end{itemize}
+Per-cluster means $\pm$ SEM are reported on the \emph{untransformed}
+scale regardless of the ANOVA transform used.
+
+\paragraph{Outputs.}
+\begin{itemize}[nosep]
+    \item \code{anova\_env.xlsx}, \code{anova\_taxa.xlsx} — ANOVA summary
+          tables with $F$, $p$, cluster means $\pm$ SEM.
+    \item \code{cluster\_panel.png} — map + environmental bars + taxa bars.
+    \item \code{02\_hindsight\_updated\_data.xlsx} — relabelled artifact
+          (block column \code{Cluster} updated).
+\end{itemize}
+
+
+% ────────────────────────────────────────────────────────────────────────────
+\subsection{Stage 3 — LDA Habitat Classification}
+\label{sec:core:s3}
+% ────────────────────────────────────────────────────────────────────────────
+
+\paragraph{Module.}
+\code{zci.pipeline.lda\_classification.lda\_pipeline()};
+core in \code{zci.core.lda}.
+
+\paragraph{Input.}
+\begin{itemize}[nosep]
+    \item Environmental matrix $\mat{E}_{\mathcal{R}}$ for reference sites,
+          comprising the $q=5$ variables:
+          \code{Measured Depth (m)}, \code{Water DO Bottom (mg/L)},
+          \code{Temperature (oC)}, \code{MPS (Phi)}, \code{LOI (\%)}.
+    \item Cluster labels $\mathbf{g}_{\mathcal{R}}$ from the hindsight
+          artifact.
+    \item Pollution Score $\mathbf{s}$ (for reference-site identification).
+\end{itemize}
+
+\paragraph{Step 1 — Standardisation.}
+When \code{standardize=True} (default), each environmental variable is
+$z$-scored using \code{sklearn.preprocessing.StandardScaler}:
+\begin{equation}
+    e_{ij}^{*} = \frac{e_{ij} - \bar{e}_j}{\sigma_j},
+    \label{eq:zscore}
+\end{equation}
+fitted \emph{on the reference sites only}.  The same scaler object is
+stored in the \code{LDAFit} container and reapplied to non-reference
+sites at prediction time
+(\code{zci.core.lda.predict\_sites}).
+
+\paragraph{Step 2 — LDA fitting.}
+\code{sklearn.discriminant\_analysis.LinearDiscriminantAnalysis} is fit on
+$(\mat{E}_{\mathcal{R}}^{*},\,\mathbf{g}_{\mathcal{R}})$.  For $K$
+classes and $q$ predictors the model extracts $\min(K-1,\,q)$ linear
+discriminant axes, each a linear combination of the standardised
+environmental variables that maximises the between-class to
+within-class variance ratio:
+\begin{equation}
+    \mathrm{LD}_m = \mathbf{w}_m^{\!\top}\,\mathbf{e}^{*},
+    \qquad
+    \mathbf{w}_m = \arg\max_{\mathbf{w}} \;
+    \frac{\mathbf{w}^{\!\top}\mat{S}_B\,\mathbf{w}}
+         {\mathbf{w}^{\!\top}\mat{S}_W\,\mathbf{w}},
+    \label{eq:lda}
+\end{equation}
+where $\mat{S}_B$ and $\mat{S}_W$ are the between- and within-class
+scatter matrices respectively.
+
+\paragraph{Step 3 — Variable importance (Wilks' Lambda).}
+\code{zci.core.lda.wilks\_lambda\_importance()} performs a drop-one
+analysis.  For each variable $j$:
+\begin{align}
+    \Lambda_{\text{full}} &= \frac{|\mat{W}|}{|\mat{T}|},
+    \label{eq:wilks_full} \\
+    \Lambda_{-j} &= \text{Wilks' }\Lambda\text{ with variable }j\text{ removed},
+    \label{eq:wilks_drop} \\
+    \Delta\Lambda_j &= \Lambda_{-j} - \Lambda_{\text{full}},
+    \label{eq:wilks_delta}
+\end{align}
+and an approximate $F$-statistic is computed:
+\begin{equation}
+    F_j = \frac{\Delta\Lambda_j / \Lambda_{\text{full}}}
+               {(K-1)^{-1}\,(n_{\mathrm{ref}} - K - q + 1)^{-1}}.
+    \label{eq:wilks_f}
+\end{equation}
+\noindent
+Overall model significance is assessed via Bartlett's $\chi^2$
+approximation:
+\begin{equation}
+    \chi^2 = -\Bigl(n_{\mathrm{ref}} - 1
+             - \frac{q+K}{2}\Bigr)\,\ln\Lambda_{\text{full}},
+    \qquad
+    \text{df} = q\,(K-1).
+    \label{eq:bartlett}
+\end{equation}
+
+\paragraph{Step 4 — Monte Carlo cross-validation (MCCV).}
+\code{zci.core.lda.monte\_carlo\_cv()} repeats stratified 80/20
+train/test splits for $N_{\mathrm{cv}}$ iterations (default 1\,000):
+\begin{enumerate}[nosep]
+    \item \emph{Globally} standardise (z-score) the reference environmental
+          data.
+    \item For each iteration: draw a stratified 80\,\% training set,
+          fit LDA, predict on the held-out 20\,\%, record accuracy.
+    \item Report mean $\pm$ std accuracy, per-class precision / recall /
+          F1, and an aggregated confusion matrix.
+\end{enumerate}
+
+\noindent
+\textbf{Caveat}: the z-score standardisation in the current code is
+applied \emph{globally before} the CV splits, not refitted inside each
+fold.  This is a minor data-leakage issue; reported CV accuracies may be
+slightly optimistic.
+
+\paragraph{Step 5 — Classification of non-reference sites.}
+\code{zci.core.lda.predict\_sites()} applies the fitted LDA (with the
+stored scaler) to the environmental data of all non-reference sites,
+producing:
+\begin{itemize}[nosep]
+    \item \code{Predicted\_Cluster: pd.Series} — the habitat label $g_i$
+          for each non-reference site.
+    \item \code{probabilities: pd.DataFrame} — posterior class
+          probabilities.
+    \item An \code{Is\_Reference: pd.Series[bool]} flag.
+\end{itemize}
+
+\paragraph{Artifact written.}
+\code{03\_updated\_data.xlsx} — block
+\code{("03\_lda\_classification", "raw", *)}, adding columns
+\code{Predicted\_Cluster}, \code{Is\_Reference}, per-class probabilities,
+and LD coordinates.
+
+
+% ────────────────────────────────────────────────────────────────────────────
+\subsection{Stage 4 — Bray--Curtis NMDS and ZCI Construction}
+\label{sec:core:s4}
+% ────────────────────────────────────────────────────────────────────────────
+
+\paragraph{Module.}
+\code{zci.pipeline.bray\_curtis\_nmds.nmds\_pipeline()};
+core in \code{zci.core.nmds} and \code{zci.core.zci\_scores}.
+
+\paragraph{Input.}
+\begin{itemize}[nosep]
+    \item Taxa block $\mat{O}$ (octave scale) from the original workbook.
+    \item Pollution Score $\mathbf{s}$ from Stage~1 artifact.
+    \item Predicted Cluster $\mathbf{g}$ and \code{Is\_Reference} from
+          Stage~3 artifact.
+\end{itemize}
+
+\paragraph{Step 1 — Octave to relative abundance.}
+The taxa matrix is converted to relative abundance via
+\code{octave\_to\_relative\_abundance()} as given in
+\eqref{eq:octave_inverse}, producing $\mat{P}\in\R^{n\times p}$
+(\code{taxa\_relabd: pd.DataFrame}).
+
+\paragraph{Step 2 — Endpoint construction (per cluster).}
+For each cluster $g$, the $n_{\mathrm{ep}}$ sites with the lowest
+Pollution Score form the \textbf{reference endpoint} and the
+$n_{\mathrm{ep}}$ highest form the \textbf{degraded endpoint}
+(\code{zci.core.nmds.build\_endpoints}):
+\begin{equation}
+    \bar{\mathbf{p}}_{\text{ref}} =
+        \frac{1}{n_{\mathrm{ep}}} \sum_{i\in\mathcal{E}_{\text{ref}}}
+        \mathbf{p}_i^{\mathrm{RA}},
+    \qquad
+    \bar{\mathbf{p}}_{\text{deg}} =
+        \frac{1}{n_{\mathrm{ep}}} \sum_{i\in\mathcal{E}_{\text{deg}}}
+        \mathbf{p}_i^{\mathrm{RA}},
+    \label{eq:endpoints}
+\end{equation}
+where $\mathcal{E}_{\text{ref}}$ and $\mathcal{E}_{\text{deg}}$ are the
+index sets of the $n_{\mathrm{ep}}$ extreme sites.  These two
+``synthetic sites'' are appended to the cluster's taxa matrix.
+
+\paragraph{Step 3 — Bray--Curtis dissimilarity.}
+The pairwise Bray--Curtis dissimilarity between every pair of sites
+(including endpoints) in the augmented relative-abundance matrix is
+computed (\code{scipy.spatial.distance.pdist(..., metric="braycurtis")}):
+\begin{equation}
+    d_{\BC}(i,i') \;=\;
+    \frac{\displaystyle\sum_{j=1}^{p} |p_{ij}^{\mathrm{RA}} - p_{i'j}^{\mathrm{RA}}|}
+         {\displaystyle\sum_{j=1}^{p} (p_{ij}^{\mathrm{RA}} + p_{i'j}^{\mathrm{RA}})},
+    \label{eq:braycurtis}
+\end{equation}
+yielding $\mat{D}\in[0,1]^{(n_g+2)\times(n_g+2)}$, where $n_g$ is the
+number of real sites in cluster~$g$.
+
+\emph{This is the first place where Bray--Curtis is computed; it feeds
+the NMDS ordination.}
+
+\paragraph{Step 4 — Iterative non-metric MDS.}
+\code{zci.core.nmds.iterative\_nmds()} embeds $\mat{D}$ into
+$\R^2$ via non-metric multidimensional scaling (NMDS):
+\begin{enumerate}[nosep]
+    \item \textbf{Pass 1}: \code{sklearn.manifold.MDS} with
+          \code{metric=False} (non-metric) and \code{n\_init=10}
+          random starts.
+    \item \textbf{Passes 2--3}: re-initialise MDS with the previous
+          solution; \code{n\_init=4} additional random starts per
+          refinement.
+    \item Total: 3~iterations of SMACOF (Scaling by MAjorising a
+          Complicated Function).
+\end{enumerate}
+The algorithm minimises the \emph{stress} criterion:
+\begin{equation}
+    \mathrm{Stress} = \sqrt{
+        \frac{\sum_{i<i'}\bigl(f(d_{\BC}(i,i')) -
+              \|\mathbf{x}_i - \mathbf{x}_{i'}\|\bigr)^2}
+             {\sum_{i<i'} \|\mathbf{x}_i - \mathbf{x}_{i'}\|^2}
+    },
+    \label{eq:stress}
+\end{equation}
+where $f$ is a monotone regression function (the ``non-metric'' part).
+
+\paragraph{Step 5 — PCA rotation and axis flip.}
+\code{zci.core.nmds.pca\_rotate()} rotates the NMDS coordinates so
+NMDS1 captures the maximum variance.  Then
+\code{zci.core.nmds.flip\_axis()} checks the Pearson correlation $r$
+between NMDS1 and $\mathbf{s}$ (Pollution Score) for the real sites:
+\begin{equation}
+    \text{if } r(\mathrm{NMDS1},\,\mathbf{s}) > 0
+    \;\;\Longrightarrow\;\;
+    \mathrm{NMDS1} \leftarrow -\mathrm{NMDS1}.
+    \label{eq:flip}
+\end{equation}
+This enforces a convention where NMDS1 is \emph{negatively} correlated
+with pollution (cleaner sites on the positive end).
+
+\textbf{Interpretive caveat}: this axis-flip is enforced by design, so
+the resulting negative NMDS1--Pollution correlation is partly an artefact
+of the orientation convention and should not be interpreted as a
+discovered ecological relationship.
+
+\paragraph{Step 6 — Weighted-average species scores.}
+\code{zci.core.nmds.weighted\_average\_scores()} assigns each taxon a
+position in NMDS space:
+\begin{equation}
+    \mathrm{WA}_{j} = \frac{\sum_{i=1}^{n_g} p_{ij}^{\mathrm{RA}}\,\mathbf{x}_i}
+                            {\sum_{i=1}^{n_g} p_{ij}^{\mathrm{RA}}}.
+    \label{eq:wa}
+\end{equation}
+
+\paragraph{Step 7 — ZCI computation.}
+
+The pipeline currently uses the \textbf{BC-Direct} method
+(\code{zci.core.zci\_scores.zci\_bc\_direct}) as the default ZCI:
+\begin{equation}
+    z_i \;=\; \frac{d_{\BC}(i,\,\mathcal{E}_{\text{deg}})}
+                    {d_{\BC}(i,\,\mathcal{E}_{\text{ref}})
+                     + d_{\BC}(i,\,\mathcal{E}_{\text{deg}})},
+    \label{eq:zci_bcdirect}
+\end{equation}
+where $d_{\BC}(i,\,\mathcal{E})$ is the Bray--Curtis distance from site~$i$'s
+relative-abundance vector to the centroid of the endpoint set $\mathcal{E}$
+(computed via \code{scipy.spatial.distance.cdist}).
+
+\emph{This is the second place where Bray--Curtis is applied; it operates
+directly on relative-abundance vectors and does \textbf{not} use the
+NMDS coordinates.}  Values near~1 indicate a community similar to the
+reference endpoint; values near~0 indicate a degraded community.
+
+The default per-cluster endpoint sizes in the corridor run are:
+\begin{center}
+\begin{tabular}{ccc}
+\toprule
+Cluster & $n_{\mathrm{ep}}$ (ZCI) & Method \\
+\midrule
+1 & 15 & BC-Direct \\
+2 & 3  & BC-Direct \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+ZCI--Pollution correlations (Pearson and Spearman) are computed via
+\code{zci.core.zci\_scores.zci\_correlation()} and saved in
+\code{zci\_summary.xlsx}.
+
+\paragraph{Alternative ZCI methods (available but not used by default).}
+The module \code{zci.core.zci\_scores} also implements:
+\begin{itemize}[nosep]
+    \item \textbf{Distance}: $z_i = d_{\text{deg}} / (d_{\text{ref}} + d_{\text{deg}})$
+          using Euclidean distances in NMDS space.
+    \item \textbf{Projection}: project sites onto the directed
+          DEG$\to$REF line in NMDS space, normalised to $[0,1]$.
+    \item \textbf{Centroid-Proj}: project onto a centroid-defined axis
+          using real-site pollution extremes (rather than synthetic endpoints).
+\end{itemize}
+
+\paragraph{Artifact written.}
+\code{04\_updated\_data.xlsx} — block
+\code{("04\_bray\_curtis\_nmds", "raw", *)}, adding columns
+\code{NMDS1}, \code{NMDS2}, \code{ZCI}, \code{ZCI\_Method}.
+
+
+% ────────────────────────────────────────────────────────────────────────────
+\subsection{Stage 5 — Piecewise Quantile Regression}
+\label{sec:core:s5}
+% ────────────────────────────────────────────────────────────────────────────
+
+\paragraph{Module.}
+\code{zci.pipeline.piecewise\_qr\_pipeline.pqr\_pipeline()};
+core in \code{zci.core.piecewise\_qr}.
+
+\paragraph{Input.}
+\begin{itemize}[nosep]
+    \item $\mathbf{s}$ (Pollution Score) from Stage~1.
+    \item $\mathbf{g}$ (Predicted Cluster) from Stage~3.
+    \item $\mathbf{z}$ (ZCI) from Stage~4.
+\end{itemize}
+
+\paragraph{Model.}
+For each cluster and a grid of quantile levels
+$\tau\in\{0.10,0.15,\dots,0.90\}$, a piecewise linear quantile
+regression is fit:
+\begin{equation}
+    Q_\tau(\ZCI \mid \PS = x)
+    \;=\; \beta_0 + \beta_1\,x + \beta_2\,(x - \psi)_+
+    \label{eq:pqr}
+\end{equation}
+where $(x-\psi)_+ = \max(0,\, x-\psi)$ is a hinge function at
+breakpoint~$\psi$.
+
+\paragraph{Estimation.}
+The parameters $(\beta_0,\beta_1,\beta_2,\psi)$ are estimated
+jointly by a \textbf{profile grid search}
+(\code{zci.core.piecewise\_qr.\_profile\_search}):
+\begin{enumerate}[nosep]
+    \item Fix a candidate breakpoint $\psi_c$ on a grid spanning the
+          10th--90th percentile of~$\mathbf{s}$.
+    \item For each $\psi_c$, build the design matrix
+          $\mat{X}(\psi_c) = [\mathbf{1},\;\mathbf{s},\;(\mathbf{s}-\psi_c)_+]$
+          and solve the linear quantile regression sub-problem by
+          Linear Programming (LP via \code{scipy.optimize.linprog}):
+          \begin{equation}
+              \min_{\boldsymbol{\beta},\mathbf{u},\mathbf{v}}\;
+              \tau\,\mathbf{1}^{\!\top}\mathbf{u}
+              + (1-\tau)\,\mathbf{1}^{\!\top}\mathbf{v}
+              \quad\text{s.t.}\quad
+              \mat{X}\boldsymbol{\beta} + \mathbf{u} - \mathbf{v} = \mathbf{z},
+              \;\; \mathbf{u},\mathbf{v}\ge\mathbf{0}.
+              \label{eq:qr_lp}
+          \end{equation}
+    \item Select the $\psi_c$ with the lowest check loss
+          $\rho_\tau(\mathbf{r}) = \sum_i r_i\,[\tau - 1(r_i < 0)]$.
+\end{enumerate}
+
+\paragraph{Wild-bootstrap confidence intervals.}
+\code{zci.core.piecewise\_qr.wild\_bootstrap\_ci()} follows
+Feng, He \& Hu (2011):
+\begin{enumerate}[nosep]
+    \item Fit the original model; obtain residuals $\hat{r}_i = z_i - \hat{Q}_\tau(s_i)$.
+    \item For $b = 1,\dots,B$ (default $B=500$):
+    \begin{enumerate}[nosep]
+        \item Draw Mammen's two-point weights $w_i$:
+        \[
+            w_i = \begin{cases}
+                -\frac{\sqrt{5}-1}{2} & \text{w.p. } \frac{\sqrt{5}+1}{2\sqrt{5}}, \\[4pt]
+                \phantom{-}\frac{\sqrt{5}+1}{2} & \text{w.p. } \frac{\sqrt{5}-1}{2\sqrt{5}}.
+            \end{cases}
+        \]
+        \item Construct perturbed response:
+              $z_i^{*} = \hat{Q}_\tau(s_i) + w_i\,\hat{r}_i$.
+        \item Re-fit the piecewise QR on $(s_i,\,z_i^{*})$ to obtain
+              $\hat{\boldsymbol{\beta}}^{(b)},\,\hat{\psi}^{(b)}$.
+    \end{enumerate}
+    \item Confidence intervals: $\alpha/2$ and $1-\alpha/2$ quantiles
+          of the bootstrap distribution of each parameter
+          (default: 90\,\% CI).
+\end{enumerate}
+
+\paragraph{Note on current status.}
+In the corridor-wide runner
+(\code{run\_SCDRS\_full\_pipeline.py}), Stage~5 is currently
+\textbf{commented out} (lines are present but disabled); it is active
+in the Detroit River runner
+(\code{run\_DR\_full\_pipeline.py}).  The mathematical description above
+applies to both.
+
+\paragraph{Artifact written.}
+\code{05\_updated\_data.xlsx} (when the stage is enabled).
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+\section{Complementary / Validation Methods}
+\label{sec:complementary}
+% ═════════════════════════════════════════════════════════════════════════════
+
+% ────────────────────────────────────────────────────────────────────────────
+\subsection{Stage RDA — Redundancy Analysis}
+\label{sec:complementary:rda}
+% ────────────────────────────────────────────────────────────────────────────
+
+\paragraph{Module.}
+\code{zci.pipeline.rda\_analysis.rda\_pipeline()};
+core in \code{zci.core.rda.RDA}.
+
+\paragraph{Purpose.}
+RDA is a \textbf{complementary validation} method, not part of the main
+ZCI construction stream.  It quantifies how much of the taxa variation
+among reference sites is linearly explained by the environmental
+predictors, and it identifies which environmental variables are most
+important.
+
+\paragraph{Input.}
+\begin{itemize}[nosep]
+    \item Taxa matrix $\mat{Y}$ for reference sites ($\mat{O}_{\mathcal{R}}$
+          in octave scale, or Hellinger-transformed).
+    \item Environmental matrix $\mat{X}$ ($q=5$ variables, optionally
+          $\ln(1+x)$-transformed and/or $z$-scored).
+    \item Reference mask from Stage~1 Pollution Score.
+\end{itemize}
+
+\paragraph{Step 1 — Multivariate OLS.}
+Centre both matrices; fit OLS:
+\begin{equation}
+    \hat{\mat{Y}} = \mat{X}_c\,\hat{\mat{B}},
+    \qquad
+    \hat{\mat{B}} = (\mat{X}_c^{\!\top}\mat{X}_c)^{-1}\mat{X}_c^{\!\top}\mat{Y}_c.
+    \label{eq:rda_ols}
+\end{equation}
+
+\paragraph{Step 2 — PCA on fitted values.}
+Eigendecompose the covariance of $\hat{\mat{Y}}$:
+\begin{equation}
+    \frac{1}{n-1}\,\hat{\mat{Y}}^{\!\top}\hat{\mat{Y}}
+    = \mat{A}\,\mat{\Lambda}\,\mat{A}^{\!\top},
+    \label{eq:rda_pca}
+\end{equation}
+yielding constrained eigenvalues $\lambda_1 \ge \lambda_2 \ge \cdots$
+and eigenvectors (species scores).
+
+\paragraph{Step 3 — Scores.}
+\begin{itemize}[nosep]
+    \item Site scores (scaling~1):
+          $\mat{U} = \hat{\mat{Y}}\,\mat{A}\,\mat{\Lambda}^{-1/2}$.
+    \item Species scores:
+          $\mat{V} = \mat{A}\,\mat{\Lambda}^{1/2}$.
+    \item Biplot scores (correlation of $\mat{X}_c$ with $\mat{U}$):
+          used for environmental-arrow overlays.
+\end{itemize}
+
+\paragraph{Step 4 — Permutation tests.}
+Three types of permutation test are implemented, all based on
+row-permutation of $\mat{Y}_c$ (or residual permutation for term tests):
+\begin{center}
+\begin{tabular}{lp{8.5cm}}
+\toprule
+Test & Null hypothesis \\
+\midrule
+Global & No linear relationship between $\mat{Y}$ and $\mat{X}$.
+         Pseudo-$F = (\text{Inertia}_{\text{con}}/\text{df}_{\text{model}})
+         / (\text{Inertia}_{\text{res}}/\text{df}_{\text{res}})$. \\
+Per-axis & Each RDA axis individually non-significant.
+           $F_m = \lambda_m / (\text{Inertia}_{\text{res}}/\text{df}_{\text{res}})$. \\
+Per-term (Freedman--Lane) & Each environmental variable individually
+           non-significant, controlling for the others. \\
+\bottomrule
+\end{tabular}
+\end{center}
+Default: 999 permutations per test type.
+
+\paragraph{Outputs.}
+\code{rda\_axes\_summary.xlsx}, \code{rda\_terms\_summary.xlsx},
+\code{rda\_triplot.png}.
+No augmented artifact is written — RDA does \emph{not} feed downstream
+stages.
+
+
+% ────────────────────────────────────────────────────────────────────────────
+\subsection{Role of ANOVA in the Framework}
+\label{sec:complementary:anova}
+% ────────────────────────────────────────────────────────────────────────────
+
+ANOVA (\cref{sec:core:hindsight}) is \textbf{supportive}: it validates
+that the Ward-clustering-derived habitat groups are ecologically
+distinct in terms of environmental conditions and taxa composition.
+It does not feed into the quantitative ZCI construction.
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+\section{Artifact and Intermediate-Value Map}
+\label{sec:artifact_map}
+% ═════════════════════════════════════════════════════════════════════════════
+
+\Cref{tab:artifacts} lists every stage, its input artifact(s), the new
+columns added, and the output artifact path.
+
+\begin{landscape}
+\begin{longtable}{lp{4.5cm}p{5.5cm}p{5cm}}
+\caption{Stage-by-stage artifact chain.  ``Block'' column keys follow the
+\code{(block, level, variable)} MultiIndex convention.}
+\label{tab:artifacts} \\
+\toprule
+Stage & Input Artifact(s) & New Columns Added & Output Artifact \\
+\midrule
+\endfirsthead
+\toprule
+Stage & Input Artifact(s) & New Columns Added & Output Artifact \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+
+Stage~1 (PCA)
+    & Original workbook (chemical/raw)
+    & \code{PC1}--\code{PC5}, \code{Pollution\_Score},
+      \code{PC1\_sel}--\code{PC5\_sel} (selected PCs)
+    & \code{01\_updated\_data.xlsx}
+\\[4pt]
+
+Stage~RDA
+    & Original workbook + Stage~1 artifact
+    & \emph{None} (tables \& figures only)
+    & \emph{No artifact; outputs in \code{RDA\_analysis/}}
+\\[4pt]
+
+Stage~2 (Clustering)
+    & Original workbook + Stage~1 artifact
+    & \code{Cluster} (reference sites only),
+      \code{Is\_Reference}
+    & \code{02\_updated\_data.xlsx}
+\\[4pt]
+
+Hindsight
+    & Stage~2 artifact + original workbook
+    & Relabelled \code{Cluster}
+    & \code{02\_hindsight\_updated\_data.xlsx}
+\\[4pt]
+
+Stage~3 (LDA)
+    & Original workbook + Stage~1 + Hindsight artifacts
+    & \code{Predicted\_Cluster}, \code{Is\_Reference},
+      per-class probabilities,
+      \code{LD1}--\code{LD$(K{-}1)$}
+    & \code{03\_updated\_data.xlsx}
+\\[4pt]
+
+Stage~4 (NMDS+ZCI)
+    & Original workbook + Stage~1 + Stage~3 artifacts
+    & \code{NMDS1}, \code{NMDS2}, \code{ZCI}, \code{ZCI\_Method}
+    & \code{04\_updated\_data.xlsx}
+\\[4pt]
+
+Stage~5 (PQR)
+    & Stage~1 + Stage~3 + Stage~4 artifacts
+    & \emph{(model parameters; no per-site columns)}
+    & \code{05\_updated\_data.xlsx}
+\\
+\end{longtable}
+\end{landscape}
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+\section{Quality Assessment and Potential Issues}
+\label{sec:qa}
+% ═════════════════════════════════════════════════════════════════════════════
+
+% ────────────────────────────────────────────────────────────────────────────
+\subsection{ANOVA Assumption Checking}
+\label{sec:qa:anova}
+% ────────────────────────────────────────────────────────────────────────────
+
+The one-way ANOVA (\cref{sec:core:hindsight}) assumes:
+\begin{enumerate}[nosep]
+    \item \textbf{Independence} of observations.
+    \item \textbf{Normality} of the residuals within each group.
+    \item \textbf{Homogeneity of variances} (homoscedasticity) across groups.
+\end{enumerate}
+
+\paragraph{Current status.}
+The code in \code{zci.core.anova.anova\_table()} calls
+\code{scipy.stats.f\_oneway} after an optional pre-transform
+(\code{"none"}, \code{"log"}, or \code{"boxcox"}), but
+\textbf{does not} perform any assumption diagnostics:
+\begin{itemize}[nosep]
+    \item No Shapiro--Wilk or Anderson--Darling test for within-group
+          normality.
+    \item No Levene or Brown--Forsythe test for equal variances.
+    \item No Q--Q plot or residual histogram is generated.
+\end{itemize}
+
+\paragraph{Recommended remediation.}
+\begin{enumerate}
+    \item For each variable $\times$ cluster combination, compute:
+    \begin{itemize}[nosep]
+        \item Shapiro--Wilk $W$ and $p$-value for within-group normality.
+        \item Levene's test (median-based variant, i.e.\ Brown--Forsythe)
+              for homogeneity of variances.
+    \end{itemize}
+    \item When normality or equal-variance assumptions are violated:
+    \begin{itemize}[nosep]
+        \item Apply a variance-stabilising transform (log, Box--Cox) and
+              re-run; the code already supports \code{transform="log"} and
+              \code{transform="boxcox"}.
+        \item Report Welch's ANOVA (\code{scipy.stats.alexandergovern}
+              or the \code{pingouin} library) as a robust alternative.
+        \item As a non-parametric backup, report Kruskal--Wallis $H$
+              with Dunn's post-hoc tests.
+    \end{itemize}
+    \item In the methods section, explicitly state which transform
+          (if any) was applied, and which variables violated assumptions.
+    \item Report effect sizes (eta-squared $\eta^2$) alongside $F$ and $p$
+          to assess practical significance.
+\end{enumerate}
+
+\paragraph{Impact on results.}
+ANOVA results are used to characterise habitat clusters, not to drive the
+ZCI computation; thus any bias in $p$-values affects interpretation
+tables but not the index itself.  Nevertheless, claiming significance for
+specific variables without verifying assumptions weakens the
+ecological narrative.
+
+
+% ────────────────────────────────────────────────────────────────────────────
+\subsection{Bray--Curtis and NMDS: Where Each Operates}
+\label{sec:qa:bcnmds}
+% ────────────────────────────────────────────────────────────────────────────
+
+\paragraph{Clarification of roles.}
+Bray--Curtis dissimilarity is applied at \textbf{two distinct points}
+in Stage~4:
+
+\begin{enumerate}
+    \item \textbf{For NMDS ordination} (\cref{sec:core:s4}, Step~3):
+          a full pairwise $\mat{D}$ matrix is computed among all sites
+          within a cluster (plus two synthetic endpoints).  This
+          $\mat{D}$ is the input to the iterative non-metric MDS
+          algorithm, which embeds sites in 2-D ordination space.
+
+    \item \textbf{For BC-Direct ZCI} (\cref{sec:core:s4}, Step~7):
+          each site's relative-abundance vector is compared to the
+          reference and degraded endpoint \emph{centroids} using
+          Bray--Curtis.  This computation is independent of NMDS;
+          it operates on the raw $\mat{P}$ matrix directly.
+\end{enumerate}
+
+\paragraph{Does the framework correctly reflect contamination-driven
+community change?}
+\begin{itemize}
+    \item The NMDS ordination faithfully represents the community
+          \emph{structure} (rank-order of dissimilarities), and its
+          stress value (reported per cluster in
+          \code{nmds\_summary.xlsx}) quantifies the quality of the
+          2-D approximation.
+    \item The NMDS1 axis is then \emph{artificially oriented} to
+          correlate negatively with pollution (\eqref{eq:flip}).  This
+          is a visualisation convenience but means the
+          NMDS1--Pollution correlation should not be cited as evidence
+          of a contamination gradient.
+    \item The \textbf{ZCI itself} (BC-Direct) is computed without any
+          reference to the NMDS coordinates.  It directly measures how
+          similar each site's community is to the reference vs.\
+          degraded endpoint in Bray--Curtis space.  This is a more
+          defensible measure of contamination-induced community shift
+          because it avoids the information loss inherent in
+          projecting to 2-D.
+    \item The ZCI--Pollution Score correlation (Pearson and Spearman)
+          is computed and reported; a high positive correlation
+          supports the interpretation that the index captures
+          contamination-driven community change.
+\end{itemize}
+
+\paragraph{Potential issues.}
+\begin{itemize}[nosep]
+    \item \textbf{Endpoint sensitivity}: the $n_{\mathrm{ep}}$ parameter
+          controls how many extreme sites define the reference/degraded
+          centroids.  Small $n_{\mathrm{ep}}$ (e.g.\ 3 for Cluster~2)
+          makes the centroid sensitive to individual sites.
+    \item \textbf{NMDS stress}: if stress exceeds $\sim$0.20 the 2-D
+          representation is unreliable; report and evaluate per cluster.
+    \item \textbf{Cluster-specific ZCI}: the ZCI is computed separately
+          within each habitat cluster, so cross-cluster comparisons
+          require caution.
+\end{itemize}
+
+
+% ────────────────────────────────────────────────────────────────────────────
+\subsection{LDA Cross-Validation Leakage}
+\label{sec:qa:lda_leak}
+% ────────────────────────────────────────────────────────────────────────────
+
+As noted in \cref{sec:core:s3}, the Monte Carlo CV in
+\code{zci.core.lda.monte\_carlo\_cv()} applies
+\code{StandardScaler.fit\_transform} to the \emph{entire} reference-site
+environmental matrix before splitting into CV folds.
+This means every training fold has indirect information about the
+test-fold means and variances.  The resulting CV accuracy may be
+\textbf{slightly optimistic}.
+
+\paragraph{Recommended fix.}
+Move the standardisation inside each CV split: fit the scaler on the
+training fold only, then transform the test fold using the training
+scaler.
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+\section{TITAN Embedding Plan}
+\label{sec:titan}
+% ═════════════════════════════════════════════════════════════════════════════
+
+\subsection{Background}
+\label{sec:titan:background}
+
+\textbf{TITAN} (Threshold Indicator Taxa ANalysis; Baker \& King, 2010)
+detects taxon-specific change points along a continuous environmental
+gradient.  It complements the current pipeline by answering a question
+the existing stages do not:
+
+\begin{quote}
+\emph{At what pollution level does each individual taxon show the
+sharpest decline (or increase), and what is the aggregate
+community-level threshold?}
+\end{quote}
+
+Existing notebook: \code{notebooks/10\_TITAN.ipynb} contains a
+simulated-data demonstration and a real-data application (Part~2)
+using the corridor-wide pollution-score gradient.
+
+\subsection{TITAN Algorithm Summary}
+\label{sec:titan:algorithm}
+
+Given an ordered gradient $x_1 \le x_2 \le \cdots \le x_n$ (Pollution
+Score) and a taxa-by-site abundance matrix $\mat{Y}$:
+
+\begin{enumerate}
+    \item \textbf{Candidate partitions.}
+    For each candidate split value $x_c$ (excluding the 5 smallest and
+    5 largest values to avoid edge effects), divide sites into two
+    groups: $\{i: x_i \le x_c\}$ and $\{i: x_i > x_c\}$.
+
+    \item \textbf{Indicator Value.}
+    For each taxon $j$ at each split~$x_c$, compute the Indicator Value
+    (IndVal; Dufr\^{e}ne \& Legendre, 1997):
+    \begin{equation}
+        \mathrm{IndVal}_j = A_j \times B_j \times 100,
+        \label{eq:indval}
+    \end{equation}
+    where $A_j$ (specificity) is the mean abundance in the target group
+    relative to the overall mean, and $B_j$ (fidelity) is the proportion
+    of sites in the target group where taxon~$j$ occurs.
+
+    \item \textbf{$z$-score.}
+    Compare $\mathrm{IndVal}_j(x_c)$ to a null distribution obtained by
+    permuting site labels (250--1000 permutations), yielding
+    $z_j(x_c)$.
+
+    \item \textbf{Change-point selection.}
+    The change point for taxon $j$ is
+    $x_c^{*(j)} = \arg\max_{x_c} z_j(x_c)$.
+
+    \item \textbf{Direction assignment.}
+    \begin{itemize}[nosep]
+        \item $z^{-}$ (sensitive / clean-water indicator): taxon
+              abundance peaks in the low-$x$ group.
+        \item $z^{+}$ (tolerant / pollution indicator): taxon abundance
+              peaks in the high-$x$ group.
+    \end{itemize}
+
+    \item \textbf{Bootstrap validation} ($B_{\mathrm{boot}}$ resamples,
+    e.g.\ 500):
+    \begin{itemize}[nosep]
+        \item \textbf{Purity} $\ge$ 0.95: $\ge$95\,\% of bootstrap
+              replicates assign the taxon to the same direction.
+        \item \textbf{Reliability} $\ge$ 0.95: $\ge$95\,\% yield a
+              significant response ($p \le 0.05$).
+    \end{itemize}
+    Only taxa passing both filters are retained.
+
+    \item \textbf{Community-level thresholds.}
+    Sum the filtered $z$-scores across all reliable taxa in each direction:
+    \begin{equation}
+        \mathrm{sum}(z^{-})(x) = \sum_{j\in\text{declining}} z_j^{-}(x),
+        \qquad
+        \mathrm{sum}(z^{+})(x) = \sum_{j\in\text{increasing}} z_j^{+}(x).
+        \label{eq:sumz}
+    \end{equation}
+    The $x$-value where each sum peaks defines the community-level
+    change point.
+\end{enumerate}
+
+\subsection{Integration Points in the Current Framework}
+\label{sec:titan:integration}
+
+TITAN should be run \textbf{per habitat cluster} (using Stage~3
+\code{Predicted\_Cluster} labels) with the following inputs:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+TITAN input & Source & Code path \\
+\midrule
+Gradient $x$ & \code{Pollution\_Score} & Stage~1 artifact \\
+Taxa matrix $\mat{Y}$ & Relative-abundance $\mat{P}$
+    & \code{octave\_to\_relative\_abundance(taxa\_all)} \\
+Cluster grouping & \code{Predicted\_Cluster} & Stage~3 artifact \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Execution.}
+TITAN2 is an R package; the existing notebook
+(\code{notebooks/10\_TITAN.ipynb}) calls it via \code{rpy2} magic cells.
+A production integration would:
+\begin{enumerate}[nosep]
+    \item Load Stage~1, Stage~3, and Stage~4 artifacts plus the original
+          taxa block.
+    \item For each cluster, filter sites and pass the Pollution Score
+          vector and taxa matrix to \code{TITAN2::titan()} in R.
+    \item Retrieve \code{sppmax} (taxon-level change points, purity,
+          reliability) and \code{sumz} (community-level sum($z$) curves)
+          back into Python.
+    \item Overlay TITAN thresholds on the ZCI~vs.~Pollution Score scatter
+          plot:
+    \begin{itemize}[nosep]
+        \item Vertical lines at the Pollution Score community thresholds
+              (sum($z^{-}$) peak, sum($z^{+}$) peak).
+        \item Horizontal lines at optionally detected ZCI thresholds if
+              TITAN is also run with ZCI as a gradient.
+        \item Shaded bands for bootstrap confidence intervals.
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{Theoretical rationale.}
+TITAN adds a \textbf{taxon-resolution layer} that the current framework
+lacks.  While the ZCI gives a single aggregate condition score per site,
+TITAN identifies \emph{which} taxa are responsible for community shifts
+and at \emph{what gradient value} they change.  Specifically:
+\begin{itemize}[nosep]
+    \item It answers whether the \textbf{reference-site threshold} used
+          to define $\mathcal{R}$ (bottom 20\,\%) corresponds to an
+          ecologically meaningful change point, or is arbitrary.
+    \item It reveals whether different taxa respond at different
+          pollution levels (gradual turnover) or at a single critical
+          threshold (abrupt regime shift).
+    \item The community sum($z$) peaks provide an independent estimate
+          of the ``reference/degraded boundary'' that can be compared
+          with the Stage~5 piecewise-QR breakpoint.
+\end{itemize}
+
+\paragraph{Caveats.}
+\begin{itemize}[nosep]
+    \item TITAN was designed for site $\times$ gradient threshold
+          detection; using ZCI as a secondary gradient is a non-standard
+          but creative extension.
+    \item Results depend on the cluster assignment from Stage~3.
+    \item The 5th-to-95th percentile trimming used by TITAN2 means
+          extreme-gradient thresholds are not detectable.
+    \item Bootstrap resampling ($\ge$500 replicates) is recommended for
+          publication; the notebook prototype used 100 for speed.
+\end{itemize}
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+\section{Summary of Recommendations}
+\label{sec:recommendations}
+% ═════════════════════════════════════════════════════════════════════════════
+
+\begin{enumerate}
+    \item \textbf{ANOVA assumptions}: add Shapiro--Wilk and
+          Levene's tests; report Welch or Kruskal--Wallis as robust
+          alternatives where assumptions fail.
+    \item \textbf{LDA CV leakage}: move \code{StandardScaler} fitting
+          inside each CV fold.
+    \item \textbf{NMDS axis-flip caveat}: state explicitly in the thesis
+          that NMDS1 orientation is enforced, not discovered.
+    \item \textbf{Endpoint sensitivity}: report ZCI stability under
+          varying $n_{\mathrm{ep}}$.
+    \item \textbf{PCA variance scaling}: note explicitly that PCA is
+          performed on log-transformed but not unit-scaled variables, so
+          higher-variance contaminants dominate.
+    \item \textbf{TITAN integration}: embed per-cluster TITAN into the
+          framework after Stage~3, using the Pollution Score gradient and
+          relative-abundance taxa matrix; overlay community thresholds on
+          ZCI--Pollution plots.
+\end{enumerate}
+
+
+% ═════════════════════════════════════════════════════════════════════════════
+% References
+% ═════════════════════════════════════════════════════════════════════════════
+\begin{thebibliography}{9}
+\bibitem{baker2010}
+Baker, M.E.\ \& King, R.S.\ (2010).
+A new method for detecting and interpreting biodiversity and ecological
+community thresholds.
+\emph{Methods in Ecology and Evolution}, 1, 25--37.
+
+\bibitem{dufrene1997}
+Dufr\^{e}ne, M.\ \& Legendre, P.\ (1997).
+Species assemblages and indicator species: the need for a flexible
+asymmetrical approach.
+\emph{Ecological Monographs}, 67, 345--366.
+
+\bibitem{feng2011}
+Feng, X., He, X.\ \& Hu, J.\ (2011).
+Wild bootstrap for quantile regression.
+\emph{Biometrika}, 98, 995--999.
+\end{thebibliography}
+
+\end{document}

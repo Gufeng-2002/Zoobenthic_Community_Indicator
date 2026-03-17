@@ -1,0 +1,159 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{graphicx}
+
+\title{Stage~1 Workflow Summary:\\
+  From Raw Data to Reference-Site Threshold Selection}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+%% ----------------------------------------------------------------
+\section{Overview}
+
+This document summarises the three-step workflow that transforms raw
+sediment-chemistry, environmental, and benthic-invertebrate data into
+(i)~a site-level contamination score, (ii)~an ecologically validated
+scoring rule, and (iii)~a defensible reference-site threshold.
+
+%% ----------------------------------------------------------------
+\section{Step 1: PCA-Based Contamination Scoring}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Input.}
+    A 233-site $\times$ 56-variable workbook containing 16~chemical
+    contaminants, 5~environmental variables, and 16~benthic taxa
+    (octave-transformed abundances).
+
+  \item \textbf{Log-transformation.}
+    Chemical concentrations are transformed via $\log_2(1+x)$ to
+    reduce right skew.
+
+  \item \textbf{PCA.}
+    Principal Component Analysis is fitted on the 16 log-transformed
+    chemical variables with min--max standardisation.  The first five
+    PCs are retained (cumulative variance $\geq 83\%$).
+
+  \item \textbf{Sign orientation.}
+    Each PC is oriented so that higher scores correspond to higher
+    contamination (positive correlation with known contaminant
+    indicators).
+
+  \item \textbf{Component rescaling.}
+    Each retained PC score is min--max rescaled to $[0,1]$.
+
+  \item \textbf{Two scoring rules.}
+    \begin{itemize}
+      \item \textbf{SumRel} — sum of rescaled PC scores.
+        Reflects cumulative, multi-dimensional contamination pressure.
+      \item \textbf{MaxRel} — maximum of rescaled PC scores.
+        Captures the single worst contamination axis per site.
+    \end{itemize}
+\end{enumerate}
+
+\noindent
+\textbf{Outputs:}
+site-level SumRel and MaxRel scores, PC loadings, variance-explained
+plot, ridge-loading plot, and corridor-bifurcation maps for each score.
+
+%% ----------------------------------------------------------------
+\section{Step 2: Ecological Validation via RDA}
+
+The competing scores are evaluated by how well the resulting
+``least-contaminated'' reference subset explains taxa composition
+through environmental gradients.
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Reference-site selection.}
+    For a given threshold proportion $q$ (e.g.\ 25\%), the bottom-$q$
+    fraction of sites ranked by the contamination score is designated
+    as the reference subset.
+
+  \item \textbf{Redundancy Analysis (RDA).}
+    Within the reference subset, taxa (response, $\mathbf{Y}$) are
+    regressed on z-scored environmental variables (predictors,
+    $\mathbf{X}$).  RDA decomposes explained variation into
+    constrained axes (RDA1, RDA2, \ldots).
+
+  \item \textbf{Permutation tests.}
+    A global pseudo-$F$ test (999~permutations) assesses overall
+    model significance.  Per-axis and per-term tests identify which
+    axes and environmental variables contribute significantly.
+
+  \item \textbf{Score comparison.}
+    At each tested threshold, SumRel consistently yields higher
+    adjusted~$R^2$ and lower $p$-values than MaxRel, indicating that
+    the cumulative scoring rule selects reference sites where
+    environmental gradients more cleanly explain biological variation.
+\end{enumerate}
+
+%% ----------------------------------------------------------------
+\section{Step 3: Reference-Threshold Sensitivity Analysis}
+
+Rather than fix the threshold at an arbitrary value, a grid sweep
+from 5\% to 99\% (step~2\%) evaluates how RDA performance changes
+with reference-subset size.
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Metrics collected at each threshold:}
+    $R^2$, adjusted~$R^2$, global pseudo-$F$, $p$-value, constrained
+    and total inertia, RDA1 eigenvalue, and sample size.
+
+  \item \textbf{Identifying the recommended range.}
+    Adjusted~$R^2$ for SumRel shows a local plateau between
+    approximately 22\%--28\%, before a steep decline at larger
+    thresholds where contaminated sites dilute the reference pool.
+    Within this range the global test remains highly significant
+    ($p = 0.001$) and sample sizes exceed 50, ensuring statistical
+    power.
+
+  \item \textbf{$F$-critical threshold.}
+    On the pseudo-$F$ panel, the $F$-statistic corresponding to
+    $p = 0.05$ and the threshold at which it is first reached are
+    identified by linear interpolation and reported in the legend.
+
+  \item \textbf{Selected threshold: 25\%.}
+    A 25\% cutoff sits in the middle of the recommended plateau,
+    yielding $\sim$58 reference sites with adjusted~$R^2 \approx 0.22$
+    and $p = 0.001$.
+\end{enumerate}
+
+%% ----------------------------------------------------------------
+\section{Final Decisions}
+
+\begin{itemize}
+  \item \textbf{Scoring rule:} SumRel (ecological view --- cumulative
+    contamination pressure).
+  \item \textbf{Reference threshold:} 25\% of least-contaminated
+    sites.
+  \item \textbf{Full RDA} is fitted at the chosen threshold to produce
+    the definitive triplot, axes-summary, and terms-summary tables.
+\end{itemize}
+
+%% ----------------------------------------------------------------
+\section{Code Organisation}
+
+All computation is implemented in the \texttt{src/zci} package:
+
+\begin{description}[style=nextline]
+  \item[\texttt{run\_stage1.py}]
+    Runs PCA + dual scoring (SumRel / MaxRel).
+  \item[\texttt{run\_stage\_threshold.py}]
+    Runs Stage~1, sweeps thresholds, fits full RDA at 25\%, and saves
+    sensitivity plots, comparison tables, triplot, and RDA summary
+    tables.
+\end{description}
+
+\noindent
+The standalone \texttt{run\_stage\_rda.py} is superseded by the
+integrated threshold-sensitivity pipeline, which performs the same
+RDA fitting at the selected threshold while also providing the full
+sensitivity analysis.
+
+\end{document}

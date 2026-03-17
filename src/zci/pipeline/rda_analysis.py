@@ -98,9 +98,12 @@ def _build_terms_table(
 
 def rda_pipeline(
     data_path: str | Path,
-    stage1_artifact: str | Path,
-    output_dir: str | Path,
+    stage1_artifact: str | Path | None = None,
+    output_dir: str | Path = "results/RDA_analysis",
     *,
+    pollution_score: pd.Series | None = None,
+    score_column_name: str = "Pollution_Score",
+    output_prefix: str = "",
     env_variables: Sequence[str] | None = None,
     taxa_columns: Sequence[str] | None = None,
     reference_quantile: float = 0.20,
@@ -117,28 +120,30 @@ def rda_pipeline(
 ) -> RDAResult:
     """Run the complete RDA pipeline and save outputs.
 
-    Steps
-    -----
-    1. Read the original study-data Excel workbook.
-    2. Read Stage 1 artifact → Pollution_Score → reference mask.
-    3. Extract environmental variables for reference sites; optionally
-       log-transform and/or z-score.
-    4. Extract taxa for reference sites; apply chosen transform.
-    5. Drop rows with any NaN across both matrices.
-    6. Fit RDA (Y = taxa, X = env).
-    7. Permutation tests (global, per-axis, per-term).
-    8. Build summary tables.
-    9. Save triplot figure.
-    10. Save tables.
+    The pipeline can receive the pollution score in two ways:
+
+    * **Direct** — pass ``pollution_score`` (pd.Series) together with
+      ``data_path``.  ``stage1_artifact`` can be ``None``.
+    * **Legacy** — pass ``stage1_artifact`` path.  The score is read
+      from the Excel artifact under the column ``score_column_name``.
 
     Parameters
     ----------
     data_path : path
         Original 3-level MultiIndex workbook.
-    stage1_artifact : path
+    stage1_artifact : path or None
         ``01_updated_data.xlsx`` from Stage 1 (pollution scores).
+        Not required when ``pollution_score`` is provided directly.
     output_dir : path
         Root for RDA outputs (``tables/``, ``figures/``).
+    pollution_score : pd.Series, optional
+        Pre-computed site-level contamination score (e.g. SumRel or
+        MaxRel).  If provided, ``stage1_artifact`` is not read.
+    score_column_name : str
+        Column name to look for inside the Stage 1 artifact.  Only
+        used when ``pollution_score is None``.
+    output_prefix : str
+        Prefix prepended to all output file names (e.g. ``"SumRel_"``).
     env_variables : list of str, optional
         Environmental column names.  ``None`` → sensible defaults.
     taxa_columns : list of str, optional
@@ -156,14 +161,11 @@ def rda_pipeline(
     random_state : int or None
         Seed for reproducibility.
     cluster_column : str or None
-        If given, the pipeline reads cluster labels from the Stage-2
-        artifact and colours the triplot accordingly.  ``None`` → no
-        cluster colouring.
+        If given, colours the triplot by cluster labels.
     save_plots / figure_formats / table_formats : misc
         Output control.
     verbose : bool
         Print progress.
-
     Returns
     -------
     RDAResult
@@ -182,14 +184,23 @@ def rda_pipeline(
     _log(f"       {data.shape[0]} sites × {data.shape[1]} variables")
 
     # ── 2. Pollution scores → reference mask ─────────────────────────
-    _log("[2/10] Reading Stage 1 artifact for pollution scores …")
-    stage1 = pd.read_excel(stage1_artifact, header=[0, 1, 2], index_col=0)
-    pollution = stage1.loc[
-        :, ("01_pollution_assessment", "raw", "Pollution_Score")
-    ]
-    pollution.name = "Pollution_Score"
+    _log("[2/10] Obtaining pollution scores for reference selection …")
+    if pollution_score is not None:
+        _log("       Using directly-provided pollution score")
+        ps = pollution_score.copy()
+        ps.name = "Pollution_Score"
+    elif stage1_artifact is not None:
+        stage1 = pd.read_excel(stage1_artifact, header=[0, 1, 2], index_col=0)
+        ps = stage1.loc[
+            :, ("01_pollution_assessment", "raw", score_column_name)
+        ]
+        ps.name = "Pollution_Score"
+    else:
+        raise ValueError(
+            "Either pollution_score or stage1_artifact must be provided"
+        )
 
-    ref_mask = select_reference_sites(pollution, quantile=reference_quantile)
+    ref_mask = select_reference_sites(ps, quantile=reference_quantile)
     n_ref = ref_mask.sum()
     _log(f"       {n_ref} reference sites (bottom {reference_quantile*100:.0f} %)")
 
@@ -294,26 +305,31 @@ def rda_pipeline(
 
     if save_plots:
         _log("[9/10] Saving RDA triplot …")
+        triplot_title = None
+        if output_prefix:
+            triplot_title = f"RDA Triplot — {output_prefix.rstrip('_')}"
         fig, _ = plot_rda_triplot(
             rda,
             axes=(1, 2),
             scaling=1,
             site_groups=cluster_labels,
             terms_test=terms_test,
+            global_test=global_test,
             arrow_scale=2.0,
             species_scale=2.0,
             figsize=(12, 9),
             dpi=300,
+            title=triplot_title,
         )
-        save_figure(fig, figures_dir / "rda_triplot",
+        save_figure(fig, figures_dir / f"{output_prefix}rda_triplot",
                     formats=figure_formats, verbose=verbose)
         plt.close(fig)
 
     # ── 10. Save tables ──────────────────────────────────────────────
     _log("[10/10] Saving tables …")
-    save_table(axes_table, tables_dir / "rda_axes_summary",
+    save_table(axes_table, tables_dir / f"{output_prefix}rda_axes_summary",
                formats=table_formats, verbose=verbose)
-    save_table(terms_table, tables_dir / "rda_terms_summary",
+    save_table(terms_table, tables_dir / f"{output_prefix}rda_terms_summary",
                formats=table_formats, verbose=verbose)
 
     _log(f"\n✓ RDA pipeline complete.  "

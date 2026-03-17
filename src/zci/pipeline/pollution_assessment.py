@@ -3,10 +3,19 @@
 Orchestrates:  read → extract → transform → PCA → score → visualise → save.
 
 This is the **only** module that touches both ``io`` and ``core``.
+
+Now produces **two** competing site-level contamination scores:
+
+* **SumRel** — sum of rescaled component scores
+* **MaxRel** — maximum of rescaled component scores
+
+Both are saved with their own prefix so downstream analyses (RDA) can
+compare them on the same footing.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Union
 
@@ -15,7 +24,12 @@ import matplotlib.pyplot as plt
 
 from ..io.readers import read_study_data, extract_block
 from ..io.writers import save_table, save_figure
-from ..core.transforms import log2_transform, composite_pollution_score
+from ..core.transforms import (
+    log2_transform,
+    composite_pollution_score,
+    score_sumrel,
+    score_maxrel,
+)
 from ..core.pca import run_pca
 from ..viz.pca_plots import plot_variance_explained, plot_ridge_loadings
 from ..viz.map_plots import plot_corridor_bifurcation
@@ -28,6 +42,15 @@ POLLUTION_VARS_2008: List[str] = [
     "Cu", "Hg", "Pb", "Zn", "total PCB",
     "Cd", "OCS", "p,p'-DDE", "As", "Ca",
 ]
+
+
+@dataclass
+class PollutionPipelineResult:
+    """Container for Stage 1 outputs including both scoring rules."""
+    pca_result: PCAResult
+    sumrel_score: pd.Series
+    maxrel_score: pd.Series
+    data: pd.DataFrame          # original multi-index data
 
 
 def pollution_pca_pipeline(
@@ -47,20 +70,23 @@ def pollution_pca_pipeline(
     figure_formats: Sequence[str] = ("png",),
     table_formats: Sequence[str] = ("xlsx",),
     verbose: bool = True,
-) -> PCAResult:
+) -> PollutionPipelineResult:
     """Run the complete pollution-PCA stage and save outputs.
 
     Steps
     -----
     1. Read the 3-level MultiIndex Excel workbook.
     2. Extract the ``("chemical", "raw")`` block for the specified variables.
-    3. Apply log₂(1 + x) transformation.
-    4. Fit PCA, compute scaled loadings and min-max-standardised scores.
-    5. Compute composite pollution score from selected PCs.
-    6. Save loadings table, site-scores table, and augmented data to
-       *output_dir/*.
-    7. (Optional) Save variance-explained chart and ridge plot to
-       *output_dir/figures/*.
+    3. Screen variables for negligible variation or extreme redundancy.
+    4. Apply log₂(1 + x) transformation.
+    5. Fit PCA, compute scaled loadings and standardised scores.
+       PC signs are auto-oriented so higher = more contaminated.
+    6. Compute **SumRel** and **MaxRel** contamination scores from
+       the rescaled component scores.
+    7. Save prefixed loadings, site-scores, and augmented data for each
+       scoring rule to *output_dir/*.
+    8. (Optional) Save variance-explained chart, ridge plot, and corridor
+       bifurcation map for each scoring rule.
 
     Parameters
     ----------
@@ -79,10 +105,10 @@ def pollution_pca_pipeline(
         Which PCs to include in the composite score.
         ``None`` → all *n_components* PCs.
     composite_transform : str
-        Transformation applied to the selected PCs before summing.
+        Transformation applied to the selected PCs before aggregation.
         ``"min-max"`` (default) or ``"z-score"``.
     composite_weights : dict, list, or None
-        Per-PC weights for the composite sum.  ``None`` → equal (all 1).
+        Per-PC weights for legacy composite sum.  ``None`` → equal (all 1).
     maps_dir : str, Path, or None
         Path to ``data/maps/`` folder with shapefiles.  ``None`` disables
         the corridor map figure.
@@ -99,9 +125,9 @@ def pollution_pca_pipeline(
 
     Returns
     -------
-    PCAResult
-        Structured result with ``.loadings``, ``.scores``,
-        ``.scores_raw``, ``.variance_info``.
+    PollutionPipelineResult
+        Container with ``.pca_result``, ``.sumrel_score``, ``.maxrel_score``,
+        and ``.data`` (original multi-index DataFrame).
     """
     output_dir = Path(output_dir)
     tables_dir = output_dir / "tables"
@@ -113,47 +139,70 @@ def pollution_pca_pipeline(
             print(msg)
 
     # ── 1. Read data ─────────────────────────────────────────────────────
-    _log("[1/8] Reading study data …")
+    _log("[1/9] Reading study data …")
     data = read_study_data(data_path)
     _log(f"      {data.shape[0]} sites × {data.shape[1]} variables")
 
     # ── 2. Extract pollution block ────────────────────────────────────────
-    _log("[2/8] Extracting pollution variables …")
+    _log("[2/9] Extracting pollution variables …")
     pollution_raw = extract_block(data, "chemical", "raw")[list(pollution_vars)]
     _log(f"      {pollution_raw.shape[1]} variables, {pollution_raw.shape[0]} sites")
 
-    # ── 3. Transform ─────────────────────────────────────────────────────
-    _log("[3/8] Applying log₂(1 + x) transformation …")
-    pollution_transformed = log2_transform(pollution_raw)
+    # ── 3. Screen variables ───────────────────────────────────────────────
+    _log("[3/9] Screening variables for negligible variation …")
+    low_var = pollution_raw.std() < 1e-10
+    if low_var.any():
+        dropped = list(low_var[low_var].index)
+        _log(f"      Dropping near-zero-variance columns: {dropped}")
+        pollution_raw = pollution_raw.loc[:, ~low_var]
+    else:
+        _log("      All variables retained (no negligible-variance columns)")
 
-    # ── 4. PCA ────────────────────────────────────────────────────────────
-    _log(f"[4/8] Fitting PCA (n_components={n_components}, "
-         f"standardise={standardise_scores}) …")
+    # ── 4. Transform ─────────────────────────────────────────────────────
+    _log("[4/9] Applying log₂(1 + x) transformation …")
+    pollution_transformed = log2_transform(pollution_raw)
+    # apply z-score transformation
+    pollution_transformed = (pollution_transformed - pollution_transformed.mean()) / pollution_transformed.std()
+
+    # ── 5. PCA ────────────────────────────────────────────────────────────
+    _log(f"[5/9] Fitting PCA (n_components={n_components}, "
+         f"standardise={standardise_scores}, orient_positive=True) …")
     result = run_pca(
         pollution_transformed,
         n_components=n_components,
         standardise_scores=standardise_scores,
+        orient_positive=True,
     )
 
     cum_var = result.variance_info.loc["Cumulative Proportion"].iloc[-1]
     _log(f"      First {n_components} PCs explain "
          f"{float(cum_var) * 100:.1f} % of variance")
 
-    # ── 5. Composite pollution score ──────────────────────────────────────
+    # ── 6. Compute SumRel and MaxRel contamination scores ─────────────────
     if selected_pcs is None:
         selected_pcs = list(result.scores.columns)
-    _log(f"[5/8] Computing composite pollution score "
+
+    _log(f"[6/9] Computing SumRel & MaxRel scores "
          f"(PCs={list(selected_pcs)}, transform={composite_transform}) …")
-    pollution_score = composite_pollution_score(
+
+    sumrel = score_sumrel(
         result.scores,
         selected_pcs=list(selected_pcs),
         transform=composite_transform,
-        weights=composite_weights,
     )
-    _log(f"      Score range: [{pollution_score.min():.4f}, {pollution_score.max():.4f}]")
+    maxrel = score_maxrel(
+        result.scores,
+        selected_pcs=list(selected_pcs),
+        transform=composite_transform,
+    )
 
-    # ── 6. Save tables + augmented artifact ───────────────────────────────
-    _log("[6/8] Saving tables and artifacts …")
+    _log(f"      SumRel range: [{sumrel.min():.4f}, {sumrel.max():.4f}]")
+    _log(f"      MaxRel range: [{maxrel.min():.4f}, {maxrel.max():.4f}]")
+
+    # ── 7. Save tables + augmented artifacts (prefixed) ───────────────────
+    _log("[7/9] Saving tables and artifacts …")
+
+    # Common PCA outputs (shared between both scoring rules)
     save_table(
         result.loadings_with_variance(),
         tables_dir / "pc_loadings",
@@ -167,22 +216,37 @@ def pollution_pca_pipeline(
         verbose=verbose,
     )
 
-    # Build augmented DataFrame with MultiIndex columns and save
-    augmented = result.to_augmented_dataframe(
-        pollution_score,
-        selected_pcs=list(selected_pcs),
-        level0="01_pollution_assessment",
-        level1="raw",
-    )
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-    augmented_path = artifacts_dir / "01_updated_data.xlsx"
-    augmented.to_excel(augmented_path)
-    if verbose:
-        print(f"  ✓ Saved augmented data: {augmented_path}")
+    # Save per-score-rule outputs with prefix
+    for prefix, score_series in [("SumRel", sumrel), ("MaxRel", maxrel)]:
+        score_name = score_series.name  # e.g. "SumRel_Score"
 
-    # ── 7. (Optional) Save figures ────────────────────────────────────────
+        # Site rankings table
+        ranking = score_series.sort_values().reset_index()
+        ranking.columns = ["StationID", score_name]
+        ranking["Rank"] = range(1, len(ranking) + 1)
+        save_table(
+            ranking,
+            tables_dir / f"{prefix}_site_rankings",
+            formats=table_formats,
+            verbose=verbose,
+        )
+
+        # Build augmented DataFrame with MultiIndex columns
+        augmented = result.to_augmented_dataframe(
+            score_series,
+            selected_pcs=list(selected_pcs),
+            level0="01_pollution_assessment",
+            level1="raw",
+        )
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        augmented_path = artifacts_dir / f"{prefix}_01_updated_data.xlsx"
+        augmented.to_excel(augmented_path)
+        if verbose:
+            print(f"  ✓ Saved augmented data: {augmented_path}")
+
+    # ── 8. (Optional) Save PCA figures ────────────────────────────────────
     if save_plots:
-        _log("[7/8] Saving PCA figures …")
+        _log("[8/9] Saving PCA figures …")
         fig_var, _ = plot_variance_explained(result)
         save_figure(fig_var, figures_dir / "variance_explained",
                     formats=figure_formats, verbose=verbose)
@@ -193,24 +257,30 @@ def pollution_pca_pipeline(
                     formats=figure_formats, verbose=verbose)
         plt.close(fig_ridge)
 
-    # ── 8. (Optional) Corridor map + ECDF bifurcation figure ──────────────
+    # ── 9. (Optional) Corridor maps for SumRel & MaxRel ──────────────────
     if save_plots and maps_dir is not None:
         _bifurc_func = bifurcation_plot_func or plot_corridor_bifurcation
-        _log("[8/8] Saving corridor bifurcation map …")
-        # Extract lat / lon / waterbody from the original MultiIndex data
+        _log("[9/9] Saving corridor bifurcation maps (SumRel & MaxRel) …")
         sample_info = extract_block(data, "sample_info", "raw")
-        fig_map, _ = _bifurc_func(
-            scores=pollution_score,
-            lat=sample_info["Latitude"],
-            lon=sample_info["Longitude"],
-            waterbody=sample_info["Waterbody"],
-            maps_dir=maps_dir,
-            threshold_quantile=threshold_quantile,
-            score_label="Pollution Score",
-        )
-        save_figure(fig_map, figures_dir / "corridor_bifurcation",
-                    formats=figure_formats, verbose=verbose)
-        plt.close(fig_map)
 
-    _log("\n✓ Pollution PCA pipeline complete.")
-    return result
+        for prefix, score_series in [("SumRel", sumrel), ("MaxRel", maxrel)]:
+            fig_map, _ = _bifurc_func(
+                scores=score_series,
+                lat=sample_info["Latitude"],
+                lon=sample_info["Longitude"],
+                waterbody=sample_info["Waterbody"],
+                maps_dir=maps_dir,
+                threshold_quantile=threshold_quantile,
+                score_label=f"{prefix} Contamination Score",
+            )
+            save_figure(fig_map, figures_dir / f"{prefix}_corridor_bifurcation",
+                        formats=figure_formats, verbose=verbose)
+            plt.close(fig_map)
+
+    _log("\n✓ Pollution PCA pipeline complete (SumRel & MaxRel).")
+    return PollutionPipelineResult(
+        pca_result=result,
+        sumrel_score=sumrel,
+        maxrel_score=maxrel,
+        data=data,
+    )

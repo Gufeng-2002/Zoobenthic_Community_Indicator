@@ -1,0 +1,17 @@
+\begin{table}[htbp]
+  \centering
+  \caption{Monte Carlo cross-validation confusion matrix (cumulative over 1,000 iterations) (Detroit River)}
+  \label{tab:dr_03_LDA_Classification_mccv_confusion_matrix}
+  \begin{tabular}{lrrrr}
+    \toprule
+     & \% Correct & Cluster C1 & Cluster C2 & Cluster C3 \\
+    \midrule
+    Cluster C1 & 17 & 171 & 177 & 652 \\
+    Cluster C2 & 89 & 87 & 1{,}783 & 130 \\
+    Cluster C3 & 67 & 401 & 591 & 2{,}008 \\
+    Total & 66 & 659 & 2{,}551 & 2{,}790 \\
+    \bottomrule
+  \end{tabular}
+  \\[4pt]
+  \parbox{\textwidth}{\footnotesize Combined results from 1,000 CV iterations (test size: 20\%)}
+\end{table}

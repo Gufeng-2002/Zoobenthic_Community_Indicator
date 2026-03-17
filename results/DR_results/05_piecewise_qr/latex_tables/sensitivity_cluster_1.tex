@@ -1,0 +1,32 @@
+\begin{table}[htbp]
+  \centering
+  \caption{Subsample sensitivity analysis of piecewise quantile regression for Cluster~1 (Detroit River)}
+  \label{tab:dr_05_piecewise_qr_sensitivity_cluster_1}
+  \small
+  \begin{tabular}{lrrrrrrr}
+    \toprule
+    frac\_pct & n\_samples & parameter & true\_value & median\_estimate & mean\_ci\_lower & mean\_ci\_upper & coverage\_pct \\
+    \midrule
+    20 & 9 & intercept & 0.8467 & 0.7930 & 0.0191 & 0.9599 & 20 \\
+    20 & 9 & slope\_1 & -0.1406 & -0.0914 & -0.1929 & 0.1321 & 20 \\
+    20 & 9 & delta\_slope\_1 & 0.0027 & -0.1234 & -0.2657 & 0.2044 & 20 \\
+    20 & 9 & breakpoint\_1 & 3.20 & 3.23 & 3.20 & 3.29 & 20 \\
+    40 & 18 & intercept & 0.8467 & 0.7152 & 0.2450 & 1.08 & 20 \\
+    40 & 18 & slope\_1 & -0.1406 & -0.0734 & -0.2066 & 0.0745 & 20 \\
+    40 & 18 & delta\_slope\_1 & 0.0027 & -0.1479 & -0.2824 & 0.4002 & 20 \\
+    40 & 18 & breakpoint\_1 & 3.20 & 3.26 & 3.16 & 3.28 & 80 \\
+    60 & 26 & intercept & 0.8467 & 1.13 & 0.7078 & 1.53 & 60 \\
+    60 & 26 & slope\_1 & -0.1406 & -0.2114 & -0.3497 & -0.0605 & 60 \\
+    60 & 26 & delta\_slope\_1 & 0.0027 & 0.1781 & -0.2060 & 0.3433 & 60 \\
+    60 & 26 & breakpoint\_1 & 3.20 & 3.22 & 3.18 & 3.28 & 40 \\
+    80 & 35 & intercept & 0.8467 & 0.9645 & 0.7567 & 1.44 & 40 \\
+    80 & 35 & slope\_1 & -0.1406 & -0.2008 & -0.3400 & -0.1080 & 40 \\
+    80 & 35 & delta\_slope\_1 & 0.0027 & 0.3147 & 0.0428 & 0.4609 & 40 \\
+    80 & 35 & breakpoint\_1 & 3.20 & 3.24 & 3.18 & 3.28 & 60 \\
+    100 & 44 & intercept & 0.8467 & 0.8467 & 0.3995 & 1.20 & 100 \\
+    100 & 44 & slope\_1 & -0.1406 & -0.1406 & -0.2583 & 0.0120 & 100 \\
+    100 & 44 & delta\_slope\_1 & 0.0027 & 0.0027 & -0.2937 & 0.2240 & 100 \\
+    100 & 44 & breakpoint\_1 & 3.20 & 3.20 & 3.20 & 3.29 & 100 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

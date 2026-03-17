@@ -83,7 +83,8 @@ class PCAResult:
 
         # Combine selected PC scores + pollution score into a single plain DF
         parts = self.scores[list(selected_pcs)].copy()
-        parts["Pollution_Score"] = pollution_score.values
+        score_name = pollution_score.name or "Pollution_Score"
+        parts[score_name] = pollution_score.values
 
         # Wrap into 3-level MultiIndex
         tuples = [(level0, level1, col) for col in parts.columns]

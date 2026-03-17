@@ -1,0 +1,90 @@
+\babel@toc {english}{}\relax 
+\contentsline {section}{\numberline {1}Overview}{2}{section.1}%
+\contentsline {section}{\numberline {2}Data Dictionary and Notation}{2}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Workbook Structure}{2}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Key Symbols and Variable Types}{3}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Characters of the Raw Data}{3}{subsection.2.3}%
+\contentsline {subsubsection}{\numberline {2.3.1}Taxa Data in Octave Scale}{3}{subsubsection.2.3.1}%
+\contentsline {paragraph}{Usage in downstream stages.}{3}{section*.2}%
+\contentsline {subsubsection}{\numberline {2.3.2}Mean Particle Size — MPS(Phi)}{4}{subsubsection.2.3.2}%
+\contentsline {subsubsection}{\numberline {2.3.3}Selection of 16 Chemical Variables}{4}{subsubsection.2.3.3}%
+\contentsline {section}{\numberline {3}Core Analytical Stream}{4}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Stage 1 — Pollution PCA}{4}{subsection.3.1}%
+\contentsline {paragraph}{Module.}{4}{section*.3}%
+\contentsline {paragraph}{Input.}{4}{section*.4}%
+\contentsline {paragraph}{Step 1 — Log transformation.}{4}{section*.5}%
+\contentsline {paragraph}{Step 2 — PCA.}{4}{section*.6}%
+\contentsline {paragraph}{Step 3 — Composite Pollution Score.}{5}{section*.7}%
+\contentsline {paragraph}{Artifact written.}{5}{section*.8}%
+\contentsline {subsection}{\numberline {3.2}Stage 2 — Taxa Assemblage Clustering}{5}{subsection.3.2}%
+\contentsline {paragraph}{Module.}{5}{section*.9}%
+\contentsline {paragraph}{Input.}{5}{section*.10}%
+\contentsline {paragraph}{Step 1 — Reference-site selection.}{5}{section*.11}%
+\contentsline {paragraph}{Step 2 — Taxa transform.}{5}{section*.12}%
+\contentsline {paragraph}{Step 3 — Ward's hierarchical clustering.}{5}{section*.13}%
+\contentsline {paragraph}{Artifact written.}{6}{section*.14}%
+\contentsline {subsection}{\numberline {3.3}Hindsight Relabel and ANOVA}{6}{subsection.3.3}%
+\contentsline {paragraph}{Module.}{6}{section*.15}%
+\contentsline {paragraph}{Cluster relabelling.}{6}{section*.16}%
+\contentsline {paragraph}{One-way ANOVA.}{6}{section*.17}%
+\contentsline {paragraph}{Outputs.}{6}{section*.18}%
+\contentsline {subsection}{\numberline {3.4}Stage 3 — LDA Habitat Classification}{6}{subsection.3.4}%
+\contentsline {paragraph}{Module.}{6}{section*.19}%
+\contentsline {paragraph}{Input.}{6}{section*.20}%
+\contentsline {paragraph}{Step 1 — Standardisation.}{6}{section*.21}%
+\contentsline {paragraph}{Step 2 — LDA fitting.}{7}{section*.22}%
+\contentsline {paragraph}{Step 3 — Variable importance (Wilks' Lambda).}{7}{section*.23}%
+\contentsline {paragraph}{Step 4 — Monte Carlo cross-validation (MCCV).}{7}{section*.24}%
+\contentsline {paragraph}{Step 5 — Classification of non-reference sites.}{7}{section*.25}%
+\contentsline {paragraph}{Artifact written.}{7}{section*.26}%
+\contentsline {subsection}{\numberline {3.5}Stage 4 — Bray--Curtis NMDS and ZCI Construction}{7}{subsection.3.5}%
+\contentsline {paragraph}{Module.}{7}{section*.27}%
+\contentsline {paragraph}{Input.}{8}{section*.28}%
+\contentsline {paragraph}{Step 1 — Octave to relative abundance.}{8}{section*.29}%
+\contentsline {paragraph}{Step 2 — Endpoint construction (per cluster).}{8}{section*.30}%
+\contentsline {paragraph}{Step 3 — Bray--Curtis dissimilarity.}{8}{section*.31}%
+\contentsline {paragraph}{Step 4 — Iterative non-metric MDS.}{8}{section*.32}%
+\contentsline {paragraph}{Step 5 — PCA rotation and axis flip.}{8}{section*.33}%
+\contentsline {paragraph}{Step 6 — Weighted-average species scores.}{9}{section*.34}%
+\contentsline {paragraph}{Step 7 — ZCI computation.}{9}{section*.35}%
+\contentsline {paragraph}{Alternative ZCI methods (available but not used by default).}{9}{section*.36}%
+\contentsline {paragraph}{Artifact written.}{9}{section*.37}%
+\contentsline {subsection}{\numberline {3.6}Stage 5 — Piecewise Quantile Regression}{9}{subsection.3.6}%
+\contentsline {paragraph}{Module.}{9}{section*.38}%
+\contentsline {paragraph}{Input.}{9}{section*.39}%
+\contentsline {paragraph}{Model.}{10}{section*.40}%
+\contentsline {paragraph}{Estimation.}{10}{section*.41}%
+\contentsline {paragraph}{Wild-bootstrap confidence intervals.}{10}{section*.42}%
+\contentsline {paragraph}{Note on current status.}{10}{section*.43}%
+\contentsline {paragraph}{Artifact written.}{10}{section*.44}%
+\contentsline {section}{\numberline {4}Complementary / Validation Methods}{10}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Stage RDA — Redundancy Analysis}{10}{subsection.4.1}%
+\contentsline {paragraph}{Module.}{10}{section*.45}%
+\contentsline {paragraph}{Purpose.}{10}{section*.46}%
+\contentsline {paragraph}{Input.}{10}{section*.47}%
+\contentsline {paragraph}{Step 1 — Multivariate OLS.}{11}{section*.48}%
+\contentsline {paragraph}{Step 2 — PCA on fitted values.}{11}{section*.49}%
+\contentsline {paragraph}{Step 3 — Scores.}{11}{section*.50}%
+\contentsline {paragraph}{Step 4 — Permutation tests.}{11}{section*.51}%
+\contentsline {paragraph}{Outputs.}{11}{section*.52}%
+\contentsline {subsection}{\numberline {4.2}Role of ANOVA in the Framework}{11}{subsection.4.2}%
+\contentsline {section}{\numberline {5}Artifact and Intermediate-Value Map}{11}{section.5}%
+\contentsline {section}{\numberline {6}Quality Assessment and Potential Issues}{13}{section.6}%
+\contentsline {subsection}{\numberline {6.1}ANOVA Assumption Checking}{13}{subsection.6.1}%
+\contentsline {paragraph}{Current status.}{13}{section*.53}%
+\contentsline {paragraph}{Recommended remediation.}{13}{section*.54}%
+\contentsline {paragraph}{Impact on results.}{13}{section*.55}%
+\contentsline {subsection}{\numberline {6.2}Bray--Curtis and NMDS: Where Each Operates}{13}{subsection.6.2}%
+\contentsline {paragraph}{Clarification of roles.}{13}{section*.56}%
+\contentsline {paragraph}{Does the framework correctly reflect contamination-driven community change?}{14}{section*.57}%
+\contentsline {paragraph}{Potential issues.}{14}{section*.58}%
+\contentsline {subsection}{\numberline {6.3}LDA Cross-Validation Leakage}{14}{subsection.6.3}%
+\contentsline {paragraph}{Recommended fix.}{14}{section*.59}%
+\contentsline {section}{\numberline {7}TITAN Embedding Plan}{14}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Background}{14}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}TITAN Algorithm Summary}{15}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Integration Points in the Current Framework}{15}{subsection.7.3}%
+\contentsline {paragraph}{Execution.}{16}{section*.60}%
+\contentsline {paragraph}{Theoretical rationale.}{16}{section*.61}%
+\contentsline {paragraph}{Caveats.}{16}{section*.62}%
+\contentsline {section}{\numberline {8}Summary of Recommendations}{16}{section.8}%

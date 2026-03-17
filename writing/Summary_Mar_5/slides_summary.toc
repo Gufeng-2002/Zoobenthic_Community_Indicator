@@ -1,0 +1,11 @@
+\beamer@sectionintoc {1}{Overview}{3}{0}{1}
+\beamer@sectionintoc {2}{Stage 1 --- Pollution PCA}{9}{0}{2}
+\beamer@sectionintoc {3}{Stage 2 --- Taxa Assemblage Clustering}{12}{0}{3}
+\beamer@sectionintoc {4}{Hindsight Relabel \& ANOVA}{15}{0}{4}
+\beamer@sectionintoc {5}{Stage 3 --- LDA Classification}{18}{0}{5}
+\beamer@sectionintoc {6}{Stage 4 --- Bray--Curtis NMDS \& ZCI}{21}{0}{6}
+\beamer@sectionintoc {7}{Stage 5 --- Piecewise Quantile Regression}{25}{0}{7}
+\beamer@sectionintoc {8}{RDA Validation}{28}{0}{8}
+\beamer@sectionintoc {9}{Artifact Chain}{29}{0}{9}
+\beamer@sectionintoc {10}{TITAN Integration}{30}{0}{10}
+\beamer@sectionintoc {11}{Recommendations}{32}{0}{11}

@@ -34,19 +34,53 @@ def log2_transform(df: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 
+def _rescale_component_scores(
+    scores: pd.DataFrame,
+    selected_pcs: Sequence[str] | None = None,
+    transform: str = "min-max",
+) -> pd.DataFrame:
+    """Rescale each selected PC column to a common relative scale.
+
+    Parameters
+    ----------
+    scores : pd.DataFrame
+        Site-score matrix (sites × PCs).
+    selected_pcs : list of str, optional
+        Which PCs to include.  ``None`` → all columns.
+    transform : str
+        ``"min-max"`` rescales each PC to [0, 1]; ``"z-score"`` centres
+        to mean 0 / std 1.
+
+    Returns
+    -------
+    pd.DataFrame
+        Rescaled PC columns (sites × selected PCs).
+    """
+    if selected_pcs is None:
+        selected_pcs = list(scores.columns)
+    missing = set(selected_pcs) - set(scores.columns)
+    if missing:
+        raise KeyError(f"PCs not found in scores: {sorted(missing)}")
+    sub = scores[list(selected_pcs)].copy()
+
+    if transform == "min-max":
+        sub = (sub - sub.min()) / (sub.max() - sub.min())
+    elif transform == "z-score":
+        sub = (sub - sub.mean()) / sub.std()
+    else:
+        raise ValueError(f"Unsupported transform: {transform!r}. Use 'min-max' or 'z-score'.")
+    return sub
+
+
 def composite_pollution_score(
     scores: pd.DataFrame,
     selected_pcs: Sequence[str] | None = None,
     transform: str = "min-max",
     weights: dict[str, float] | Sequence[float] | None = None,
 ) -> pd.Series:
-    """Compute a single composite pollution score per site.
+    """Compute a single composite pollution score per site (weighted sum).
 
-    Steps
-    -----
-    1. Select a subset of PCs from *scores*.
-    2. Apply *transform* (``"min-max"`` or ``"z-score"``) to each selected PC.
-    3. Weighted-sum across PCs → one scalar per site.
+    This is the legacy API — equivalent to ``score_sumrel`` with weights.
 
     Parameters
     ----------
@@ -68,28 +102,14 @@ def composite_pollution_score(
     pd.Series
         Named ``"Pollution_Score"`` with the same row index as *scores*.
     """
-    # 1. Select PCs
-    if selected_pcs is None:
-        selected_pcs = list(scores.columns)
-    missing = set(selected_pcs) - set(scores.columns)
-    if missing:
-        raise KeyError(f"PCs not found in scores: {sorted(missing)}")
-    sub = scores[list(selected_pcs)].copy()
+    sub = _rescale_component_scores(scores, selected_pcs, transform)
 
-    # 2. Transform
-    if transform == "min-max":
-        sub = (sub - sub.min()) / (sub.max() - sub.min())
-    elif transform == "z-score":
-        sub = (sub - sub.mean()) / sub.std()
-    else:
-        raise ValueError(f"Unsupported transform: {transform!r}. Use 'min-max' or 'z-score'.")
-
-    # 3. Build weight array
-    n = len(selected_pcs)
+    # Build weight array
+    n = sub.shape[1]
     if weights is None:
         w = np.ones(n)
     elif isinstance(weights, dict):
-        w = np.array([weights.get(pc, 0.0) for pc in selected_pcs])
+        w = np.array([weights.get(pc, 0.0) for pc in sub.columns])
     else:
         w = np.array(weights)
         if len(w) != n:
@@ -99,6 +119,64 @@ def composite_pollution_score(
 
     composite = sub.values @ w
     return pd.Series(composite, index=scores.index, name="Pollution_Score")
+
+
+def score_sumrel(
+    scores: pd.DataFrame,
+    selected_pcs: Sequence[str] | None = None,
+    transform: str = "min-max",
+) -> pd.Series:
+    """SumRel: sum of rescaled component scores.
+
+    For each site, SumRel = sum of rescaled PC scores.  Equal weights
+    are used (unweighted sum).
+
+    Parameters
+    ----------
+    scores : pd.DataFrame
+        Site-score matrix (sites × PCs).
+    selected_pcs : list of str, optional
+        Which PCs to include.  ``None`` → all columns.
+    transform : str
+        Rescaling method applied to each PC before summing.
+
+    Returns
+    -------
+    pd.Series
+        Named ``"SumRel_Score"``.
+    """
+    sub = _rescale_component_scores(scores, selected_pcs, transform)
+    composite = sub.sum(axis=1)
+    return pd.Series(composite.values, index=scores.index, name="SumRel_Score")
+
+
+def score_maxrel(
+    scores: pd.DataFrame,
+    selected_pcs: Sequence[str] | None = None,
+    transform: str = "min-max",
+) -> pd.Series:
+    """MaxRel: maximum of rescaled component scores.
+
+    For each site, MaxRel = max over the rescaled PC scores.  This
+    captures the *single worst* contamination syndrome per site.
+
+    Parameters
+    ----------
+    scores : pd.DataFrame
+        Site-score matrix (sites × PCs).
+    selected_pcs : list of str, optional
+        Which PCs to include.  ``None`` → all columns.
+    transform : str
+        Rescaling method applied to each PC before taking the max.
+
+    Returns
+    -------
+    pd.Series
+        Named ``"MaxRel_Score"``.
+    """
+    sub = _rescale_component_scores(scores, selected_pcs, transform)
+    composite = sub.max(axis=1)
+    return pd.Series(composite.values, index=scores.index, name="MaxRel_Score")
 
 
 def log1p_zscore_transform(
