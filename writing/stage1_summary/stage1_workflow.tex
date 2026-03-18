@@ -17,123 +17,253 @@
 %% ----------------------------------------------------------------
 \section{Overview}
 
-This document summarises the three-step workflow that transforms raw
-sediment-chemistry, environmental, and benthic-invertebrate data into
-(i)~a site-level contamination score, (ii)~an ecologically validated
-scoring rule, and (iii)~a defensible reference-site threshold.
-
-%% ----------------------------------------------------------------
-\section{Step 1: PCA-Based Contamination Scoring}
+This document summarises the workflow implemented in
+\texttt{src/run\_stage\_threshold.py}. The script runs two connected
+analyses in sequence:
 
 \begin{enumerate}[leftmargin=*]
-  \item \textbf{Input.}
-    A 233-site $\times$ 56-variable workbook containing 16~chemical
-    contaminants, 5~environmental variables, and 16~benthic taxa
-    (octave-transformed abundances).
+  \item Stage~1 contamination scoring from sediment chemistry
+        (SumRel and MaxRel).
+  \item Reference-threshold sensitivity analysis using RDA over a grid
+        of threshold proportions.
+\end{enumerate}
+
+Together, these steps produce:
+\begin{itemize}[leftmargin=*]
+  \item site-level contamination scores,
+  \item ecological evidence for score choice,
+  \item a data-supported reference-site cutoff (25\%).
+\end{itemize}
+
+\noindent
+The script reads
+\texttt{data/processed/complete\_env\_taxa\_chemical\_Feb\_3.xlsx}
+and writes outputs to:
+\begin{itemize}[leftmargin=*]
+  \item \texttt{results/01\_pollution\_assessment/} (Stage~1 outputs),
+  \item \texttt{results/ref\_threshold\_sensitivity/} (threshold sweep outputs).
+\end{itemize}
+
+%% ----------------------------------------------------------------
+\section{Step 1: PCA-Based Contamination Scoring (Stage~1)}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Data ingestion.}
+    The pipeline reads the three-level MultiIndex workbook
+    (\texttt{complete\_env\_taxa\_chemical\_Feb\_3.xlsx}).
+    From the \texttt{(chemical, raw)} block it extracts the
+    16~contaminant columns:
+    Co, Al, Ni, Mn, Fe, Cr, Cu, Hg, Pb, Zn, total PCB, Cd, OCS,
+    $p{,}p'$-DDE, As, Ca.
+    Variables with negligible variance ($\sigma < 10^{-10}$) are
+    dropped.
 
   \item \textbf{Log-transformation.}
-    Chemical concentrations are transformed via $\log_2(1+x)$ to
-    reduce right skew.
+    Each contaminant concentration is transformed element-wise:
+    \[
+      x' = \log_2(1 + x).
+    \]
 
-  \item \textbf{PCA.}
-    Principal Component Analysis is fitted on the 16 log-transformed
-    chemical variables with min--max standardisation.  The first five
-    PCs are retained (cumulative variance $\geq 83\%$).
+  \item \textbf{Z-score normalisation.}
+    Every log-transformed column is standardised to zero mean and unit
+    variance:
+    \[
+      z_{ij} = \frac{x'_{ij} - \bar{x}'_{j}}{\sigma_{x'_j}}.
+    \]
+    This ensures PCA is not dominated by variables with larger
+    absolute magnitudes after log-transformation.
+
+  \item \textbf{PCA fitting.}
+    Scikit-learn PCA is applied to the $z$-scored matrix.
+    The first $K = 5$ components are retained
+    (\texttt{n\_components=5}; cumulative explained variance
+    $\gtrsim 83\%$).
+    Scaled loadings are computed as
+    $L_{jk} = v_{jk}\sqrt{\lambda_k}$.
 
   \item \textbf{Sign orientation.}
-    Each PC is oriented so that higher scores correspond to higher
-    contamination (positive correlation with known contaminant
-    indicators).
+    Each PC is inspected: if the variable with the largest absolute
+    loading has a \emph{negative} sign, both the loadings and site
+    scores for that PC are flipped, so that higher scores always
+    correspond to higher contamination.
 
-  \item \textbf{Component rescaling.}
-    Each retained PC score is min--max rescaled to $[0,1]$.
+  \item \textbf{PC-score standardisation.}
+    The oriented raw PC scores are min--max rescaled per component:
+    \[
+      S'_{ik} = \frac{S_{ik} - \min_i S_k}
+                     {\max_i S_k - \min_i S_k},
+      \qquad S'_{ik} \in [0,1].
+    \]
 
-  \item \textbf{Two scoring rules.}
+  \item \textbf{Composite scoring rules.}
+    From the rescaled scores $S'_{ik}$ ($k = 1,\dots,5$) two
+    site-level indices are computed:
     \begin{itemize}
-      \item \textbf{SumRel} — sum of rescaled PC scores.
-        Reflects cumulative, multi-dimensional contamination pressure.
-      \item \textbf{MaxRel} — maximum of rescaled PC scores.
-        Captures the single worst contamination axis per site.
+      \item \textbf{SumRel} — cumulative pressure:
+        $\displaystyle
+          \mathrm{SumRel}_i = \sum_{k=1}^{K} S'_{ik}$\,.
+      \item \textbf{MaxRel} — worst-axis pressure:
+        $\displaystyle
+          \mathrm{MaxRel}_i = \max_{k=1,\dots,K} S'_{ik}$\,.
     \end{itemize}
 \end{enumerate}
 
 \noindent
-\textbf{Outputs:}
-site-level SumRel and MaxRel scores, PC loadings, variance-explained
-plot, ridge-loading plot, and corridor-bifurcation maps for each score.
+\textbf{Outputs saved to} \texttt{results/01\_pollution\_assessment/}:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Tables:}
+    \texttt{pc\_loadings} (scaled loadings + variance info),
+    \texttt{site\_scores} (standardised PC scores),
+    \texttt{SumRel\_site\_rankings},
+    \texttt{MaxRel\_site\_rankings}.
+  \item \textbf{Artifacts:}
+    \texttt{SumRel\_01\_updated\_data.xlsx},
+    \texttt{MaxRel\_01\_updated\_data.xlsx}
+    (full MultiIndex data augmented with PC scores and composite score).
+  \item \textbf{Figures:}
+    variance-explained plot,
+    ridge-loading plot,
+    corridor-bifurcation maps for SumRel and MaxRel (using shapefiles
+    from \texttt{data/maps/}).
+\end{itemize}
 
 %% ----------------------------------------------------------------
-\section{Step 2: Ecological Validation via RDA}
+\section{Step 2: Threshold Sensitivity Sweep}
 
-The competing scores are evaluated by how well the resulting
-``least-contaminated'' reference subset explains taxa composition
-through environmental gradients.
+For each contamination score (SumRel and MaxRel), the pipeline
+evaluates how RDA performance changes as the reference-subset cutoff
+varies.
 
 \begin{enumerate}[leftmargin=*]
-  \item \textbf{Reference-site selection.}
-    For a given threshold proportion $q$ (e.g.\ 25\%), the bottom-$q$
-    fraction of sites ranked by the contamination score is designated
-    as the reference subset.
+  \item \textbf{Prepare response and predictor matrices.}
+    From the same workbook, the \texttt{(taxa, raw)} block supplies the
+    taxa abundance matrix~$\mathbf{Y}$ and the
+    \texttt{(environmental, raw)} block supplies five predictor
+    variables~$\mathbf{X}$:
+    Measured Depth, Bottom DO, Temperature, MPS~(Phi), and LOI~(\%).
 
-  \item \textbf{Redundancy Analysis (RDA).}
-    Within the reference subset, taxa (response, $\mathbf{Y}$) are
-    regressed on z-scored environmental variables (predictors,
-    $\mathbf{X}$).  RDA decomposes explained variation into
-    constrained axes (RDA1, RDA2, \ldots).
+  \item \textbf{Define the threshold grid.}
+    $q \in \{0.05,\;0.07,\;\ldots,\;0.99\}$
+    (5\,\% to 99\,\%, step 2\,\%).
 
-  \item \textbf{Permutation tests.}
-    A global pseudo-$F$ test (999~permutations) assesses overall
-    model significance.  Per-axis and per-term tests identify which
-    axes and environmental variables contribute significantly.
+  \item \textbf{At each threshold $q$ (loop):}
+    \begin{enumerate}[label=(\alph*)]
+      \item \textbf{Select reference sites.}
+        Compute $n = \lfloor N \times q \rfloor$; take the $n$~sites
+        with the smallest contamination score.
 
-  \item \textbf{Score comparison.}
-    At each tested threshold, SumRel consistently yields higher
-    adjusted~$R^2$ and lower $p$-values than MaxRel, indicating that
-    the cumulative scoring rule selects reference sites where
-    environmental gradients more cleanly explain biological variation.
+      \item \textbf{Subset} $\mathbf{X}$ and $\mathbf{Y}$ to the
+        reference sites.  Drop any rows with missing values.
+
+      \item \textbf{Transform predictors.}
+        Z-score each environmental column within the reference subset
+        ($\mu=0,\;\sigma=1$; \texttt{standardize\_env=True}).
+        No log-transform is applied to environmental variables
+        (\texttt{log\_transform\_env=False}).
+
+      \item \textbf{Transform taxa.}
+        With \texttt{taxa\_transform="octave"} the raw
+        (already octave-transformed) abundances are used as-is.
+
+      \item \textbf{Fit RDA.}
+        Both $\mathbf{X}$ and $\mathbf{Y}$ are mean-centred.
+        Fitted values $\hat{\mathbf{Y}} = \mathbf{X}_c
+        (\mathbf{X}_c^\top \mathbf{X}_c)^{-1}
+        \mathbf{X}_c^\top \mathbf{Y}_c$, then eigendecomposition of
+        $\mathrm{Cov}(\hat{\mathbf{Y}})$ yields constrained axes.
+        Inertia partitioning gives $R^2$ and
+        \[
+          R^2_{\mathrm{adj}} = 1 - (1-R^2)\,\frac{n-1}{df_{\mathrm{res}}}.
+        \]
+
+      \item \textbf{Global permutation test.}
+        Observed pseudo-$F = (SS_{\mathrm{con}}/df_{\mathrm{model}})
+        \;/\;(SS_{\mathrm{res}}/df_{\mathrm{res}})$.
+        Rows of $\mathbf{Y}_c$ are permuted 999 times; $p$-value
+        $= (1 + \#\{F_{\pi} \ge F_{\mathrm{obs}}\})
+           /(n_{\mathrm{perm}}+1)$.
+
+      \item \textbf{Record metrics.}
+        $R^2$, $R^2_{\mathrm{adj}}$, pseudo-$F$, $p$-value,
+        constrained inertia, total inertia, RDA1 eigenvalue, $n$ sites.
+    \end{enumerate}
+
+  \item \textbf{Aggregate.}
+    Metrics across all thresholds are collected into a per-score
+    table and a combined comparison table.
+
+  \item \textbf{Between-score comparison plots.}
+    Threshold curves for SumRel and MaxRel are overlaid for
+    $R^2_{\mathrm{adj}}$ and pseudo-$F$, enabling direct comparison.
 \end{enumerate}
 
 %% ----------------------------------------------------------------
-\section{Step 3: Reference-Threshold Sensitivity Analysis}
-
-Rather than fix the threshold at an arbitrary value, a grid sweep
-from 5\% to 99\% (step~2\%) evaluates how RDA performance changes
-with reference-subset size.
+\section{Step 3: Full RDA at the Selected Threshold and
+         Threshold Selection}
 
 \begin{enumerate}[leftmargin=*]
-  \item \textbf{Metrics collected at each threshold:}
-    $R^2$, adjusted~$R^2$, global pseudo-$F$, $p$-value, constrained
-    and total inertia, RDA1 eigenvalue, and sample size.
+  \item \textbf{Full RDA fit at $q = 0.25$.}
+    For each score the bottom-25\,\% reference sites are selected.
+    Environmental variables are z-scored and both matrices are
+    mean-centred.
+    In addition to the global permutation test, two further tests are
+    run:
+    \begin{itemize}
+      \item \textbf{Per-axis test:} each constrained axis (RDA1, RDA2,
+        \ldots) is tested individually for significance.
+      \item \textbf{Per-term (Freedman--Lane) test:} each environmental
+        variable's marginal contribution to constrained inertia is
+        tested.
+    \end{itemize}
+    Biplot scores (correlations between standardised environmental
+    variables and standardised site scores) are extracted for triplot
+    display.
 
   \item \textbf{Identifying the recommended range.}
-    Adjusted~$R^2$ for SumRel shows a local plateau between
-    approximately 22\%--28\%, before a steep decline at larger
-    thresholds where contaminated sites dilute the reference pool.
-    Within this range the global test remains highly significant
-    ($p = 0.001$) and sample sizes exceed 50, ensuring statistical
-    power.
+    The sensitivity plots are inspected for a stability region.
+    A shaded band at 22\,\%--28\,\%
+    (\texttt{shade\_range=(0.22,\;0.28)}) highlights the plateau where
+    $R^2_{\mathrm{adj}}$ remains strong before broader inclusion
+    dilutes the reference set.
 
-  \item \textbf{$F$-critical threshold.}
-    On the pseudo-$F$ panel, the $F$-statistic corresponding to
-    $p = 0.05$ and the threshold at which it is first reached are
-    identified by linear interpolation and reported in the legend.
+  \item \textbf{$F$-critical indicator.}
+    On the pseudo-$F$ panel the $F$ value at $p = 0.05$ and the
+    threshold at which it is first reached are identified by linear
+    interpolation.
 
-  \item \textbf{Selected threshold: 25\%.}
-    A 25\% cutoff sits in the middle of the recommended plateau,
-    yielding $\sim$58 reference sites with adjusted~$R^2 \approx 0.22$
-    and $p = 0.001$.
+  \item \textbf{Selected threshold: 25\,\%.}
+    \texttt{rda\_threshold=0.25} places the decision near the centre
+    of the 22\,\%--28\,\% stability band, balancing ecological signal
+    strength with adequate sample size.
 \end{enumerate}
+
+\noindent
+\textbf{Outputs saved to} \texttt{results/ref\_threshold\_sensitivity/}:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Tables:}
+    per-score threshold metrics
+    (\texttt{SumRel\_threshold\_metrics},
+     \texttt{MaxRel\_threshold\_metrics}),
+    comparison summary
+    (\texttt{threshold\_comparison\_summary}),
+    RDA axes summary and terms summary at 25\,\% for each score.
+  \item \textbf{Figures:}
+    per-score sensitivity plots (2-panel: $R^2$ and $F$ vs.\
+    threshold),
+    threshold comparison overlay,
+    RDA triplots at 25\,\% for each score.
+\end{itemize}
 
 %% ----------------------------------------------------------------
 \section{Final Decisions}
 
 \begin{itemize}
-  \item \textbf{Scoring rule:} SumRel (ecological view --- cumulative
-    contamination pressure).
-  \item \textbf{Reference threshold:} 25\% of least-contaminated
+  \item \textbf{Scoring rule:} SumRel (cumulative contamination view).
+  \item \textbf{Reference threshold:} 25\,\% of least-contaminated
     sites.
-  \item \textbf{Full RDA} is fitted at the chosen threshold to produce
-    the definitive triplot, axes-summary, and terms-summary tables.
+  \item \textbf{Final RDA at 25\,\%:} the integrated pipeline produces
+    triplots, axes-summary tables, terms-summary tables,
+    threshold-sensitivity curves, and comparison tables.
 \end{itemize}
 
 %% ----------------------------------------------------------------
@@ -145,9 +275,9 @@ All computation is implemented in the \texttt{src/zci} package:
   \item[\texttt{run\_stage1.py}]
     Runs PCA + dual scoring (SumRel / MaxRel).
   \item[\texttt{run\_stage\_threshold.py}]
-    Runs Stage~1, sweeps thresholds, fits full RDA at 25\%, and saves
-    sensitivity plots, comparison tables, triplot, and RDA summary
-    tables.
+    Runs Stage~1, sweeps thresholds from 5\% to 99\% (step 2\%),
+    compares SumRel vs MaxRel, and exports sensitivity plots/tables
+    plus final RDA outputs at 25\%.
 \end{description}
 
 \noindent

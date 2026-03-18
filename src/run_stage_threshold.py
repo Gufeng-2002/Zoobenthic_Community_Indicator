@@ -60,7 +60,6 @@ if __name__ == "__main__":
         data_path=DATA_PATH,
         output_dir=STAGE1_DIR,
         n_components=5,
-        standardise_scores="min-max",
         selected_pcs=None,
         composite_transform="min-max",
         maps_dir=MAPS_DIR,
@@ -88,7 +87,7 @@ if __name__ == "__main__":
         n_permutations=999,
         random_state=42,
         shade_range=(0.22, 0.28),
-        rda_threshold=0.20,
+        rda_threshold=0.25,
         save_plots=True,
     )
 

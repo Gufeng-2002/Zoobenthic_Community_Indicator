@@ -49,7 +49,7 @@ def _rescale_component_scores(
         Which PCs to include.  ``None`` → all columns.
     transform : str
         ``"min-max"`` rescales each PC to [0, 1]; ``"z-score"`` centres
-        to mean 0 / std 1.
+        to mean 0 / std 1; ``"none"`` leaves the scores unchanged.
 
     Returns
     -------
@@ -67,58 +67,11 @@ def _rescale_component_scores(
         sub = (sub - sub.min()) / (sub.max() - sub.min())
     elif transform == "z-score":
         sub = (sub - sub.mean()) / sub.std()
+    elif transform == "none":
+        pass  # no rescaling
     else:
-        raise ValueError(f"Unsupported transform: {transform!r}. Use 'min-max' or 'z-score'.")
+        raise ValueError(f"Unsupported transform: {transform!r}. Use 'min-max', 'z-score', or 'none'.")
     return sub
-
-
-def composite_pollution_score(
-    scores: pd.DataFrame,
-    selected_pcs: Sequence[str] | None = None,
-    transform: str = "min-max",
-    weights: dict[str, float] | Sequence[float] | None = None,
-) -> pd.Series:
-    """Compute a single composite pollution score per site (weighted sum).
-
-    This is the legacy API — equivalent to ``score_sumrel`` with weights.
-
-    Parameters
-    ----------
-    scores : pd.DataFrame
-        Site-score matrix (sites × PCs).  Already standardised or raw.
-    selected_pcs : list of str, optional
-        Which PCs to include (e.g. ``["PC1", "PC2", "PC3"]``).
-        *None* → all columns.
-    transform : str
-        ``"min-max"`` rescales each PC to [0, 1]; ``"z-score"`` centres
-        to mean 0 / std 1.
-    weights : dict, list, or None
-        Per-PC weights.  ``None`` → equal weights (all 1).
-        A *dict* maps ``{"PC1": 1.0, "PC3": 2.0, …}``;
-        a *list/array* must match *selected_pcs* length.
-
-    Returns
-    -------
-    pd.Series
-        Named ``"Pollution_Score"`` with the same row index as *scores*.
-    """
-    sub = _rescale_component_scores(scores, selected_pcs, transform)
-
-    # Build weight array
-    n = sub.shape[1]
-    if weights is None:
-        w = np.ones(n)
-    elif isinstance(weights, dict):
-        w = np.array([weights.get(pc, 0.0) for pc in sub.columns])
-    else:
-        w = np.array(weights)
-        if len(w) != n:
-            raise ValueError(
-                f"Length of weights ({len(w)}) != number of selected PCs ({n})"
-            )
-
-    composite = sub.values @ w
-    return pd.Series(composite, index=scores.index, name="Pollution_Score")
 
 
 def score_sumrel(
@@ -177,39 +130,6 @@ def score_maxrel(
     sub = _rescale_component_scores(scores, selected_pcs, transform)
     composite = sub.max(axis=1)
     return pd.Series(composite.values, index=scores.index, name="MaxRel_Score")
-
-
-def log1p_zscore_transform(
-    df: pd.DataFrame,
-    skip_log_cols: Sequence[str] = ("As", "Bi"),
-) -> pd.DataFrame:
-    """Apply *ln(1 + x)* then z-score standardisation.
-
-    This is the alternative transform (``transform_method='log_z_score'``).
-    Columns listed in *skip_log_cols* are exempted from the log step
-    but still z-scored.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Raw pollution-variable matrix.
-    skip_log_cols : sequence of str
-        Columns to skip during the log step.
-
-    Returns
-    -------
-    pd.DataFrame
-        Transformed and standardised matrix.
-    """
-    from sklearn.preprocessing import StandardScaler
-
-    out = df.copy()
-    for col in out.columns:
-        if col not in skip_log_cols:
-            out[col] = np.log1p(out[col])
-
-    scaled = StandardScaler().fit_transform(out)
-    return pd.DataFrame(scaled, index=df.index, columns=df.columns)
 
 
 # ---------------------------------------------------------------------------

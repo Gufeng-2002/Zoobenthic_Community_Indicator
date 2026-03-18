@@ -37,7 +37,6 @@ if __name__ == "__main__":
         data_path=DATA_PATH,
         output_dir=OUTPUT_DIR,
         n_components=5,
-        standardise_scores="min-max",
         selected_pcs=None,               # None → all 5 PCs
         composite_transform="min-max",    # rescaling before aggregation
         maps_dir=MAPS_DIR,               # shapefile folder

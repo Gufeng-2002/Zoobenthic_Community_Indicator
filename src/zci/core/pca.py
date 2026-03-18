@@ -40,7 +40,6 @@ def _orient_contamination(
 def run_pca(
     df: pd.DataFrame,
     n_components: int = 5,
-    standardise_scores: str = "min-max",
     orient_positive: bool = True,
 ) -> PCAResult:
     """Fit PCA and return a structured result.
@@ -52,11 +51,6 @@ def run_pca(
         Should already be log- or z-score-transformed.
     n_components : int, default 5
         Number of principal components to retain.
-    standardise_scores : str or None
-        How to rescale site scores after projection.
-        ``"min-max"`` → [0, 1] per column.
-        ``"z-score"`` → mean 0, std 1 per column.
-        ``None``      → raw projection scores.
     orient_positive : bool, default True
         If True, flip each PC so that higher scores indicate greater
         contamination intensity.
@@ -100,12 +94,7 @@ def run_pca(
     if orient_positive:
         scores_raw, loadings = _orient_contamination(scores_raw, loadings)
 
-    if standardise_scores == "min-max":
-        scores = (scores_raw - scores_raw.min()) / (scores_raw.max() - scores_raw.min())
-    elif standardise_scores == "z-score":
-        scores = (scores_raw - scores_raw.mean()) / scores_raw.std()
-    else:
-        scores = scores_raw.copy()
+    scores = scores_raw.copy()
 
     # --- variance table ------------------------------------------------------
     variance_info = pd.DataFrame(

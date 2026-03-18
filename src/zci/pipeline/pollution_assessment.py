@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Union
+from typing import List, Sequence
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -26,7 +26,6 @@ from ..io.readers import read_study_data, extract_block
 from ..io.writers import save_table, save_figure
 from ..core.transforms import (
     log2_transform,
-    composite_pollution_score,
     score_sumrel,
     score_maxrel,
 )
@@ -59,10 +58,8 @@ def pollution_pca_pipeline(
     *,
     pollution_vars: Sequence[str] = POLLUTION_VARS_2008,
     n_components: int = 5,
-    standardise_scores: str = "min-max",
     selected_pcs: Sequence[str] | None = None,
     composite_transform: str = "min-max",
-    composite_weights: Dict[str, float] | Sequence[float] | None = None,
     maps_dir: str | Path | None = None,
     threshold_quantile: float = 0.20,
     bifurcation_plot_func=None,
@@ -99,16 +96,12 @@ def pollution_pca_pipeline(
         Which chemical columns to include.
     n_components : int
         Number of PCs to retain (default 5).
-    standardise_scores : str or None
-        ``"min-max"`` (default), ``"z-score"``, or ``None``.
     selected_pcs : sequence of str or None
         Which PCs to include in the composite score.
         ``None`` → all *n_components* PCs.
     composite_transform : str
-        Transformation applied to the selected PCs before aggregation.
-        ``"min-max"`` (default) or ``"z-score"``.
-    composite_weights : dict, list, or None
-        Per-PC weights for legacy composite sum.  ``None`` → equal (all 1).
+        Rescaling applied to the retained PCs before aggregation.
+        ``"min-max"`` (default), ``"z-score"``, or ``"none"``.
     maps_dir : str, Path, or None
         Path to ``data/maps/`` folder with shapefiles.  ``None`` disables
         the corridor map figure.
@@ -165,12 +158,10 @@ def pollution_pca_pipeline(
     pollution_transformed = (pollution_transformed - pollution_transformed.mean()) / pollution_transformed.std()
 
     # ── 5. PCA ────────────────────────────────────────────────────────────
-    _log(f"[5/9] Fitting PCA (n_components={n_components}, "
-         f"standardise={standardise_scores}, orient_positive=True) …")
+    _log(f"[5/9] Fitting PCA (n_components={n_components}, orient_positive=True) …")
     result = run_pca(
         pollution_transformed,
         n_components=n_components,
-        standardise_scores=standardise_scores,
         orient_positive=True,
     )
 
