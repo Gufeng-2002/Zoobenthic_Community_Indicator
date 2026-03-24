@@ -95,12 +95,19 @@ def taxa_assemblage_pipeline(
     data = read_study_data(data_path)
     _log(f"      {data.shape[0]} sites × {data.shape[1]} variables")
 
-    # ── 2. Read Stage 1 artifact → Pollution_Score ───────────────────────
+    # ── 2. Read Stage 1 artifact → Pollution Score ────────────────────────
     _log("[2/8] Reading Stage 1 artifact for pollution scores …")
     stage1 = pd.read_excel(stage1_artifact, header=[0, 1, 2], index_col=0)
-    pollution_score = stage1.loc[
-        :, ("01_pollution_assessment", "raw", "Pollution_Score")
+    # Auto-detect score column (SumRel_Score, MaxRel_Score, or Pollution_Score)
+    score_cols = [
+        c for c in stage1.columns
+        if c[0] == "01_pollution_assessment" and c[1] == "raw"
+        and c[2].endswith("_Score")
     ]
+    if not score_cols:
+        raise KeyError("No pollution score column found in Stage 1 artifact")
+    score_key = score_cols[0]
+    pollution_score = stage1.loc[:, score_key]
     pollution_score.name = "Pollution_Score"
     _log(f"      Pollution score range: "
          f"[{pollution_score.min():.4f}, {pollution_score.max():.4f}]")

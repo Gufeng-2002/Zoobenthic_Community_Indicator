@@ -7,7 +7,7 @@ Usage (from project root):
     python src/run_stage2.py
 
 Reads  : data/processed/complete_env_taxa_chemical_Feb_3.xlsx
-         results/01_pollution_assessment/artifacts/01_updated_data.xlsx
+         results/01_pollution_assessment/artifacts/SumRel_01_updated_data.xlsx
 Writes : results/02_taxa_assemblage/tables/  (reference_taxa_clusters)
          results/02_taxa_assemblage/figures/ (ward_dendrogram)
          results/02_taxa_assemblage/artifacts/02_updated_data.xlsx
@@ -23,7 +23,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Paths
 DATA_PATH       = PROJECT_ROOT / "data" / "processed" / "complete_env_taxa_chemical_Feb_3.xlsx"
-STAGE1_ARTIFACT = PROJECT_ROOT / "results" / "01_pollution_assessment" / "artifacts" / "01_updated_data.xlsx"
+STAGE1_ARTIFACT = PROJECT_ROOT / "results" / "01_pollution_assessment" / "artifacts" / "SumRel_01_updated_data.xlsx"
 OUTPUT_DIR      = PROJECT_ROOT / "results" / "02_taxa_assemblage"
 
 # Import the pipeline

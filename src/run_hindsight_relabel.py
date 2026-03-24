@@ -60,7 +60,7 @@ MAPS_DIR   = PROJECT_ROOT / "data" / "maps"
 # =====================================================================
 
 LABEL_MAP: dict[int, int] = {
-    3: 1,
+    1: 1,
 }
 
 # ── Configuration for ANOVA / cluster panel ──────────────────────────

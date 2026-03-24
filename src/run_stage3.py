@@ -25,7 +25,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Paths
 DATA_PATH       = PROJECT_ROOT / "data" / "processed" / "complete_env_taxa_chemical_Feb_3.xlsx"
-STAGE1_ARTIFACT = PROJECT_ROOT / "results" / "01_pollution_assessment" / "artifacts" / "01_updated_data.xlsx"
+STAGE1_ARTIFACT = PROJECT_ROOT / "results" / "01_pollution_assessment" / "artifacts" / "SumRel_01_updated_data.xlsx"
 STAGE2_ARTIFACT = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "artifacts" / "02_hindsight_updated_data.xlsx"
 OUTPUT_DIR      = PROJECT_ROOT / "results" / "03_LDA_Classification"
 

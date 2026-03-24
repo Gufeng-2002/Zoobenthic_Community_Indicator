@@ -137,9 +137,15 @@ def lda_pipeline(
     # ── 2. Pollution scores → reference mask ─────────────────────────
     _log("[2/12] Reading Stage 1 artifact for pollution scores …")
     stage1 = pd.read_excel(stage1_artifact, header=[0, 1, 2], index_col=0)
-    pollution = stage1.loc[
-        :, ("01_pollution_assessment", "raw", "Pollution_Score")
+    # Auto-detect score column (SumRel_Score, MaxRel_Score, or Pollution_Score)
+    score_cols = [
+        c for c in stage1.columns
+        if c[0] == "01_pollution_assessment" and c[1] == "raw"
+        and c[2].endswith("_Score")
     ]
+    if not score_cols:
+        raise KeyError("No pollution score column found in Stage 1 artifact")
+    pollution = stage1.loc[:, score_cols[0]]
     pollution.name = "Pollution_Score"
 
     ref_mask = select_reference_sites(pollution, quantile=reference_quantile)
