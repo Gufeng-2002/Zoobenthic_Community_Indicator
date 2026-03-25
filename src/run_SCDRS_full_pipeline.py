@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Run Full Pipeline: Stage 1 → RDA → Stage 2 → Hindsight Relabel → Stage 3 → Stage 4 → Stage 5
+Run Full Pipeline: Stage 1 → RDA → Stage 2 → Hindsight Relabel → Stage 3 (LDA) → Stage 3 (NMDS) → Stage 4
 ================================================================================================
 
 Usage (from project root):
@@ -15,9 +15,9 @@ Order:
     2. Stage RDA — Redundancy Analysis
     3. Stage 2  — Taxa Assemblage Clustering
     4. Hindsight Relabel — Remap cluster labels + ANOVA + cluster panel
-    5. Stage 3  — LDA Classification
-    6. Stage 4  — Bray–Curtis NMDS + ZCI
-    7. Stage 5  — Piecewise Quantile Regression
+    5. Stage 3 (LDA) — LDA Classification
+    6. Stage 3  — Bray–Curtis NMDS + ZCI
+    7. Stage 4  — Piecewise Quantile Regression
 """
 
 import time
@@ -40,7 +40,7 @@ MAPS_DIR = PROJECT_ROOT / "data" / "maps"
 # Artifact paths (output of one stage → input of the next)
 STAGE1_ARTIFACT = (
     PROJECT_ROOT / "results" / "01_pollution_assessment"
-    / "artifacts" / "01_updated_data.xlsx"
+    / "contamination_stressors" / "artifacts" / "01_updated_data.xlsx"
 )
 STAGE2_ARTIFACT = (
     PROJECT_ROOT / "results" / "02_taxa_assemblage"
@@ -51,12 +51,8 @@ STAGE2_HINDSIGHT_ARTIFACT = (
     / "artifacts" / "02_hindsight_updated_data.xlsx"
 )
 STAGE3_ARTIFACT = (
-    PROJECT_ROOT / "results" / "03_LDA_Classification"
+    PROJECT_ROOT / "results" / "03_bray_curtis_NMDS"
     / "artifacts" / "03_updated_data.xlsx"
-)
-STAGE4_ARTIFACT = (
-    PROJECT_ROOT / "results" / "04_bray_curtis_NMDS"
-    / "artifacts" / "04_updated_data.xlsx"
 )
 
 
@@ -95,7 +91,8 @@ def run_full_pipeline() -> None:
     _banner("STAGE 1 — Pollution PCA")
     pollution_pca_pipeline(
         data_path=DATA_PATH,
-        output_dir=PROJECT_ROOT / "results" / "01_pollution_assessment",
+        output_dir=PROJECT_ROOT / "results" / "01_pollution_assessment" / "contamination_stressors",
+        pollution_standardize=True,
         n_components=5,
         selected_pcs=None,
         composite_transform="min-max",
@@ -194,14 +191,14 @@ def run_full_pipeline() -> None:
     )
 
     # ==================================================================
-    #  6. STAGE 4 — Bray–Curtis NMDS + ZCI
+    #  6. STAGE 3 — Bray–Curtis NMDS + ZCI
     # ==================================================================
-    _banner("STAGE 4 — Bray–Curtis NMDS + ZCI")
+    _banner("STAGE 3 — Bray–Curtis NMDS + ZCI")
     nmds_pipeline(
         data_path=DATA_PATH,
         stage1_artifact=STAGE1_ARTIFACT,
-        stage3_artifact=STAGE3_ARTIFACT,
-        output_dir=PROJECT_ROOT / "results" / "04_bray_curtis_NMDS",
+        stage2_artifact=STAGE2_ARTIFACT,
+        output_dir=PROJECT_ROOT / "results" / "03_bray_curtis_NMDS",
         nmds_n_ep=5,
         zci_config={
             1: {"N_EP": 15, "Method": "BC-Direct"},
@@ -219,14 +216,14 @@ def run_full_pipeline() -> None:
     )
 
     # ==================================================================
-    #  7. STAGE 5 — Piecewise Quantile Regression
+    #  7. STAGE 4 — Piecewise Quantile Regression
     # ==================================================================
-    # _banner("STAGE 5 — Piecewise Quantile Regression")
+    # _banner("STAGE 4 — Piecewise Quantile Regression")
     # pqr_pipeline(
     #     stage1_artifact=STAGE1_ARTIFACT,
+    #     stage2_artifact=STAGE2_ARTIFACT,
     #     stage3_artifact=STAGE3_ARTIFACT,
-    #     stage4_artifact=STAGE4_ARTIFACT,
-    #     output_dir=PROJECT_ROOT / "results" / "05_piecewise_qr",
+    #     output_dir=PROJECT_ROOT / "results" / "04_piecewise_qr",
     #     n_breakpoints=1,
     #     taus=list(np.round(np.arange(0.1, 0.91, 0.05), 2)),
     #     highlight_taus=(0.20, 0.50, 0.80),

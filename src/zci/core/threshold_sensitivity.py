@@ -23,6 +23,21 @@ from sklearn.preprocessing import StandardScaler
 
 from ..core.rda import RDA
 from ..core.clustering import select_reference_sites
+from ..core.transforms import (
+    octave_transform,
+    octave_to_relative_abundance,
+    octave_to_chord,
+    octave_to_hellinger,
+    octave_to_log_chord,
+)
+
+_TRANSFORMS = {
+    "octave": octave_transform,
+    "relative_abundance": octave_to_relative_abundance,
+    "chord": octave_to_chord,
+    "hellinger": octave_to_hellinger,
+    "log_chord": octave_to_log_chord,
+}
 
 
 # ─── result container ───────────────────────────────────────────────
@@ -70,7 +85,8 @@ def _fit_rda_at_threshold(
     log_transform_env : bool
         Whether to ln(1+x) env vars before z-scoring.
     taxa_transform : str
-        ``"octave"`` or ``"hellinger"``.
+        One of ``"octave"``, ``"relative_abundance"``, ``"hellinger"``,
+        ``"chord"``, or ``"log_chord"``.
     n_permutations : int
         Number of permutations for global test.
     random_state : int or None
@@ -101,9 +117,13 @@ def _fit_rda_at_threshold(
         env_ref = pd.DataFrame(arr, index=env_ref.index, columns=env_ref.columns)
 
     # Taxa transforms
-    if taxa_transform == "hellinger":
-        row_sums = taxa_ref.sum(axis=1)
-        taxa_ref = taxa_ref.div(row_sums, axis=0).fillna(0).apply(np.sqrt)
+    if taxa_transform in _TRANSFORMS:
+        taxa_ref = _TRANSFORMS[taxa_transform](taxa_ref)
+    else:
+        raise ValueError(
+            f"Unknown taxa_transform={taxa_transform!r}. "
+            f"Choose from {sorted(_TRANSFORMS)}."
+        )
 
     # Drop NaN rows
     valid = env_ref.dropna().index.intersection(taxa_ref.dropna().index)

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "zci"
 version = "0.0.1"
 requires-python = ">=3.9"
-dependencies = ["numpy", "pandas", "scikit-learn", "scipy"]
+dependencies = ["numpy", "pandas", "scikit-learn", "scipy", "rpy2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

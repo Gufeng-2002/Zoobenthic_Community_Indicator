@@ -1,8 +1,8 @@
-"""Stage 5 — Piecewise Quantile Regression with Wild-Bootstrap CIs.
+"""Stage 4 — Piecewise Quantile Regression with Wild-Bootstrap CIs.
 
 Orchestrates:
-  read Stage 1 (pollution scores) → read Stage 3 (cluster labels) →
-  read Stage 4 (ZCI) → merge → per-cluster piecewise QR at multiple
+  read Stage 1 (pollution scores) → read Stage 2 (cluster labels) →
+  read Stage 3 (ZCI) → merge → per-cluster piecewise QR at multiple
   quantile levels → wild-bootstrap CIs → sample-size sensitivity →
   save tables, figures, artifacts.
 
@@ -17,7 +17,7 @@ figures/
     sensitivity_cluster_{cl}.png
     sensitivity_coverage_cluster_{cl}.png
 artifacts/
-    05_updated_data.xlsx
+    04_updated_data.xlsx
 """
 
 from __future__ import annotations
@@ -50,8 +50,8 @@ from ..viz.piecewise_qr_plots import (
 
 def pqr_pipeline(
     stage1_artifact: str | Path,
+    stage2_artifact: str | Path,
     stage3_artifact: str | Path,
-    stage4_artifact: str | Path,
     output_dir: str | Path,
     *,
     # QR configuration
@@ -82,10 +82,10 @@ def pqr_pipeline(
     ----------
     stage1_artifact : path
         ``01_updated_data.xlsx`` → Pollution_Score
+    stage2_artifact : path
+        ``02_predicted_data.xlsx`` → Predicted_Cluster
     stage3_artifact : path
-        ``03_updated_data.xlsx`` → Predicted_Cluster
-    stage4_artifact : path
-        ``04_updated_data.xlsx`` → ZCI
+        ``03_updated_data.xlsx`` → ZCI
     output_dir : path
         Root for outputs (``tables/``, ``figures/``, ``artifacts/``).
     n_breakpoints : int
@@ -157,14 +157,14 @@ def pqr_pipeline(
     # ── 1. Read artifacts ────────────────────────────────────────────
     _log("[1/7] Reading stage artifacts …")
     s1 = pd.read_excel(stage1_artifact, header=[0, 1, 2], index_col=0)
+    s2 = pd.read_excel(stage2_artifact, header=[0, 1, 2], index_col=0)
     s3 = pd.read_excel(stage3_artifact, header=[0, 1, 2], index_col=0)
-    s4 = pd.read_excel(stage4_artifact, header=[0, 1, 2], index_col=0)
 
     pollution = s1.xs("Pollution_Score", level=2, axis=1).iloc[:, 0]
     pollution.name = "Pollution_Score"
-    cluster = s3.xs("Predicted_Cluster", level=2, axis=1).iloc[:, 0]
+    cluster = s2.xs("Predicted_Cluster", level=2, axis=1).iloc[:, 0]
     cluster.name = "Cluster"
-    zci = s4.xs("ZCI", level=2, axis=1).iloc[:, 0]
+    zci = s3.xs("ZCI", level=2, axis=1).iloc[:, 0]
     zci.name = "ZCI"
 
     # ── 2. Merge ─────────────────────────────────────────────────────
@@ -340,12 +340,12 @@ def pqr_pipeline(
 
     # Build multi-index columns with breakpoint and slope info at median tau
     cols = pd.MultiIndex.from_tuples([
-        ("05_piecewise_qr", "raw", "PQR_Breakpoint"),
-        ("05_piecewise_qr", "raw", "PQR_Breakpoint_CI_Lower"),
-        ("05_piecewise_qr", "raw", "PQR_Breakpoint_CI_Upper"),
-        ("05_piecewise_qr", "raw", "PQR_Slope_Before"),
-        ("05_piecewise_qr", "raw", "PQR_Slope_After"),
-        ("05_piecewise_qr", "raw", "PQR_Tau"),
+        ("04_piecewise_qr", "raw", "PQR_Breakpoint"),
+        ("04_piecewise_qr", "raw", "PQR_Breakpoint_CI_Lower"),
+        ("04_piecewise_qr", "raw", "PQR_Breakpoint_CI_Upper"),
+        ("04_piecewise_qr", "raw", "PQR_Slope_Before"),
+        ("04_piecewise_qr", "raw", "PQR_Slope_After"),
+        ("04_piecewise_qr", "raw", "PQR_Tau"),
     ])
     aug = pd.DataFrame(index=merged.index, columns=cols)
 
@@ -359,18 +359,18 @@ def pqr_pipeline(
         idx = merged.index[mask]
         bp = res.breakpoints[0]
         bp_idx = len(res.coefficients)  # index in ci vectors
-        aug.loc[idx, ("05_piecewise_qr", "raw", "PQR_Breakpoint")] = bp
-        aug.loc[idx, ("05_piecewise_qr", "raw", "PQR_Breakpoint_CI_Lower")] = \
+        aug.loc[idx, ("04_piecewise_qr", "raw", "PQR_Breakpoint")] = bp
+        aug.loc[idx, ("04_piecewise_qr", "raw", "PQR_Breakpoint_CI_Lower")] = \
             res.ci_lower[bp_idx]
-        aug.loc[idx, ("05_piecewise_qr", "raw", "PQR_Breakpoint_CI_Upper")] = \
+        aug.loc[idx, ("04_piecewise_qr", "raw", "PQR_Breakpoint_CI_Upper")] = \
             res.ci_upper[bp_idx]
-        aug.loc[idx, ("05_piecewise_qr", "raw", "PQR_Slope_Before")] = \
+        aug.loc[idx, ("04_piecewise_qr", "raw", "PQR_Slope_Before")] = \
             res.coefficients[1]
-        aug.loc[idx, ("05_piecewise_qr", "raw", "PQR_Slope_After")] = \
+        aug.loc[idx, ("04_piecewise_qr", "raw", "PQR_Slope_After")] = \
             res.coefficients[1] + res.coefficients[2]
-        aug.loc[idx, ("05_piecewise_qr", "raw", "PQR_Tau")] = tau_ref
+        aug.loc[idx, ("04_piecewise_qr", "raw", "PQR_Tau")] = tau_ref
 
-    aug_path = artifacts_dir / "05_updated_data.xlsx"
+    aug_path = artifacts_dir / "04_updated_data.xlsx"
     aug.to_excel(aug_path)
     _log(f"  ✓ Saved augmented data: {aug_path}")
 

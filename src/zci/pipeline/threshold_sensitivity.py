@@ -129,8 +129,14 @@ def threshold_sensitivity_pipeline(
         Environmental column names.  ``None`` → sensible defaults.
     taxa_columns : list of str, optional
         Taxa column names.  ``None`` → all taxa in the data.
-    standardize_env, log_transform_env, taxa_transform : misc
-        Passed through to each RDA fit.
+    standardize_env : bool
+        Whether to z-score environmental variables.
+    log_transform_env : bool
+        Whether to ln(1+x) env vars before z-scoring.
+    taxa_transform : str
+        Taxa transformation applied before RDA fitting. One of
+        ``"octave"``, ``"relative_abundance"``, ``"hellinger"``,
+        ``"chord"``, or ``"log_chord"``.
     n_permutations : int
         Permutations for the global test at each threshold.
     random_state : int or None

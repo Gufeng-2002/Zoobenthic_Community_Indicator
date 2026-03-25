@@ -1,7 +1,7 @@
-"""Stage 4 — Bray–Curtis NMDS + ZCI pipeline.
+"""Stage 3 — Bray–Curtis NMDS + ZCI pipeline.
 
 Orchestrates:
-  read original data → merge Stage 1 pollution scores → merge Stage 3
+  read original data → merge Stage 1 pollution scores → merge Stage 2
   cluster labels → octave → relative abundance → build endpoints →
   iterative NMDS → PCA-rotate → species scores → ZCI construction →
   NMDS biplot → ZCI distribution figure → ZCI vs PS scatter →
@@ -17,7 +17,7 @@ figures/
     zci_distribution.png
     zci_vs_pollution.png
 artifacts/
-    04_updated_data.xlsx
+    03_updated_data.xlsx
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ from ..viz.nmds_plots import (
 def nmds_pipeline(
     data_path: str | Path,
     stage1_artifact: str | Path,
-    stage3_artifact: str | Path,
+    stage2_artifact: str | Path,
     output_dir: str | Path,
     *,
     # Endpoint sizes for the NMDS biplot (applied to ALL clusters equally)
@@ -81,8 +81,8 @@ def nmds_pipeline(
         Original 3-level MultiIndex workbook.
     stage1_artifact : path
         ``01_updated_data.xlsx`` (pollution scores).
-    stage3_artifact : path
-        ``03_updated_data.xlsx`` (cluster labels + Is_Reference).
+    stage2_artifact : path
+        ``02_predicted_data.xlsx`` (cluster labels + Is_Reference).
     output_dir : path
         Root for outputs (``tables/``, ``figures/``, ``artifacts/``).
     nmds_n_ep : int
@@ -148,15 +148,15 @@ def nmds_pipeline(
     pollution_score = stage1.loc[:, score_cols[0]]
     pollution_score.name = "Pollution_Score"
 
-    # ── 3. Cluster labels + reference flag (Stage 3) ─────────────────
-    _log("[3/10] Reading Stage 3 artifact for cluster labels …")
-    stage3 = pd.read_excel(stage3_artifact, header=[0, 1, 2], index_col=0)
-    cluster_label = stage3.loc[
-        :, ("03_lda_classification", "raw", "Predicted_Cluster")
+    # ── 3. Cluster labels + reference flag (Stage 2) ─────────────────
+    _log("[3/10] Reading Stage 2 artifact for cluster labels …")
+    stage2 = pd.read_excel(stage2_artifact, header=[0, 1, 2], index_col=0)
+    cluster_label = stage2.loc[
+        :, ("02_taxa_assemblage", "raw", "Predicted_Cluster")
     ]
     cluster_label.name = "Cluster"
-    is_reference = stage3.loc[
-        :, ("03_lda_classification", "raw", "Is_Reference")
+    is_reference = stage2.loc[
+        :, ("02_taxa_assemblage", "raw", "Is_Reference")
     ]
     is_reference.name = "Is_Reference"
 
@@ -342,10 +342,10 @@ def nmds_pipeline(
 
     # Build multi-index columns matching project convention
     cols = pd.MultiIndex.from_tuples([
-        ("04_bray_curtis_nmds", "raw", "NMDS1"),
-        ("04_bray_curtis_nmds", "raw", "NMDS2"),
-        ("04_bray_curtis_nmds", "raw", "ZCI"),
-        ("04_bray_curtis_nmds", "raw", "ZCI_Method"),
+        ("03_bray_curtis_nmds", "raw", "NMDS1"),
+        ("03_bray_curtis_nmds", "raw", "NMDS2"),
+        ("03_bray_curtis_nmds", "raw", "ZCI"),
+        ("03_bray_curtis_nmds", "raw", "ZCI_Method"),
     ])
     aug = pd.DataFrame(index=data.index, columns=cols)
 
@@ -354,16 +354,16 @@ def nmds_pipeline(
         zc = zci_dict[cl]
         real_sites = nm.real_site_ids
         coords = nm.coords_df.loc[real_sites]
-        aug.loc[real_sites, ("04_bray_curtis_nmds", "raw", "NMDS1")] = \
+        aug.loc[real_sites, ("03_bray_curtis_nmds", "raw", "NMDS1")] = \
             coords["NMDS1"].values
-        aug.loc[real_sites, ("04_bray_curtis_nmds", "raw", "NMDS2")] = \
+        aug.loc[real_sites, ("03_bray_curtis_nmds", "raw", "NMDS2")] = \
             coords["NMDS2"].values
-        aug.loc[zc.zci.index, ("04_bray_curtis_nmds", "raw", "ZCI")] = \
+        aug.loc[zc.zci.index, ("03_bray_curtis_nmds", "raw", "ZCI")] = \
             zc.zci.values
-        aug.loc[zc.zci.index, ("04_bray_curtis_nmds", "raw", "ZCI_Method")] = \
+        aug.loc[zc.zci.index, ("03_bray_curtis_nmds", "raw", "ZCI_Method")] = \
             zc.method
 
-    aug_path = artifacts_dir / "04_updated_data.xlsx"
+    aug_path = artifacts_dir / "03_updated_data.xlsx"
     aug.to_excel(aug_path)
     _log(f"  ✓ Saved augmented data: {aug_path}")
 

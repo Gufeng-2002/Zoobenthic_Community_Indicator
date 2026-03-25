@@ -114,8 +114,8 @@ def anova_table(
         ss_between = sum(len(g) * (g.mean() - grand_mean) ** 2 for g in groups)
         ss_within = sum(((g - g.mean()) ** 2).sum() for g in groups)
 
-        # scipy F-test
-        if all(len(g) > 1 for g in groups):
+        # scipy F-test (need ≥2 groups, each with >1 observation)
+        if len(groups) >= 2 and all(len(g) > 1 for g in groups):
             f_stat, p_val = f_oneway(*[g.values for g in groups])
         else:
             f_stat, p_val = np.nan, np.nan

@@ -12,7 +12,7 @@ River sites (``Waterbody == "DR"``).  Differences from SCDRS:
   * Pre-filters the data to DR sites only and writes a separate Excel.
   * From RDA onward, includes the extra environmental variable
     ``"Velocity  at bottom (m/sec)"`` in the environmental block.
-  * Stage 5 uses lighter settings (fewer taus, smaller bootstrap,
+  * Stage 4 uses lighter settings (fewer taus, smaller bootstrap,
     fewer sensitivity fractions) for faster turnaround.
   * All results go to ``results/DR_results/`` with the same sub-folder
     structure as the SCDRS results/ layout.
@@ -24,8 +24,8 @@ Order:
     4. Stage 2   — Taxa Assemblage Clustering
     5. Hindsight  — Remap cluster labels + ANOVA + cluster panel (with Velocity)
     6. Stage 3   — LDA Classification (with Velocity)
-    7. Stage 4   — Bray–Curtis NMDS + ZCI
-    8. Stage 5   — Piecewise Quantile Regression (fast settings)
+    7. Stage 3   — Bray–Curtis NMDS + ZCI
+    8. Stage 4   — Piecewise Quantile Regression (fast settings)
 """
 
 import time
@@ -57,16 +57,14 @@ DR_RESULTS = PROJECT_ROOT / "results" / "DR_results"
 STAGE1_DIR = DR_RESULTS / "01_pollution_assessment"
 RDA_DIR    = DR_RESULTS / "RDA_analysis"
 STAGE2_DIR = DR_RESULTS / "02_taxa_assemblage"
-STAGE3_DIR = DR_RESULTS / "03_LDA_Classification"
-STAGE4_DIR = DR_RESULTS / "04_bray_curtis_NMDS"
-STAGE5_DIR = DR_RESULTS / "05_piecewise_qr"
+STAGE3_DIR = DR_RESULTS / "03_bray_curtis_NMDS"
+STAGE4_DIR = DR_RESULTS / "04_piecewise_qr"
 
 # Artifact paths
-STAGE1_ARTIFACT = STAGE1_DIR / "artifacts" / "01_updated_data.xlsx"
+STAGE1_ARTIFACT = STAGE1_DIR / "contamination_stressors" / "artifacts" / "01_updated_data.xlsx"
 STAGE2_ARTIFACT = STAGE2_DIR / "artifacts" / "02_updated_data.xlsx"
 STAGE2_HINDSIGHT_ARTIFACT = STAGE2_DIR / "artifacts" / "02_hindsight_updated_data.xlsx"
 STAGE3_ARTIFACT = STAGE3_DIR / "artifacts" / "03_updated_data.xlsx"
-STAGE4_ARTIFACT = STAGE4_DIR / "artifacts" / "04_updated_data.xlsx"
 
 # ── environmental variables ──────────────────────────────────────────
 
@@ -164,7 +162,8 @@ def run_dr_full_pipeline() -> None:
     _banner("STAGE 1 — Pollution PCA  (DR sites)")
     pollution_pca_pipeline(
         data_path=DR_DATA_PATH,
-        output_dir=STAGE1_DIR,
+        output_dir=STAGE1_DIR / "contamination_stressors",
+        pollution_standardize=True,
         n_components=5,
         selected_pcs=None,
         composite_transform="min-max",
@@ -291,14 +290,14 @@ def run_dr_full_pipeline() -> None:
     )
 
     # ==================================================================
-    #  6. STAGE 4 — Bray–Curtis NMDS + ZCI  (same method/settings)
+    #  6. STAGE 3 — Bray–Curtis NMDS + ZCI  (same method/settings)
     # ==================================================================
-    _banner("STAGE 4 — Bray–Curtis NMDS + ZCI  (DR sites)")
+    _banner("STAGE 3 — Bray–Curtis NMDS + ZCI  (DR sites)")
     nmds_pipeline(
         data_path=DR_DATA_PATH,
         stage1_artifact=STAGE1_ARTIFACT,
-        stage3_artifact=STAGE3_ARTIFACT,
-        output_dir=STAGE4_DIR,
+        stage2_artifact=STAGE2_ARTIFACT,
+        output_dir=STAGE3_DIR,
         nmds_n_ep=5,
         zci_config={
             1: {"N_EP": 5, "Method": "BC-Direct"},
@@ -317,14 +316,14 @@ def run_dr_full_pipeline() -> None:
     )
 
     # ==================================================================
-    #  7. STAGE 5 — Piecewise Quantile Regression  (fast settings)
+    #  7. STAGE 4 — Piecewise Quantile Regression  (fast settings)
     # ==================================================================
-    _banner("STAGE 5 — Piecewise Quantile Regression  (DR, fast settings)")
+    _banner("STAGE 4 — Piecewise Quantile Regression  (DR, fast settings)")
     pqr_pipeline(
         stage1_artifact=STAGE1_ARTIFACT,
+        stage2_artifact=STAGE2_ARTIFACT,
         stage3_artifact=STAGE3_ARTIFACT,
-        stage4_artifact=STAGE4_ARTIFACT,
-        output_dir=STAGE5_DIR,
+        output_dir=STAGE4_DIR,
         n_breakpoints=1,
         # Fewer quantile levels: 7 instead of 17
         taus=[0.10, 0.25, 0.40, 0.50, 0.60, 0.75, 0.90],

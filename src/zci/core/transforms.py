@@ -167,3 +167,50 @@ def octave_transform(octave_df: pd.DataFrame) -> pd.DataFrame:
     ``transform="octave"`` keyword without special-casing.
     """
     return octave_df.copy()
+
+
+def chord_transform(df: pd.DataFrame) -> pd.DataFrame:
+    """Apply chord standardisation row-wise.
+
+    Each row is divided by its Euclidean norm. Euclidean distance on the
+    resulting matrix is the chord distance on the original row profiles.
+    Rows with zero norm remain zero.
+    """
+    values = df.to_numpy(dtype=float, copy=True)
+    norms = np.linalg.norm(values, axis=1, keepdims=True)
+    values = np.divide(values, norms, out=np.zeros_like(values), where=norms > 0)
+    return pd.DataFrame(values, index=df.index, columns=df.columns)
+
+
+def hellinger_transform(df: pd.DataFrame) -> pd.DataFrame:
+    """Apply Hellinger standardisation row-wise.
+
+    Each element is replaced by sqrt(p_ij / row_sum). Equivalent to
+    ``vegan::decostand(x, "hellinger")``.
+    Rows with zero sum remain zero.
+    """
+    values = df.to_numpy(dtype=float, copy=True)
+    row_sums = values.sum(axis=1, keepdims=True)
+    with np.errstate(invalid="ignore"):
+        values = np.sqrt(np.divide(values, row_sums, out=np.zeros_like(values), where=row_sums > 0))
+    return pd.DataFrame(np.nan_to_num(values), index=df.index, columns=df.columns)
+
+
+def octave_to_chord(octave_df: pd.DataFrame) -> pd.DataFrame:
+    """Convert octave-scale taxa to chord-standardised abundances."""
+    return chord_transform(octave_to_relative_abundance(octave_df))
+
+
+def octave_to_hellinger(octave_df: pd.DataFrame) -> pd.DataFrame:
+    """Convert octave-scale taxa to Hellinger-standardised abundances."""
+    return hellinger_transform(octave_to_relative_abundance(octave_df))
+
+
+def octave_to_log_chord(octave_df: pd.DataFrame) -> pd.DataFrame:
+    """Convert octave-scale taxa to log-chord-standardised abundances.
+
+    Pipeline: octave → relative abundance → log(1 + x) → chord.
+    """
+    rel = octave_to_relative_abundance(octave_df)
+    logged = np.log1p(rel)
+    return chord_transform(pd.DataFrame(logged, index=rel.index, columns=rel.columns))
