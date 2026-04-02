@@ -206,8 +206,8 @@ def _draw_rpart_tree(
             fontweight="bold")
     ax.text(0.5, 1.01,
             f"RE : {selected_row['rel error']:.2f}    "
-            f"CVRE : {selected_row['xerror']:.3f}    "
-            f"SE : {selected_row['xstd']:.3f}",
+            f"CVRE : {selected_row['CV error']:.3f}    "
+            f"SE : {selected_row['CV std']:.3f}",
             transform=ax.transAxes, ha="center", va="bottom",
             fontsize=11)
 
@@ -242,15 +242,15 @@ def save_mrt_cp_tree_figure(
     ax_right = fig.add_subplot(gs[0, 1])
 
     # 95% CI error bars
-    if "xcv_lo" in cp_table.columns and "xcv_hi" in cp_table.columns:
-        yerr_lo = (cp_table["xerror"] - cp_table["xcv_lo"]).clip(lower=0).values
-        yerr_hi = (cp_table["xcv_hi"] - cp_table["xerror"]).clip(lower=0).values
+    if "CV lo" in cp_table.columns and "CV hi" in cp_table.columns:
+        yerr_lo = (cp_table["CV error"] - cp_table["CV lo"]).clip(lower=0).values
+        yerr_hi = (cp_table["CV hi"] - cp_table["CV error"]).clip(lower=0).values
         yerr = np.vstack([yerr_lo, yerr_hi])
     else:
-        yerr = cp_table["xstd"].values
+        yerr = cp_table["CV std"].values
 
     ax_left.errorbar(
-        x, cp_table["xerror"], yerr=yerr,
+        x, cp_table["CV error"], yerr=yerr,
         fmt="o", color="#5B9BD5", ecolor="#5B9BD5",
         elinewidth=1.4, capsize=3, markersize=6,
         label=r"CVRE $95\%$ CI",
@@ -265,16 +265,16 @@ def save_mrt_cp_tree_figure(
         label="full-data", zorder=2,
     )
 
-    min_idx = int(cp_table["xerror"].to_numpy(dtype=float).argmin())
+    min_idx = int(cp_table["CV error"].to_numpy(dtype=float).argmin())
     ax_left.scatter(
-        x[min_idx], cp_table.iloc[min_idx]["xerror"],
+        x[min_idx], cp_table.iloc[min_idx]["CV error"],
         s=140, facecolors="white", edgecolors="#2E7D32",
         linewidths=2.0, label="min CVRE", zorder=4,
     )
 
     sel_idx = int(cp_table.index[cp_table["nsplit"] == result.pruned_nsplits][0])
     ax_left.scatter(
-        sel_idx, selected["xerror"],
+        sel_idx, selected["CV error"],
         s=60, color="#D62728", label="selected tree", zorder=5,
     )
 

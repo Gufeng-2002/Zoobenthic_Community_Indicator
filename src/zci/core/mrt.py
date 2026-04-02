@@ -177,17 +177,17 @@ def fit_mrt(
             "CP": float(alpha),
             "nsplit": nsplit,
             "rel error": float(train_error),
-            "xerror": float(cv_errors.mean()),
-            "xstd": float(cv_errors.std(ddof=1) / np.sqrt(len(cv_errors))) if len(cv_errors) > 1 else 0.0,
-            "xcv_lo": float(np.percentile(cv_errors, 2.5)) if len(cv_errors) > 1 else float(cv_errors.mean()),
-            "xcv_hi": float(np.percentile(cv_errors, 97.5)) if len(cv_errors) > 1 else float(cv_errors.mean()),
+            "CV error": float(cv_errors.mean()),
+            "CV std": float(cv_errors.std(ddof=1) / np.sqrt(len(cv_errors))) if len(cv_errors) > 1 else 0.0,
+            "CV lo": float(np.percentile(cv_errors, 2.5)) if len(cv_errors) > 1 else float(cv_errors.mean()),
+            "CV hi": float(np.percentile(cv_errors, 97.5)) if len(cv_errors) > 1 else float(cv_errors.mean()),
         }
         candidate_models[nsplit] = model
 
     cp_table = pd.DataFrame(candidate_rows.values()).sort_values("nsplit").reset_index(drop=True)
     cp_table.index = np.arange(1, len(cp_table) + 1)
 
-    best_pos = int(cp_table["xerror"].to_numpy(dtype=float).argmin())
+    best_pos = int(cp_table["CV error"].to_numpy(dtype=float).argmin())
     best_row = cp_table.iloc[best_pos]
     best_nsplit = int(best_row["nsplit"])
     best_tree = candidate_models[best_nsplit]
@@ -221,8 +221,8 @@ def fit_mrt(
         minbucket=minbucket,
         random_state=random_state,
         best_cp=float(best_row["CP"]),
-        min_cv_error=float(best_row["xerror"]),
-        min_cv_se=float(best_row["xstd"]),
+        min_cv_error=float(best_row["CV error"]),
+        min_cv_se=float(best_row["CV std"]),
         root_node_error=float(root_error),
         pruned_nsplits=best_nsplit,
         pruned_leaves=int(best_tree.get_n_leaves()),

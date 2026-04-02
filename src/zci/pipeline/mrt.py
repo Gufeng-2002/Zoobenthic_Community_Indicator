@@ -35,6 +35,7 @@ from ..models.mrt import MRTResult
 from ..viz.mrt_plots import save_mrt_cp_tree_figure
 from ..viz.cluster_panel_plot import plot_cluster_panel, TAXA_DISPLAY_ORDER
 from ..viz.taxa_trend_grid import plot_taxa_trend_grid, plot_taxa_trend_comparison, plot_env_trend_comparison
+from ..viz.ordination_plots import save_env_pca_ordination
 
 
 _TRANSFORMS = {
@@ -234,6 +235,42 @@ def mrt_pipeline(
     if verbose:
         print(f"  > Saved table: {ref_table_path}")
 
+    # ── Majority-vote leaf→cluster mapping and merged table ───────
+    import numpy as _np
+
+    leaf_mem = result.leaf_membership.copy()
+    leaf_mem = leaf_mem.set_index("StationID")
+    true_labels_aligned = result.cluster_labels_ref.loc[leaf_mem.index]
+
+    # For each leaf, find the majority Ward cluster
+    leaf_to_cluster: dict[int, int] = {}
+    for leaf_id in leaf_mem["Leaf"].unique():
+        stations_in_leaf = leaf_mem.index[leaf_mem["Leaf"] == leaf_id]
+        majority = int(true_labels_aligned.loc[stations_in_leaf].mode().iloc[0])
+        leaf_to_cluster[int(leaf_id)] = majority
+
+    # Predicted cluster from majority vote
+    pred_cluster = leaf_mem["Leaf"].map(leaf_to_cluster).rename("Pre_Cluster")
+
+    # Merged table: StationID | Ward_Cluster | Pre_Cluster | taxa columns ...
+    merged = ref_table.copy()
+    merged.insert(0, "Pre_Cluster", pred_cluster.loc[merged.index].values)
+    merged.rename(columns={"Cluster": "Ward_Cluster"}, inplace=True)
+    merged_path = cc_tables / f"{output_prefix}mrt_cluster_comparison.xlsx"
+    merged.to_excel(merged_path)
+    if verbose:
+        print(f"  > Saved table: {merged_path}")
+
+    # Confusion matrix: Ward_Cluster (true) vs Pre_Cluster (predicted)
+    confusion = pd.crosstab(
+        merged["Ward_Cluster"], merged["Pre_Cluster"],
+        rownames=["Ward_Cluster"], colnames=["Pre_Cluster"],
+    )
+    confusion_path = cc_tables / f"{output_prefix}mrt_confusion_matrix.xlsx"
+    confusion.to_excel(confusion_path)
+    if verbose:
+        print(f"  > Saved table: {confusion_path}")
+
     # Pickle artifact
     cc_artifacts.mkdir(parents=True, exist_ok=True)
     artifact_path = cc_artifacts / f"{output_prefix}mrt_model.pkl"
@@ -291,6 +328,18 @@ def mrt_pipeline(
                     formats=figure_formats, verbose=verbose)
         plt.close(fig_panel)
 
+        # PCA ordination biplot in environmental space
+        _log("  Saving PCA ordination biplot ...")
+        pca_path = save_env_pca_ordination(
+            env_ref=env_ref,
+            true_labels=labels_ref,
+            predicted_labels=pred_cluster.loc[labels_ref.index],
+            output_path=cc_figures / f"{output_prefix}env_pca_ordination.png",
+            env_feature_names=list(env_short),
+        )
+        if verbose:
+            print(f"  > Saved figure: {pca_path}")
+
     _log("\n> MRT Phase 1 complete.")
 
     # Print summary
@@ -308,7 +357,7 @@ def mrt_pipeline(
     _log(f"\n  Selected tree: {result.pruned_leaves} leaves")
     selected = result.cp_table[result.cp_table["nsplit"] == result.pruned_nsplits].iloc[0]
     _log(
-        f"  RE: {selected['rel error']:.3f}   CVRE: {selected['xerror']:.3f}   SE: {selected['xstd']:.3f}"
+        f"  RE: {selected['rel error']:.3f}   CVRE: {selected['CV error']:.3f}   SE: {selected['CV std']:.3f}"
     )
 
     _log("\n" + "=" * 60)
