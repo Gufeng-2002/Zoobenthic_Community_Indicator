@@ -28,7 +28,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_PATH = PROJECT_ROOT / "data" / "processed" / "complete_env_taxa_chemical_Feb_3.xlsx"
 STAGE1_ARTIFACT = (
     PROJECT_ROOT / "results" / "01_pollution_assessment"
-    / "contamination_stressors" / "artifacts" / "SumRel_01_updated_data.xlsx"
+    / "PCA_Stressors" / "artifacts" / "SumRel_01_updated_data.xlsx"
 )
 OUTPUT_DIR = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "Wards_LDA"
 MAPS_DIR   = PROJECT_ROOT / "data" / "maps"
@@ -40,7 +40,7 @@ if __name__ == "__main__":
         stage1_artifact=STAGE1_ARTIFACT,
         output_dir=OUTPUT_DIR,
         maps_dir=MAPS_DIR,
-        reference_quantile=0.25,
+        reference_quantile=0.20,
         taxa_transform="chord",
         n_clusters=3,
         label_map={1: 2,

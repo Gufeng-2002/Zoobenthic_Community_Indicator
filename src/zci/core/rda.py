@@ -403,3 +403,115 @@ class RDA:
             raise ValueError("Y contains NaN — impute/drop before RDA.")
 
         return X_df, Y_df
+
+
+# ─── Two-set variance partitioning (like vegan::varpart for 2 sets) ──
+
+
+def varpart_rda(
+    Y: pd.DataFrame,
+    X1: pd.DataFrame,
+    X2: pd.DataFrame,
+    *,
+    center_Y: bool = True,
+    center_X: bool = True,
+    scale_X: bool = False,
+    ddof: int = 1,
+) -> Dict[str, float]:
+    """Partition response variance between two predictor sets.
+
+    Fits three RDA models (X1-only, X2-only, X1+X2 combined) and
+    decomposes adj-R² into four fractions following Borcard et al. (1992):
+
+    - **[a]** pure X1 (environment)
+    - **[b]** shared (confounded X1 ∩ X2)
+    - **[c]** pure X2 (stressors)
+    - **[d]** unexplained (1 − adj-R²_combined)
+
+    Parameters
+    ----------
+    Y : DataFrame
+        Response matrix (taxa, sites × species).
+    X1, X2 : DataFrame
+        Two predictor matrices with the same row index as *Y*.
+    center_Y, center_X, scale_X, ddof : misc
+        Passed through to :class:`RDA`.
+
+    Returns
+    -------
+    dict with keys:
+        r2_adj_X1, r2_adj_X2, r2_adj_X1X2,
+        a_pure_X1, b_shared, c_pure_X2, d_unexplained
+    """
+    kw = dict(center_X=center_X, center_Y=center_Y, scale_X=scale_X, ddof=ddof)
+
+    rda_x1 = RDA(**kw)
+    rda_x1.fit(X1, Y)
+
+    rda_x2 = RDA(**kw)
+    rda_x2.fit(X2, Y)
+
+    X12 = pd.concat([X1, X2], axis=1)
+    rda_x12 = RDA(**kw)
+    rda_x12.fit(X12, Y)
+
+    r2_x1 = rda_x1.fit_.r2_adj
+    r2_x2 = rda_x2.fit_.r2_adj
+    r2_x12 = rda_x12.fit_.r2_adj
+
+    a = r2_x12 - r2_x2          # pure X1
+    c = r2_x12 - r2_x1          # pure X2
+    b = r2_x1 + r2_x2 - r2_x12  # shared
+    d = 1.0 - r2_x12             # unexplained
+
+    return {
+        "r2_adj_X1": r2_x1,
+        "r2_adj_X2": r2_x2,
+        "r2_adj_X1X2": r2_x12,
+        "a_pure_X1": a,
+        "b_shared": b,
+        "c_pure_X2": c,
+        "d_unexplained": d,
+    }
+
+
+# ─── Variance Inflation Factor ──────────────────────────────────────
+
+
+def compute_vif(X: ArrayLike) -> pd.Series:
+    """Compute Variance Inflation Factor for each predictor.
+
+    VIF_j = 1 / (1 − R²_j), where R²_j is the R² from regressing
+    predictor *j* on all remaining predictors.
+
+    Parameters
+    ----------
+    X : array-like (n, p)
+        Predictor matrix (centred or raw — centering is applied internally).
+
+    Returns
+    -------
+    pd.Series
+        VIF for each predictor, indexed by column name if *X* is a DataFrame.
+    """
+    X_arr = X.to_numpy() if isinstance(X, pd.DataFrame) else np.asarray(X)
+    names = list(X.columns) if isinstance(X, pd.DataFrame) else list(range(X_arr.shape[1]))
+    n, p = X_arr.shape
+
+    if p < 2:
+        return pd.Series([1.0] * p, index=names)
+
+    vifs = np.empty(p)
+    for j in range(p):
+        y_j = X_arr[:, j] - X_arr[:, j].mean()
+        X_others = np.delete(X_arr, j, axis=1)
+        X_others = X_others - X_others.mean(axis=0)
+
+        B, *_ = np.linalg.lstsq(X_others, y_j, rcond=None)
+        y_hat = X_others @ B
+        ss_res = float(np.sum((y_j - y_hat) ** 2))
+        ss_tot = float(np.sum(y_j ** 2))
+        r2_j = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
+        vifs[j] = 1.0 / (1.0 - r2_j) if r2_j < 1.0 else float("inf")
+
+    return pd.Series(vifs, index=names)

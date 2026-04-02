@@ -2,11 +2,10 @@
 
 Taxa versions:
   Single-group version: one line per subplot with ANOVA significance.
-  Comparison version: ref vs most-polluted overlay with pairwise t-test.
+  Comparison version: ref vs most-polluted grouped bar charts with SE.
 
 Environmental version:
-  plot_env_trend_comparison: ref vs non-ref means per env variable,
-  pairwise t-test for significance.
+  plot_env_trend_comparison: ref vs most-polluted grouped bar charts with SE.
 """
 
 from __future__ import annotations
@@ -139,16 +138,18 @@ def plot_taxa_trend_comparison(
     *,
     taxa_order: Sequence[str] | None = None,
     title: str = "",
-    color_ref: str = "#4878CF",
-    color_polluted: str = "#D65F5F",
-    figsize: Tuple[float, float] = (14, 12),
+    label_ref: str = "Least Polluted",
+    label_polluted: str = "Most Polluted",
+    figsize: Tuple[float, float] = (16, 14),
     dpi: int = 300,
 ) -> Tuple[plt.Figure, np.ndarray]:
-    """4×4 grid comparing ref-site and most-polluted-site means.
+    """4×4 grid of grouped bar charts comparing ref vs most-polluted sites.
 
-    Each subplot overlays two lines (ref vs polluted) across clusters.
-    Pairwise t-test per cluster is performed; if the overall difference
-    is significant the stars are shown in the subplot title.
+    Each subplot shows one taxon with two groups of bars (left = ref,
+    right = most polluted), each group containing one bar per cluster
+    coloured by ``CLUSTER_COLORS``.  Bars carry upward-only SE error bars.
+    A Welch t-test (ref vs polluted, pooled across clusters) determines
+    the significance stars shown in the subplot title.
     """
     if taxa_order is None:
         taxa_order = TAXA_DISPLAY_ORDER
@@ -169,41 +170,63 @@ def plot_taxa_trend_comparison(
         set(cluster_labels_ref.unique()) | set(cluster_labels_polluted.unique())
     )
     n_clusters = len(cluster_ids)
+    colors = CLUSTER_COLORS[:n_clusters]
 
     nrows, ncols = 4, 4
     fig, axes = plt.subplots(nrows, ncols, figsize=figsize, dpi=dpi)
     axes_flat = axes.flatten()
 
+    bar_width = 0.7
+    gap = 1.5  # gap between the two groups
+
     for idx, taxon in enumerate(taxa_order):
         ax = axes_flat[idx]
 
-        ref_means, pol_means = [], []
+        ref_means, ref_sems = [], []
+        pol_means, pol_sems = [], []
         ref_vals_all, pol_vals_all = [], []
         for cid in cluster_ids:
             r = taxa_relabd_ref.loc[cluster_labels_ref == cid, taxon].dropna()
             p = taxa_relabd_polluted.loc[cluster_labels_polluted == cid, taxon].dropna()
-            ref_means.append(r.mean() if len(r) else np.nan)
-            pol_means.append(p.mean() if len(p) else np.nan)
+            ref_means.append(r.mean() if len(r) else 0.0)
+            ref_sems.append(r.sem() if len(r) > 1 else 0.0)
+            pol_means.append(p.mean() if len(p) else 0.0)
+            pol_sems.append(p.sem() if len(p) > 1 else 0.0)
             ref_vals_all.extend(r.values)
             pol_vals_all.extend(p.values)
 
-        x = np.arange(1, n_clusters + 1)
         ref_means = np.array(ref_means)
+        ref_sems = np.array(ref_sems)
         pol_means = np.array(pol_means)
+        pol_sems = np.array(pol_sems)
 
-        ax.plot(x, ref_means, "-o", color=color_ref, markersize=6,
-                linewidth=1.5, label="Reference", zorder=3)
-        ax.plot(x, pol_means, "-o", color=color_polluted, markersize=6,
-                linewidth=1.5, label="Most Polluted", zorder=3)
+        # Bar positions: left group (ref), gap, right group (polluted)
+        x_ref = np.arange(n_clusters) * bar_width
+        x_pol = x_ref[-1] + gap + np.arange(n_clusters) * bar_width
 
-        # Dotted midline
-        all_vals = np.concatenate([ref_means[~np.isnan(ref_means)],
-                                   pol_means[~np.isnan(pol_means)]])
-        if len(all_vals):
-            ax.axhline(all_vals.mean(), color="grey", linewidth=0.8,
-                        linestyle="dotted", zorder=1)
+        for i, cid in enumerate(cluster_ids):
+            label_c = f"Cluster {cid}" if idx == 0 else None
+            # Reference bar
+            ax.bar(x_ref[i], ref_means[i], bar_width * 0.85,
+                   yerr=[[0], [ref_sems[i]]],
+                   color=colors[i], edgecolor="black", linewidth=0.4,
+                   alpha=0.85, label=label_c,
+                   error_kw=dict(linewidth=1.0, ecolor="black", capsize=2))
+            # Polluted bar
+            ax.bar(x_pol[i], pol_means[i], bar_width * 0.85,
+                   yerr=[[0], [pol_sems[i]]],
+                   color=colors[i], edgecolor="black", linewidth=0.4,
+                   alpha=0.85,
+                   error_kw=dict(linewidth=1.0, ecolor="black", capsize=2))
 
-        # Pairwise t-test: is the difference between ref and polluted zero?
+        # Group labels
+        ref_center = x_ref.mean()
+        pol_center = x_pol.mean()
+        ax.set_xticks([ref_center, pol_center])
+        ax.set_xticklabels([label_ref, label_polluted], fontsize=7)
+        ax.set_xlim(x_ref[0] - bar_width, x_pol[-1] + bar_width)
+
+        # Pairwise t-test: ref vs polluted
         ref_arr = np.array(ref_vals_all)
         pol_arr = np.array(pol_vals_all)
         p_val = 1.0
@@ -218,16 +241,12 @@ def plot_taxa_trend_comparison(
         else:
             ax.set_title(taxon, fontsize=9, fontweight="bold")
 
-        ax.set_xticks(x)
-        ax.set_xticklabels([str(c) for c in cluster_ids], fontsize=8)
-        ax.set_xlim(0.5, n_clusters + 0.5)
         ax.tick_params(axis="both", labelsize=7)
         _despine(ax)
 
         if idx % ncols == 0:
             ax.set_ylabel("Mean Rel. Abundance", fontsize=8)
 
-        # Legend in first subplot only
         if idx == 0:
             ax.legend(fontsize=7, loc="best", framealpha=0.8)
 
@@ -252,15 +271,17 @@ def plot_env_trend_comparison(
     *,
     env_variables: Sequence[str] | None = None,
     title: str = "",
-    color_ref: str = "#4878CF",
-    color_nonref: str = "#D65F5F",
+    label_ref: str = "Least Polluted",
+    label_nonref: str = "Most Polluted",
     figsize: Tuple[float, float] | None = None,
     dpi: int = 300,
 ) -> Tuple[plt.Figure, np.ndarray]:
-    """Grid comparing ref-site and non-ref-site mean env values per cluster.
+    """Grid of grouped bar charts comparing two site groups per env variable.
 
-    Each subplot shows one environmental variable with cluster means
-    for reference and non-reference sites.  A Welch t-test (ref vs
+    Each subplot shows one environmental variable with two groups of bars
+    (left = reference, right = non-ref / most-polluted), each group
+    containing one bar per cluster coloured by ``CLUSTER_COLORS``.
+    Bars carry upward-only SE error bars.  A Welch t-test (ref vs
     non-ref, pooled across clusters) determines the significance stars.
     """
     if env_variables is None:
@@ -279,6 +300,7 @@ def plot_env_trend_comparison(
         set(cluster_labels_ref.unique()) | set(cluster_labels_nonref.unique())
     )
     n_clusters = len(cluster_ids)
+    colors = CLUSTER_COLORS[:n_clusters]
     n_vars = len(env_variables)
 
     ncols = min(n_vars, 3)
@@ -289,29 +311,55 @@ def plot_env_trend_comparison(
     fig, axes = plt.subplots(nrows, ncols, figsize=figsize, dpi=dpi, squeeze=False)
     axes_flat = axes.flatten()
 
+    bar_width = 0.7
+    gap = 1.5
+
     for idx, var in enumerate(env_variables):
         ax = axes_flat[idx]
 
-        ref_means, nonref_means = [], []
+        ref_means, ref_sems = [], []
+        nonref_means, nonref_sems = [], []
         ref_vals_all, nonref_vals_all = [], []
         for cid in cluster_ids:
             r = env_ref.loc[cluster_labels_ref == cid, var].dropna()
             n = env_nonref.loc[cluster_labels_nonref == cid, var].dropna()
-            ref_means.append(r.mean() if len(r) else np.nan)
-            nonref_means.append(n.mean() if len(n) else np.nan)
+            ref_means.append(r.mean() if len(r) else 0.0)
+            ref_sems.append(r.sem() if len(r) > 1 else 0.0)
+            nonref_means.append(n.mean() if len(n) else 0.0)
+            nonref_sems.append(n.sem() if len(n) > 1 else 0.0)
             ref_vals_all.extend(r.values)
             nonref_vals_all.extend(n.values)
 
-        x = np.arange(1, n_clusters + 1)
         ref_means = np.array(ref_means)
+        ref_sems = np.array(ref_sems)
         nonref_means = np.array(nonref_means)
+        nonref_sems = np.array(nonref_sems)
 
-        ax.plot(x, ref_means, "-o", color=color_ref, markersize=7,
-                linewidth=1.5, label="Reference", zorder=3)
-        ax.plot(x, nonref_means, "-o", color=color_nonref, markersize=7,
-                linewidth=1.5, label="Non-Reference", zorder=3)
+        # Bar positions
+        x_ref = np.arange(n_clusters) * bar_width
+        x_nr = x_ref[-1] + gap + np.arange(n_clusters) * bar_width
 
-        # Pairwise t-test: ref vs non-ref across all clusters
+        for i, cid in enumerate(cluster_ids):
+            label_c = f"Cluster {cid}" if idx == 0 else None
+            ax.bar(x_ref[i], ref_means[i], bar_width * 0.85,
+                   yerr=[[0], [ref_sems[i]]],
+                   color=colors[i], edgecolor="black", linewidth=0.4,
+                   alpha=0.85, label=label_c,
+                   error_kw=dict(linewidth=1.0, ecolor="black", capsize=2))
+            ax.bar(x_nr[i], nonref_means[i], bar_width * 0.85,
+                   yerr=[[0], [nonref_sems[i]]],
+                   color=colors[i], edgecolor="black", linewidth=0.4,
+                   alpha=0.85,
+                   error_kw=dict(linewidth=1.0, ecolor="black", capsize=2))
+
+        # Group labels
+        ref_center = x_ref.mean()
+        nr_center = x_nr.mean()
+        ax.set_xticks([ref_center, nr_center])
+        ax.set_xticklabels([label_ref, label_nonref], fontsize=9)
+        ax.set_xlim(x_ref[0] - bar_width, x_nr[-1] + bar_width)
+
+        # Welch t-test
         ref_arr = np.array(ref_vals_all)
         nonref_arr = np.array(nonref_vals_all)
         p_val = 1.0
@@ -326,10 +374,6 @@ def plot_env_trend_comparison(
             label = f"{var}  {stars}"
         ax.set_title(label, fontsize=10, fontweight="bold")
 
-        ax.set_xticks(x)
-        ax.set_xticklabels([str(c) for c in cluster_ids], fontsize=9)
-        ax.set_xlim(0.5, n_clusters + 0.5)
-        ax.set_xlabel("Cluster", fontsize=9)
         ax.tick_params(axis="both", labelsize=8)
         _despine(ax)
 
@@ -339,7 +383,6 @@ def plot_env_trend_comparison(
         if idx == 0:
             ax.legend(fontsize=8, loc="best", framealpha=0.8)
 
-    # Hide unused subplots
     for idx in range(n_vars, nrows * ncols):
         axes_flat[idx].set_visible(False)
 

@@ -1,15 +1,17 @@
-"""Threshold-sensitivity analysis — pure computation, no plotting, no I/O.
+"""Cut-off sensitivity analysis — pure computation, no plotting, no I/O.
 
-Sweeps a grid of low-contamination cutoff proportions, fits RDA at each
-threshold, and collects performance metrics.  Also identifies stable
-threshold ranges where RDA performance is consistently strong.
+Sweeps a grid of low-contamination cut-off proportions, fits RDA (or MRT)
+at each cut-off, and collects performance metrics.  Also identifies stable
+cut-off ranges where model performance is consistently strong.
 
 Public API
 ----------
-sweep_thresholds
-    Run RDA at each threshold and return a tidy metrics DataFrame.
+sweep_cutoffs
+    Run RDA at each cut-off and return a tidy metrics DataFrame.
+sweep_cutoffs_mrt
+    Run MRT at each cut-off and return CVRE / SE / tree-size metrics.
 detect_stable_ranges
-    Identify contiguous threshold ranges with consistently good performance.
+    Identify contiguous cut-off ranges with consistently good performance.
 """
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
-from ..core.rda import RDA
+from ..core.rda import RDA, compute_vif
 from ..core.clustering import select_reference_sites
 from ..core.transforms import (
     octave_transform,
@@ -45,7 +47,7 @@ _TRANSFORMS = {
 
 @dataclass
 class ThresholdSweepResult:
-    """Container for threshold-sensitivity sweep outputs."""
+    """Container for cut-off sensitivity sweep outputs."""
     metrics: pd.DataFrame
     stable_ranges: List[Tuple[float, float]]
     score_name: str
@@ -143,7 +145,12 @@ def _fit_rda_at_threshold(
             "constrained_inertia": float("nan"),
             "total_inertia": float("nan"),
             "rda1_eigenvalue": float("nan"),
+            "max_vif": float("nan"),
         }
+
+    # VIF on the predictor matrix
+    vif_vals = compute_vif(env_ref)
+    max_vif = float(vif_vals.max())
 
     # Fit RDA
     rda = RDA(center_X=True, center_Y=True, scale_X=False, ddof=1)
@@ -171,6 +178,7 @@ def _fit_rda_at_threshold(
         "constrained_inertia": fit.inertia_constrained,
         "total_inertia": fit.inertia_total,
         "rda1_eigenvalue": rda1_eig,
+        "max_vif": max_vif,
     }
 
 
@@ -298,3 +306,165 @@ def detect_stable_ranges(
         ranges.append((start, df.loc[len(df) - 1, "threshold"]))
 
     return ranges
+
+
+# ─── backward-compatible aliases ─────────────────────────────────────
+
+sweep_cutoffs = sweep_thresholds
+
+
+# ─── MRT cut-off sweep ───────────────────────────────────────────────
+
+
+def _fit_mrt_at_cutoff(
+    pollution_score: pd.Series,
+    env_all: pd.DataFrame,
+    taxa_all: pd.DataFrame,
+    cutoff: float,
+    *,
+    env_variables: List[str],
+    env_short: List[str],
+    taxa_columns: List[str],
+    taxa_transform: str = "chord",
+    k_folds: int = 10,
+    cv_perms: int = 100,
+    minsplit: int = 5,
+    minbucket: int = 2,
+) -> Dict[str, float]:
+    """Fit MRT on the lowest-*cutoff* fraction of sites and return metrics.
+
+    Returns
+    -------
+    dict
+        Keys: cutoff, n_sites, min_cvre, cvre_se, best_tree_size,
+        best_cp, root_node_error.
+    """
+    from ..core.mrt import fit_mrt
+
+    ref_mask = select_reference_sites(pollution_score, quantile=cutoff)
+    n_ref = int(ref_mask.sum())
+
+    env_ref = env_all.loc[ref_mask].copy()
+    taxa_ref = taxa_all.loc[ref_mask].copy()
+
+    # Use only requested taxa and env columns
+    taxa_cols_present = [c for c in taxa_columns if c in taxa_ref.columns]
+    taxa_ref = taxa_ref[taxa_cols_present]
+    env_vars_present = [v for v in env_variables if v in env_ref.columns]
+    env_ref = env_ref[env_vars_present].copy()
+
+    # Rename env columns to short names
+    env_ref.columns = [env_short[env_variables.index(c)] for c in env_ref.columns]
+
+    # Drop NaN
+    valid = env_ref.dropna().index.intersection(taxa_ref.dropna().index)
+    env_ref = env_ref.loc[valid]
+    taxa_ref = taxa_ref.loc[valid]
+    n_valid = len(valid)
+
+    # Need enough sites for meaningful MRT
+    if n_valid < minsplit + 2:
+        return {
+            "cutoff": cutoff,
+            "n_sites": n_valid,
+            "min_cvre": float("nan"),
+            "cvre_se": float("nan"),
+            "best_tree_size": float("nan"),
+            "best_cp": float("nan"),
+            "root_node_error": float("nan"),
+        }
+
+    # Apply taxa transform
+    if taxa_transform in _TRANSFORMS:
+        taxa_response = _TRANSFORMS[taxa_transform](taxa_ref)
+    else:
+        raise ValueError(f"Unknown taxa_transform={taxa_transform!r}")
+    taxa_response.index = valid
+
+    try:
+        mrt_result, _runtime = fit_mrt(
+            taxa_response,
+            env_ref,
+            ref_mask=ref_mask,
+            ref_stations=valid,
+            taxa_ref_octave=taxa_ref,
+            reference_quantile=cutoff,
+            response_transform=taxa_transform,
+            env_variables=list(env_variables),
+            taxa_columns=list(taxa_columns),
+            k_folds=k_folds,
+            cv_perms=cv_perms,
+            minsplit=minsplit,
+            minbucket=minbucket,
+        )
+        return {
+            "cutoff": cutoff,
+            "n_sites": n_valid,
+            "min_cvre": mrt_result.min_cv_error,
+            "cvre_se": mrt_result.min_cv_se,
+            "best_tree_size": mrt_result.pruned_leaves,
+            "best_cp": mrt_result.best_cp,
+            "root_node_error": mrt_result.root_node_error,
+        }
+    except Exception as e:
+        return {
+            "cutoff": cutoff,
+            "n_sites": n_valid,
+            "min_cvre": float("nan"),
+            "cvre_se": float("nan"),
+            "best_tree_size": float("nan"),
+            "best_cp": float("nan"),
+            "root_node_error": float("nan"),
+        }
+
+
+def sweep_cutoffs_mrt(
+    pollution_score: pd.Series,
+    env_all: pd.DataFrame,
+    taxa_all: pd.DataFrame,
+    *,
+    cutoffs: Sequence[float] | None = None,
+    env_variables: List[str],
+    env_short: List[str],
+    taxa_columns: List[str],
+    taxa_transform: str = "chord",
+    k_folds: int = 10,
+    cv_perms: int = 100,
+    minsplit: int = 5,
+    minbucket: int = 2,
+    verbose: bool = True,
+) -> pd.DataFrame:
+    """Run MRT at each cut-off and return a tidy metrics table.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: cutoff, n_sites, min_cvre, cvre_se, best_tree_size,
+        best_cp, root_node_error.
+    """
+    if cutoffs is None:
+        cutoffs = list(np.arange(0.10, 1.01, 0.02).round(2))
+
+    rows = []
+    for i, co in enumerate(cutoffs):
+        if verbose:
+            print(f"  [{i+1}/{len(cutoffs)}] cut-off = {co:.0%} …", end="")
+
+        row = _fit_mrt_at_cutoff(
+            pollution_score, env_all, taxa_all, co,
+            env_variables=env_variables,
+            env_short=env_short,
+            taxa_columns=taxa_columns,
+            taxa_transform=taxa_transform,
+            k_folds=k_folds,
+            cv_perms=cv_perms,
+            minsplit=minsplit,
+            minbucket=minbucket,
+        )
+        rows.append(row)
+
+        if verbose:
+            print(f"  n={row['n_sites']}, CVRE={row['min_cvre']:.4f}, "
+                  f"SE={row['cvre_se']:.4f}, tree={row['best_tree_size']}")
+
+    return pd.DataFrame(rows)

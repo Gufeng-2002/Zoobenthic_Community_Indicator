@@ -15,7 +15,7 @@ waterbody shapes, species arrows), a ZCI distribution figure, and a
 ZCI vs Pollution Score scatter with regression.
 
 Reads  : data/processed/complete_env_taxa_chemical_Feb_3.xlsx
-         results/01_pollution_assessment/contamination_stressors/artifacts/SumRel_01_updated_data.xlsx
+         results/01_pollution_assessment/PCA_Stressors/artifacts/SumRel_01_updated_data.xlsx
          results/02_taxa_assemblage/Wards_LDA/classifier_prediction/artifacts/02_predicted_data.xlsx
 Writes : results/03_bray_curtis_NMDS/tables/  (nmds_summary, zci_summary)
          results/03_bray_curtis_NMDS/figures/ (nmds_biplot, zci_distribution,
@@ -30,7 +30,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Paths
 DATA_PATH       = PROJECT_ROOT / "data" / "processed" / "complete_env_taxa_chemical_Feb_3.xlsx"
-STAGE1_ARTIFACT = PROJECT_ROOT / "results" / "01_pollution_assessment" / "contamination_stressors" / "artifacts" / "SumRel_01_updated_data.xlsx"
+STAGE1_ARTIFACT = PROJECT_ROOT / "results" / "01_pollution_assessment" / "PCA_Stressors" / "artifacts" / "SumRel_01_updated_data.xlsx"
 STAGE2_ARTIFACT = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "Wards_LDA" / "classifier_prediction" / "artifacts" / "02_predicted_data.xlsx"
 OUTPUT_DIR      = PROJECT_ROOT / "results" / "03_bray_curtis_NMDS"
 

@@ -40,7 +40,7 @@ MAPS_DIR = PROJECT_ROOT / "data" / "maps"
 # Artifact paths (output of one stage → input of the next)
 STAGE1_ARTIFACT = (
     PROJECT_ROOT / "results" / "01_pollution_assessment"
-    / "contamination_stressors" / "artifacts" / "01_updated_data.xlsx"
+    / "PCA_Stressors" / "artifacts" / "01_updated_data.xlsx"
 )
 STAGE2_ARTIFACT = (
     PROJECT_ROOT / "results" / "02_taxa_assemblage"
@@ -91,7 +91,7 @@ def run_full_pipeline() -> None:
     _banner("STAGE 1 — Pollution PCA")
     pollution_pca_pipeline(
         data_path=DATA_PATH,
-        output_dir=PROJECT_ROOT / "results" / "01_pollution_assessment" / "contamination_stressors",
+        output_dir=PROJECT_ROOT / "results" / "01_pollution_assessment" / "PCA_Stressors",
         pollution_standardize=True,
         n_components=5,
         selected_pcs=None,

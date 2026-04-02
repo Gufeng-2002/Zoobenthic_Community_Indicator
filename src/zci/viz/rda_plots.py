@@ -31,7 +31,7 @@ _WATERBODY_STYLE: Dict[str, Dict] = {
 
 # Fallback group colours for generic site_groups
 _GROUP_COLORS: list[str] = [
-    "#1f77b4", "#ff7f0e", "#2ca02c", "#DC143C", "#9370DB",
+    "#1f77b4", "#ff7f0e", "#2ca02c", "#4C72B0", "#9370DB",
 ]
 
 

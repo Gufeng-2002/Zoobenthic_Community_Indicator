@@ -61,7 +61,7 @@ STAGE3_DIR = DR_RESULTS / "03_bray_curtis_NMDS"
 STAGE4_DIR = DR_RESULTS / "04_piecewise_qr"
 
 # Artifact paths
-STAGE1_ARTIFACT = STAGE1_DIR / "contamination_stressors" / "artifacts" / "01_updated_data.xlsx"
+STAGE1_ARTIFACT = STAGE1_DIR / "PCA_Stressors" / "artifacts" / "01_updated_data.xlsx"
 STAGE2_ARTIFACT = STAGE2_DIR / "artifacts" / "02_updated_data.xlsx"
 STAGE2_HINDSIGHT_ARTIFACT = STAGE2_DIR / "artifacts" / "02_hindsight_updated_data.xlsx"
 STAGE3_ARTIFACT = STAGE3_DIR / "artifacts" / "03_updated_data.xlsx"
@@ -162,7 +162,7 @@ def run_dr_full_pipeline() -> None:
     _banner("STAGE 1 — Pollution PCA  (DR sites)")
     pollution_pca_pipeline(
         data_path=DR_DATA_PATH,
-        output_dir=STAGE1_DIR / "contamination_stressors",
+        output_dir=STAGE1_DIR / "PCA_Stressors",
         pollution_standardize=True,
         n_components=5,
         selected_pcs=None,

@@ -23,14 +23,14 @@ from ..core.anova import _stars          # small private helper for stars
 
 
 # ------------------------------------------------------------------
-# Colour palette  (blue / orange / green — matches reference figures)
+# Colour palette  (blue / orange / green — matches dendrogram)
 # ------------------------------------------------------------------
 
 CLUSTER_COLORS: list[str] = [
     "#1f77b4",   # Cluster 1  — blue
     "#ff7f0e",   # Cluster 2  — orange
     "#2ca02c",   # Cluster 3  — green
-    "#DC143C",   # Cluster 4  — red  (spare)
+    "#4C72B0",   # Cluster 4  — steel blue  (spare)
     "#9370DB",   # Cluster 5  — purple
 ]
 
@@ -58,13 +58,13 @@ TAXA_DISPLAY_ORDER: list[str] = [
 
 # Short display names for environmental variables
 _ENV_SHORT: dict[str, str] = {
-    "Measured Depth (m)":                "Depth",
+    "Measured Depth (m)":                "Depth (m)",
     "Velocity  at bottom (m/sec)":       "Velocity",
     "Velocity  at bottom (m/sec)_Imputed": "Velocity",
-    "Water DO Bottom (mg/L)":            "Do",
-    "Temperature (oC)":                  "Temp",
-    "MPS (Phi)":                         "Sediment",
-    "LOI (%)":                           "Loi",
+    "Water DO Bottom (mg/L)":            "DO (mg/L)",
+    "Temperature (oC)":                  "Temp (°C)",
+    "MPS (Phi)":                         "MPS (Phi)",
+    "LOI (%)":                           "LOI (%)",
 }
 
 

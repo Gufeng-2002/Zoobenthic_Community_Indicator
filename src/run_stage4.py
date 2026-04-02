@@ -18,7 +18,7 @@ Pollution Score per cluster.  For each of 17 quantile levels
   5. Runs a sample-size sensitivity analysis (15 %–100 %, step 5 %,
      30 repeats each) and plots coverage diagnostics.
 
-Reads  : results/01_pollution_assessment/contamination_stressors/artifacts/01_updated_data.xlsx
+Reads  : results/01_pollution_assessment/PCA_Stressors/artifacts/01_updated_data.xlsx
          results/02_taxa_assemblage/Wards_LDA/classifier_prediction/artifacts/02_predicted_data.xlsx
          results/03_bray_curtis_NMDS/artifacts/03_updated_data.xlsx
 Writes : results/04_piecewise_qr/tables/  (qr_coefficients, sensitivity)
@@ -34,7 +34,7 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Paths
-STAGE1_ARTIFACT = PROJECT_ROOT / "results" / "01_pollution_assessment" / "contamination_stressors" / "artifacts" / "SumRel_01_updated_data.xlsx"
+STAGE1_ARTIFACT = PROJECT_ROOT / "results" / "01_pollution_assessment" / "PCA_Stressors" / "artifacts" / "SumRel_01_updated_data.xlsx"
 STAGE2_ARTIFACT = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "Wards_LDA" / "classifier_prediction" / "artifacts" / "02_predicted_data.xlsx"
 STAGE3_ARTIFACT = PROJECT_ROOT / "results" / "03_bray_curtis_NMDS" / "artifacts" / "03_updated_data.xlsx"
 OUTPUT_DIR      = PROJECT_ROOT / "results" / "04_piecewise_qr"

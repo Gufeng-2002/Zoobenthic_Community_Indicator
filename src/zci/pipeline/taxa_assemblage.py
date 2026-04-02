@@ -456,22 +456,29 @@ def taxa_assemblage_pipeline(
         else:
             _log("      WARNING: No polluted sites with cluster labels found.")
 
-        # Environmental trend comparison: ref vs non-ref
+        # Environmental trend comparison: ref vs most polluted
         _log("[P2-6] Creating env trend comparison plot ...")
         env_ref_plot = env_block.loc[labels_ref.index, env_vars_present]
-        nonref_with_labels = nonref_preds.dropna()
-        env_nonref_plot = env_block.loc[
-            nonref_with_labels.index.intersection(env_block.index),
-            env_vars_present,
-        ].dropna()
-        labels_nonref_plot = nonref_preds.loc[env_nonref_plot.index].astype(int)
+        if len(top_polluted_idx) > 0:
+            env_pol_plot = env_block.loc[
+                top_polluted_idx.intersection(env_block.index),
+                env_vars_present,
+            ].dropna()
+            labels_pol_plot = cluster_all.loc[env_pol_plot.index].astype(int)
+        else:
+            nonref_with_labels = nonref_preds.dropna()
+            env_pol_plot = env_block.loc[
+                nonref_with_labels.index.intersection(env_block.index),
+                env_vars_present,
+            ].dropna()
+            labels_pol_plot = nonref_preds.loc[env_pol_plot.index].astype(int)
         fig_env, _ = plot_env_trend_comparison(
             env_ref=env_ref_plot,
             cluster_labels_ref=labels_ref,
-            env_nonref=env_nonref_plot,
-            cluster_labels_nonref=labels_nonref_plot,
+            env_nonref=env_pol_plot,
+            cluster_labels_nonref=labels_pol_plot,
             env_variables=env_vars_present,
-            title="Reference vs Non-Reference: Env Features Across Ward/LDA Clusters",
+            title="Least Polluted vs Most Polluted: Env Features Across Ward/LDA Clusters",
         )
         save_figure(fig_env, cp_figures / "env_trend_ref_vs_nonref",
                     formats=figure_formats, verbose=verbose)

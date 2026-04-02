@@ -11,7 +11,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
-from scipy.cluster.hierarchy import dendrogram
+from scipy.cluster.hierarchy import dendrogram, fcluster, leaves_list, set_link_color_palette
+
+from .cluster_panel_plot import CLUSTER_COLORS
 
 
 # ------------------------------------------------------------------
@@ -73,6 +75,19 @@ def plot_dendrogram(
         else:
             color_threshold = 0  # every leaf its own colour
 
+    # ── Set dendrogram link colours to match CLUSTER_COLORS ──────────
+    # Determine cluster assignments and leaf ordering so that the first
+    # cluster encountered in the dendrogram gets the correct colour.
+    assignments = fcluster(linkage_matrix, n_clusters, criterion="maxclust")
+    leaf_order = leaves_list(linkage_matrix)
+    seen: list[int] = []
+    for leaf_idx in leaf_order:
+        cid = int(assignments[leaf_idx])
+        if cid not in seen:
+            seen.append(cid)
+    palette = [CLUSTER_COLORS[cid - 1] for cid in seen]
+    set_link_color_palette(palette)
+
     fig, ax = plt.subplots(figsize=figsize, constrained_layout=True)
 
     dendrogram(
@@ -84,6 +99,9 @@ def plot_dendrogram(
         ax=ax,
         above_threshold_color="grey",
     )
+
+    # Reset palette to default
+    set_link_color_palette(None)
 
     ax.set_xlabel("Linkage Distance", fontsize=label_fontsize)
     ax.set_ylabel("Reference Site", fontsize=label_fontsize)

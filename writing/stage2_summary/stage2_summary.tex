@@ -1,0 +1,296 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{graphicx}
+
+\title{Stage~2 Summary:\
+Reference-Site Assemblage Definition and Environmental-to-Cluster Mapping}
+\author{}
+\date{}
+
+\newcommand{\maybegraphic}[2][]{%
+  \IfFileExists{#2}{%
+    \includegraphics[#1]{#2}%
+  }{%
+    \fbox{\parbox[c][0.18\textheight][c]{0.9\linewidth}{\centering Missing figure\\\texttt{\detokenize{#2}}}}%
+  }%
+}
+
+\begin{document}
+\maketitle
+
+\section{Overview}
+
+Stage~2 contains two separate implementations of the same ecological task:
+\begin{enumerate}[leftmargin=*]
+  \item define distinct taxa assemblage groups from the least-polluted reference sites,
+  \item model the relationship between environmental features and those taxa-defined groups,
+  \item evaluate how well that environmental-to-cluster mapping is learned on the reference subset,
+  \item apply the fitted mapping to the remaining non-reference sites.
+\end{enumerate}
+
+The two implementations are independent of one another:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Part I: Ward clustering + LDA},
+  \item \textbf{Part II: Multivariate Regression Tree (MRT)}.
+\end{itemize}
+
+In addition, a third script explores \textbf{MRT sensitivity to taxa transformation} by rerunning the MRT workflow under four alternative response transformations.
+
+All three components use the Stage~1 pollution artifact as the entry point, so Stage~2 is explicitly conditioned on the contamination score and the reference-site definition produced upstream.
+
+\section{Shared Aim and Inputs}
+
+Both main Stage~2 routes read:
+\begin{itemize}[leftmargin=*]
+  \item the full study workbook
+  \texttt{data/processed/complete\_env\_taxa\_chemical\_Feb\_3.xlsx},
+  \item the Stage~1 artifact containing the contamination score,
+  \item the same environmental predictor block consisting of:
+  Measured Depth, Bottom DO, Temperature, MPS~(Phi), and LOI~(\%).
+\end{itemize}
+
+Conceptually, both routes first identify a low-pollution reference subset and then treat that subset as the training domain for learning assemblage structure and its environmental correlates.
+
+\paragraph{Important implementation note.}
+The two current runner scripts are conceptually parallel but not parameter-identical. In the attached code, the Ward+LDA runner uses a 20\% reference cutoff, whereas the MRT runner and the MRT transform-comparison script use a 25\% reference cutoff. The general Stage~2 idea is therefore consistent across methods, but the present scripts do not use exactly the same cutoff in all cases.
+
+\section{Part I: Ward Clustering + LDA}
+
+This route is implemented through the Ward+LDA stage runner and the
+\texttt{taxa\_assemblage} pipeline module.
+
+\subsection{What was done}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Reference-site selection.}
+  The Stage~1 artifact is read, the pollution score column is extracted, and the least-polluted sites are selected by quantile threshold.
+
+  \item \textbf{Reference-site taxa clustering.}
+  The taxa block is extracted for the reference sites only. In the runner, the taxa matrix is transformed with the \texttt{chord} transform and Ward hierarchical clustering is applied with \texttt{n\_clusters=3}.
+
+  \item \textbf{Optional relabelling.}
+  After clustering, cluster labels are remapped in the current runner by swapping labels 1 and 2. This is a post hoc label renaming step, not a second clustering procedure.
+
+  \item \textbf{Cluster interpretation on reference sites.}
+  Two one-way ANOVA tables are produced using the reference-site labels:
+  \begin{itemize}[leftmargin=*]
+    \item environmental-variable ANOVA,
+    \item taxa-variable ANOVA.
+  \end{itemize}
+  These are used together with the cluster panel figure, which combines spatial position, environmental summaries, and taxa summaries for the reference clusters.
+
+  \item \textbf{Environmental-to-cluster modeling by LDA.}
+  The five environmental variables are standardized and used as predictors in a linear discriminant analysis, with the Ward-derived reference-site cluster labels as the response.
+
+  \item \textbf{Model checking on the training domain.}
+  The code exports:
+  \begin{itemize}[leftmargin=*]
+    \item in-sample classification accuracy,
+    \item confusion matrix and classification report,
+    \item Wilks' Lambda drop-one variable-importance analysis,
+    \item Monte Carlo cross-validation with 1000 stratified random splits and 20\% test fraction,
+    \item aggregate cross-validated confusion matrix and classification report,
+    \item an LDA triplot for the reference sites.
+  \end{itemize}
+
+  \item \textbf{Projection to non-reference sites.}
+  The fitted LDA model is then applied to non-reference sites with non-missing environmental data. The pipeline exports:
+  \begin{itemize}[leftmargin=*]
+    \item predicted cluster labels,
+    \item per-cluster posterior probabilities,
+    \item a prediction artifact for downstream stages,
+    \item a four-panel cluster-comparison figure.
+  \end{itemize}
+\end{enumerate}
+
+\subsection{How this route should be interpreted}
+
+This route first lets taxa structure define the training labels on the reference sites, then fits an environmental classifier against those labels, and finally extends the cluster assignments to sites outside the reference subset. In other words, the environmental model is not used to create the original clusters; it is used to learn and project the taxa-derived grouping.
+
+\section{Part II: MRT}
+
+This route is implemented through the MRT stage runner, the MRT pipeline
+module, and the MRT core fitting module.
+
+\subsection{What was done}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Reference-site selection.}
+  The Stage~1 artifact is read, the pollution score is extracted, and the least-polluted 25\% of sites are taken as the training subset in the current MRT runner.
+
+  \item \textbf{Preparation of response and predictors.}
+  The taxa block is extracted for reference sites and transformed before modeling. In the current MRT runner the selected response transform is \texttt{chord}. The same five environmental variables are used as predictors.
+
+  \item \textbf{MRT fitting.}
+  The multivariate regression tree is fit through R's \texttt{mvpart} backend via \texttt{rpy2}. The current settings are:
+  \begin{itemize}[leftmargin=*]
+    \item 10-fold cross-validation,
+    \item 100 cross-validation permutations,
+    \item \texttt{minsplit=5},
+    \item \texttt{minbucket=2},
+    \item a full tree grown with \texttt{cp=0} before pruning.
+  \end{itemize}
+
+  \item \textbf{Tree selection and interpretation.}
+  The code extracts the CP table and prunes the tree at the size corresponding to the minimum cross-validated error. It also records the variables used in the splits, leaf membership, root-node error, and final pruned-tree size.
+
+  \item \textbf{Cluster interpretation on reference sites.}
+  After pruning, the terminal leaves are mapped to sequential cluster labels. As in the Ward+LDA route, environmental and taxa ANOVA tables are produced and a cluster panel figure is exported for interpretation of the reference-site groups.
+
+  \item \textbf{Projection to non-reference sites.}
+  Non-reference sites are passed through R's \texttt{predict(..., type="matrix")}. The returned fitted response vectors are then matched to the nearest reference-leaf centroid in transformed taxa space, and the corresponding leaf label is used as the predicted cluster assignment.
+
+  \item \textbf{Saved outputs.}
+  The MRT route exports a CP/tree figure, CP table, leaf-membership table, reference taxa-cluster table, a pickled model artifact, a non-reference prediction table, and an artifact containing the combined all-site cluster assignments.
+\end{enumerate}
+
+\subsection{How this route should be interpreted}
+
+The MRT route does not use Ward clustering or LDA. Instead, it learns the assemblage partition directly as a tree-structured environmental model fitted on the reference subset. It is therefore a separate Stage~2 implementation, not a variation inside the Ward+LDA route.
+
+\section{Part III: MRT Under Different Taxa Transformations}
+
+This comparison is implemented in \texttt{src/compare\_mrt\_transforms.py}.
+
+\subsection{What the script does}
+
+The script reruns the MRT workflow four times, holding the main MRT settings fixed while changing only the taxa-response transformation:
+\begin{itemize}[leftmargin=*]
+  \item \texttt{raw}: relative abundance,
+  \item \texttt{hellinger},
+  \item \texttt{chord},
+  \item \texttt{logchord}: log-chord.
+\end{itemize}
+
+Each run is written with a transform-specific prefix, for example
+\texttt{raw\_} or \texttt{chord\_}, into the MRT transform-comparison
+results folder.
+
+\subsection{What has already been produced}
+
+The current comparison folder contains transform-specific Phase~1 outputs for all four transformations, including:
+\begin{itemize}[leftmargin=*]
+  \item CP/tree figures,
+  \item CP tables,
+  \item leaf-membership tables.
+\end{itemize}
+
+This part of Stage~2 is therefore a transformation-sensitivity experiment for the MRT route: it asks how the fitted partition and the pruning profile change when the taxa-response space is re-expressed before tree fitting.
+
+\section{Exploratory Environmental-Homogeneity Check}
+
+\subsection{What was actually done}
+
+At this stage, the code includes exploratory visual comparisons intended to check whether the environmental conditions of the reference subset are reasonably aligned with the sites to which the learned mapping is later applied.
+
+More specifically:
+\begin{itemize}[leftmargin=*]
+  \item both main Stage~2 routes produce an environmental trend comparison figure,
+  \item that figure compares \textbf{reference} versus \textbf{non-reference} sites across the inferred clusters,
+  \item both routes also produce taxa trend grids for the reference subset and for the most polluted sites, plus a combined reference-versus-most-polluted taxa comparison.
+\end{itemize}
+
+So the implemented exploratory material is useful for visual inspection of transferability, but it should be described precisely:
+\begin{itemize}[leftmargin=*]
+  \item the environmental comparison figure is \emph{reference vs non-reference}, not strictly least-25\% vs most-25\% polluted,
+  \item the direct least-vs-most polluted comparison is implemented for taxa trends, not for environmental features.
+\end{itemize}
+
+\subsection{What was not yet done}
+
+No dedicated formal test of environmental homogeneity, covariate overlap, or domain applicability has been completed at this stage. In particular, the current code does not yet implement a formal statistical decision rule answering whether the environmental space covered by the reference sites is sufficient for reliable transfer to the non-reference sites.
+
+The plotting helper for the environmental trend figure does annotate a simple pooled Welch two-sample \textit{t}-test with significance stars. However, this should be treated as an exploratory plot annotation rather than as a completed homogeneity-assessment framework.
+
+\subsection{Potential under-construction directions}
+
+The environmental-homogeneity idea is still under construction. Reasonable next tests would include:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Variable-wise overlap diagnostics:} standardized mean differences, confidence intervals, and cluster-specific comparisons for each environmental variable.
+  \item \textbf{Coverage diagnostics:} check how often non-reference sites fall outside the reference-site min--max range, interquartile envelope, or a multivariate reference envelope.
+  \item \textbf{Distance-to-training-domain measures:} Mahalanobis distance, leverage, or nearest-neighbor distance from non-reference sites to the reference environmental cloud.
+  \item \textbf{Multivariate two-sample testing:} a formal global test comparing the environmental distributions of reference and non-reference subsets.
+  \item \textbf{Transferability screening by classification:} predict reference vs non-reference status using environmental variables alone; strong separability would indicate weak overlap between training and application domains.
+\end{enumerate}
+
+These ideas were not yet implemented as a formal Stage~2 result, so they should be described as future methodological development rather than as completed evidence.
+
+\section{Figures from the Current Stage~2 Outputs}
+
+\subsection{Environmental comparison figures}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{minipage}[t]{0.49\textwidth}
+    \centering
+    \maybegraphic[width=\linewidth]{../../results/02_taxa_assemblage/Wards_LDA/classifier_prediction/figures/env_trend_ref_vs_nonref.png}
+    \caption*{Ward+LDA: reference vs non-reference environmental trends by inferred cluster.}
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.49\textwidth}
+    \centering
+    \maybegraphic[width=\linewidth]{../../results/02_taxa_assemblage/MRT_Method/classifier_prediction/figures/env_trend_ref_vs_nonref.png}
+    \caption*{MRT: reference vs non-reference environmental trends by inferred cluster.}
+  \end{minipage}
+\end{figure}
+
+\subsection{Taxa comparison figures}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{minipage}[t]{0.49\textwidth}
+    \centering
+    \maybegraphic[width=\linewidth]{../../results/02_taxa_assemblage/Wards_LDA/classifier_prediction/figures/taxa_trend_ref_vs_polluted.png}
+    \caption*{Ward+LDA: reference vs most-polluted taxa trends.}
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.49\textwidth}
+    \centering
+    \maybegraphic[width=\linewidth]{../../results/02_taxa_assemblage/MRT_Method/classifier_prediction/figures/taxa_trend_ref_vs_polluted.png}
+    \caption*{MRT: reference vs most-polluted taxa trends.}
+  \end{minipage}
+\end{figure}
+
+\subsection{MRT transform comparison figures}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{minipage}[t]{0.49\textwidth}
+    \centering
+    \maybegraphic[width=\linewidth]{../../results/02_taxa_assemblage/MRT_Method/transform_comparison/figures/raw_mrt_cp_tree.png}
+    \caption*{MRT with relative-abundance response.}
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.49\textwidth}
+    \centering
+    \maybegraphic[width=\linewidth]{../../results/02_taxa_assemblage/MRT_Method/transform_comparison/figures/hellinger_mrt_cp_tree.png}
+    \caption*{MRT with Hellinger response.}
+  \end{minipage}
+
+  \vspace{0.7em}
+
+  \begin{minipage}[t]{0.49\textwidth}
+    \centering
+    \maybegraphic[width=\linewidth]{../../results/02_taxa_assemblage/MRT_Method/transform_comparison/figures/chord_mrt_cp_tree.png}
+    \caption*{MRT with chord response.}
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.49\textwidth}
+    \centering
+    \maybegraphic[width=\linewidth]{../../results/02_taxa_assemblage/MRT_Method/transform_comparison/figures/logchord_mrt_cp_tree.png}
+    \caption*{MRT with log-chord response.}
+  \end{minipage}
+\end{figure}
+
+\section{Summary}
+
+Stage~2 currently contains three connected but distinct pieces of work:
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Ward+LDA:} taxa-defined reference clusters followed by an environmental discriminant model and projection to non-reference sites,
+  \item \textbf{MRT:} tree-defined reference clusters learned directly from taxa response and environmental predictors, then projected to non-reference sites,
+  \item \textbf{MRT transform comparison:} sensitivity of the MRT route to alternative taxa transformations.
+\end{enumerate}
+
+The environmental-homogeneity question has been recognized and partially explored through visualization, but a dedicated formal test of training-domain coverage or transportability has not yet been completed.
+
+\end{document}

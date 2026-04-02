@@ -2,143 +2,114 @@
 
 > **Feng Gu's Master's Thesis** -- *"Zoobenthic Community Indicator of Sediment Contamination"*
 
-This repository implements a **7-step reproducible pipeline** (5 main stages + 2 auxiliary stages)
-that quantifies how benthic macroinvertebrate communities respond to sediment contamination
-across the **St. Clair--Detroit River System (SCDRS)**.
-A separate Detroit River (DR)-only variant mirrors the same structure.
+This repository implements a reproducible benthic-community analysis workflow for the **St. Clair--Detroit River System (SCDRS)**, plus a Detroit River-only variant. The current codebase is organized around a **small set of top-level runners** and a refactored `zci` package with clear layers.
 
 ---
 
 ## Framework Overview
 
-The central idea is a sequential chain: each stage produces an **artifact**
-(an augmented Excel file) consumed by the next stage.
+The workflow is still artifact-driven: each major step writes an augmented workbook that can be consumed by later steps.
 
-```
-Stage 1 --> RDA --> Stage 2 --> Hindsight Relabel --> Stage 3 --> Stage 4 --> Stage 5
+```text
+Stage 1 --> optional RDA / threshold sensitivity --> Stage 2 (choose method)
+        --> Stage 3 (NMDS + ZCI) --> Stage 4 (piecewise QR)
 ```
 
 ### Main Stages
 
 | # | Stage | What it does |
-|---|-------|-------------|
-| **1** | **Pollution PCA** | PCA on sediment-chemistry variables to derive a composite **Pollution Score** per site. Sites below the 20th-percentile threshold are flagged as **reference**. |
-| **2** | **Taxa Assemblage Clustering** | Ward hierarchical clustering on octave-transformed taxa abundances of **reference sites only** to identify distinct biological assemblage groups. |
-| **3** | **LDA Classification** | Linear Discriminant Analysis trained on reference-site environmental variables and cluster labels. Monte Carlo cross-validation (1000 iterations). Predicts cluster membership for **all non-reference sites**, extending the classification to the full study area. |
-| **4** | **Bray-Curtis NMDS + ZCI** | Bray-Curtis dissimilarity followed by 2-D NMDS ordination. Constructs a **Zoobenthos Community-Condition Index (ZCI)** per cluster, measuring how far each site's community has shifted from the reference condition. |
-| **5** | **Piecewise Quantile Regression** | Segmented quantile regressions of ZCI vs Pollution Score per cluster. Detects optimal breakpoints, builds 90% wild-bootstrap CIs, and runs sample-size sensitivity analysis. |
+| --- | --- | --- |
+| **1** | **Pollution Assessment** | PCA on sediment chemistry to derive site-level contamination scores and define reference sites. The stage also supports threshold-sensitivity analysis across alternative cutoffs. |
+| **2** | **Taxa Assemblage** | Assigns assemblage groups using one of two implementations: **Ward + LDA** or **MRT**. Both operate from Stage 1 outputs and write their own method-specific results folders. |
+| **3** | **Bray-Curtis NMDS + ZCI** | Builds a Bray-Curtis dissimilarity matrix, fits 2-D NMDS, and computes cluster-wise ZCI values using configurable endpoint and scoring methods. |
+| **4** | **Piecewise Quantile Regression** | Fits segmented quantile regressions of ZCI against pollution score, adds wild-bootstrap confidence intervals, and supports sample-size sensitivity analysis. |
 
-### Auxiliary Stages
+### Auxiliary Analyses
 
-| Stage | Position in chain | What it does |
-|-------|-------------------|-------------|
-| **RDA** (Redundancy Analysis) | After Stage 1, before Stage 2 | Fits RDA with taxa as response and environmental variables as predictors on reference sites. Tests significance via 999 permutations. Produces a triplot coloured by cluster labels. |
-| **Hindsight Relabel** | After Stage 2, before Stage 3 | Post-clustering correction that remaps cluster labels (e.g. merges the smallest cluster into another). Runs ANOVA on environmental and taxa variables by new labels, then produces a three-panel cluster figure (map + environmental bars + taxa bars). |
+| Analysis | Where it fits | What it does |
+| --- | --- | --- |
+| **RDA** | After Stage 1 | Redundancy analysis on reference sites, with permutation testing and triplots. |
+| **Threshold Sensitivity** | Inside Stage 1 | Sweeps alternative reference cutoffs and compares downstream ecological signal. |
+| **LDA Classification** | Inside the Ward + LDA route | Trains on reference-site labels and predicts assemblages for non-reference sites. |
+| **Relabelling / ANOVA / Cluster Panel** | Method-specific post-processing | Used where needed to remap cluster labels, compare groups, and generate summary figures. |
 
-### Pipeline Runners
+---
 
-| Script | Scope |
-|--------|-------|
-| `src/run_SCDRS_full_pipeline.py` | Full SCDRS pipeline (all waterbodies, 233 sites) |
-| `src/run_DR_full_pipeline.py` | Detroit River only (146 sites, adds velocity as an extra env variable) |
-| `src/run_stage1.py` ... `run_stage5.py` | Individual stage runners |
-| `src/run_stage_rda.py` | Standalone RDA runner |
-| `src/run_hindsight_relabel.py` | Standalone hindsight relabel runner |
+## Top-Level Runners
+
+| Script | Role |
+| --- | --- |
+| `src/run_SCDRS_full_pipeline.py` | Full SCDRS workflow across the main stages and auxiliary analyses. |
+| `src/run_DR_full_pipeline.py` | Detroit River-only workflow with DR filtering and an extra velocity variable. |
+| `src/run_stage1.py` | Stage 1 only: pollution assessment plus threshold sensitivity. |
+| `src/run_stage2_WardsLDA.py` | Stage 2 using the Ward clustering + LDA path. |
+| `src/run_stage2_MRT.py` | Stage 2 using the multivariate regression tree path. |
+| `src/run_stage3.py` | Stage 3 only: Bray-Curtis NMDS + ZCI. |
+| `src/run_stage4.py` | Stage 4 only: piecewise quantile regression. |
+| `src/compare_mrt_transforms.py` | Utility script for comparing alternative taxa transforms in the MRT workflow. |
+
+### Stage 2 Branches
+
+| Method | Pipeline module | Notes |
+| --- | --- | --- |
+| **Ward + LDA** | `src/zci/pipeline/taxa_assemblage.py` | Clusters reference sites, then uses LDA to extend labels to non-reference sites. |
+| **MRT** | `src/zci/pipeline/mrt.py` | Fits a multivariate regression tree on reference sites and predicts assemblages through the tree-based route. |
 
 ---
 
 ## Results Structure
 
-Every stage writes to a dedicated subfolder with a consistent `artifacts/`, `figures/`, `tables/` layout.
+Outputs are grouped by stage, and most stage folders follow the same `artifacts/`, `figures/`, `tables/` pattern.
 
-```
+```text
 results/
 |
-+-- 01_pollution_assessment/          <-- Stage 1
++-- 01_pollution_assessment/
+|   +-- contamination_stressors/
+|   +-- cutoff_reference/
+|
++-- 02_taxa_assemblage/
+|   +-- MRT_Method/
+|   +-- Wards_LDA/
+|   +-- reproduction_with_same_taxa_data/
+|
++-- 03_bray_curtis_NMDS/
 |   +-- artifacts/
-|   |   +-- 01_updated_data.xlsx
 |   +-- figures/
-|   |   +-- variance_explained.png
-|   |   +-- ridge_loadings.png
-|   |   +-- corridor_bifurcation.png
 |   +-- tables/
-|       +-- pc_loadings.xlsx
-|       +-- site_scores.xlsx
 |
-+-- 02_taxa_assemblage/               <-- Stage 2 + Hindsight Relabel
++-- 05_piecewise_qr/
 |   +-- artifacts/
-|   |   +-- 02_updated_data.xlsx
-|   |   +-- 02_hindsight_updated_data.xlsx
 |   +-- figures/
-|   |   +-- ward_dendrogram.png
-|   |   +-- cluster_panel.png
+|   +-- latex_tables/
 |   +-- tables/
-|       +-- reference_taxa_clusters.xlsx
-|       +-- anova_env.xlsx
-|       +-- anova_taxa.xlsx
 |
-+-- 03_LDA_Classification/            <-- Stage 3
-|   +-- artifacts/
-|   |   +-- 03_updated_data.xlsx
++-- DR_results/
+|   +-- 01_pollution_assessment/
+|   +-- 02_taxa_assemblage/
+|   +-- 03_LDA_Classification/
+|   +-- 04_bray_curtis_NMDS/
+|   +-- 05_piecewise_qr/
+|   +-- RDA_analysis/
+|
++-- ref_threshold_sensitivity/
 |   +-- figures/
-|   |   +-- lda_triplot.png
-|   |   +-- cluster_comparison.png
+|   +-- latex_tables/
 |   +-- tables/
-|       +-- lda_axes_summary.xlsx
-|       +-- lda_classification_report.xlsx
-|       +-- lda_confusion_matrix.xlsx
-|       +-- lda_env_significance.xlsx
-|       +-- mccv_classification_report.xlsx
-|       +-- mccv_confusion_matrix.xlsx
-|
-+-- 04_bray_curtis_NMDS/              <-- Stage 4
-|   +-- artifacts/
-|   |   +-- 04_updated_data.xlsx
-|   +-- figures/
-|   |   +-- nmds_biplot.png
-|   |   +-- zci_distribution.png
-|   |   +-- zci_vs_pollution.png
-|   +-- tables/
-|       +-- nmds_summary.xlsx
-|       +-- zci_summary.xlsx
-|
-+-- 05_piecewise_qr/                  <-- Stage 5
-|   +-- artifacts/
-|   |   +-- 05_updated_data.xlsx
-|   +-- figures/
-|   |   +-- qr_ci_errorbars_cluster_*.png
-|   |   +-- qr_three_quantiles_cluster_*.png
-|   |   +-- sensitivity_cluster_*.png
-|   |   +-- sensitivity_coverage_cluster_*.png
-|   +-- tables/
-|       +-- qr_coefficients_cluster_*.xlsx
-|       +-- sensitivity_cluster_*.xlsx
-|
-+-- RDA_analysis/                     <-- RDA (auxiliary)
-|   +-- figures/
-|   |   +-- rda_triplot.png
-|   +-- tables/
-|       +-- rda_axes_summary.xlsx
-|       +-- rda_terms_summary.xlsx
-|
-+-- DR_results/                       <-- Detroit River pipeline (mirrors above)
-    +-- 01_pollution_assessment/
-    +-- 02_taxa_assemblage/
-    +-- 03_LDA_Classification/
-    +-- 04_bray_curtis_NMDS/
-    +-- 05_piecewise_qr/
-    +-- RDA_analysis/
 ```
 
 ---
 
 ## Source Package
 
-```
-src/zci/
-+-- core/       Statistical algorithms (PCA, clustering, LDA, NMDS, RDA, quantile regression, ZCI)
-+-- io/         Data readers and writers
-+-- models/     Result dataclasses for each stage
-+-- pipeline/   High-level orchestration (one module per stage)
-+-- viz/        Plotting functions (maps, PCA, clustering, LDA, NMDS, RDA, quantile regression)
-```
+The refactored package is intentionally layered.
+
+| Package | Responsibility |
+| --- | --- |
+| `src/zci/io/` | Read raw workbooks and write stage outputs. |
+| `src/zci/core/` | Statistical methods and transforms: PCA, clustering, MRT, LDA, RDA, NMDS, ZCI scoring, piecewise QR, ANOVA, threshold sensitivity. |
+| `src/zci/models/` | Lightweight result dataclasses returned by the core and pipeline layers. |
+| `src/zci/pipeline/` | High-level orchestration modules such as `pollution_assessment`, `taxa_assemblage`, `mrt`, `bray_curtis_nmds`, `piecewise_qr_pipeline`, `rda_analysis`, and `threshold_sensitivity`. |
+| `src/zci/viz/` | Stage-specific plotting helpers for PCA, clustering, MRT, LDA, RDA, NMDS, threshold sensitivity, maps, and QR figures. |
+
+In short: `run_*.py` scripts are now thin entry points, while `src/zci/` holds the actual implementation.
