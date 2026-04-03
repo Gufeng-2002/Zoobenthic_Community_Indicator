@@ -1,21 +1,22 @@
-"""Three-panel cluster analysis figure.
+"""Cluster analysis figures.
 
-Left   : geographic map of reference sites coloured by cluster.
-Upper-R: z-scored environmental-variable bar chart (± SEM).
-Lower-R: relative-abundance taxa bar chart (± SEM).
+Builds three standalone figures that were previously combined into a
+single multi-panel layout:
 
-Both bar panels carry ANOVA significance stars positioned just to the
-right of the tallest bar group.
+* geographic map of reference sites coloured by cluster
+* z-scored environmental-variable bar chart (± SEM)
+* relative-abundance taxa bar chart (± SEM)
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Dict, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 from scipy import stats as sp_stats
 
 from .map_plots import plot_corridor_map
@@ -66,6 +67,14 @@ _ENV_SHORT: dict[str, str] = {
     "MPS (Phi)":                         "MPS (Phi)",
     "LOI (%)":                           "LOI (%)",
 }
+
+
+def _cluster_color(cluster_id: int) -> str:
+    """Return the canonical display color for a 1-indexed cluster ID."""
+    color_idx = max(0, int(cluster_id) - 1)
+    if color_idx < len(CLUSTER_COLORS):
+        return CLUSTER_COLORS[color_idx]
+    return CLUSTER_COLORS[color_idx % len(CLUSTER_COLORS)]
 
 
 # ------------------------------------------------------------------
@@ -171,10 +180,12 @@ def plot_cluster_panel(
     env_vars: Sequence[str] | None = None,
     taxa_order: Sequence[str] | None = None,
     map_func=None,
-    figsize: Tuple[float, float] = (19, 10),
+    map_figsize: Tuple[float, float] = (8.5, 8.5),
+    env_figsize: Tuple[float, float] = (9.5, 5.2),
+    taxa_figsize: Tuple[float, float] = (14.0, 6.8),
     label_fontsize: int = 12,
-) -> Tuple[plt.Figure, np.ndarray]:
-    """Three-panel cluster figure.
+) -> Dict[str, Tuple[plt.Figure, plt.Axes]]:
+    """Build standalone cluster figures for map, environment, and taxa.
 
     Parameters
     ----------
@@ -201,27 +212,22 @@ def plot_cluster_panel(
     map_func : callable, optional
         Custom map renderer ``(ax, maps_dir, ...) -> ax``.
         Defaults to :func:`plot_corridor_map`.
-    figsize : tuple
-        Figure size.
+    map_figsize / env_figsize / taxa_figsize : tuple
+        Figure size for each standalone output.
     label_fontsize : int
         Axis-label font size.
 
     Returns
     -------
-    fig, axes
+    dict
+        Mapping of ``{"map": (fig, ax), "env": (fig, ax), "taxa": (fig, ax)}``.
     """
     cluster_ids = sorted(cluster_labels.unique())
     n_clusters = len(cluster_ids)
-    colors = CLUSTER_COLORS[:n_clusters]
-
-    fig = plt.figure(figsize=figsize)
-    gs = fig.add_gridspec(2, 2, width_ratios=[1.1, 1.1], hspace=0.3, wspace=0.2)
-    ax_map = fig.add_subplot(gs[:, 0])
-    ax_env = fig.add_subplot(gs[0, 1])
-    ax_tax = fig.add_subplot(gs[1, 1])
-    plt.tight_layout()
+    colors = [_cluster_color(cid) for cid in cluster_ids]
 
     # ── LEFT: map ────────────────────────────────────────────────────
+    fig_map, ax_map = plt.subplots(figsize=map_figsize, constrained_layout=True)
     _map_renderer = map_func or plot_corridor_map
     _map_renderer(ax_map, maps_dir, annotate=True)
 
@@ -270,15 +276,26 @@ def plot_cluster_panel(
     env_sems = np.array(env_sems)
     env_display = [_ENV_SHORT.get(v, v) for v in env_vars]
 
+    fig_env, ax_env = plt.subplots(figsize=env_figsize, constrained_layout=True)
+
     _bar_with_stars(
         ax_env,
         np.arange(len(env_vars)),
         env_means, env_sems, cluster_ids,
         env_pvalues, list(env_vars), env_display,
         ylabel="Mean z-score (± SEM)",
-        title="(A) Standardized Habitat Features Across Clusters",
+        title="Standardized Habitat Features Across Clusters",
         colors=colors,
         one_sided_error=True,
+    )
+    env_handles = [
+        Patch(facecolor=_cluster_color(cid), edgecolor="black", label=f"Cluster {cid}")
+        for cid in cluster_ids
+    ]
+    ax_env.legend(
+        handles=env_handles,
+        loc="upper right",
+        framealpha=0.9,
     )
 
     # ── LOWER-RIGHT: taxa relative-abundance bars ────────────────────
@@ -296,15 +313,30 @@ def plot_cluster_panel(
     tax_means = np.array(tax_means)
     tax_sems = np.array(tax_sems)
 
+    fig_tax, ax_tax = plt.subplots(figsize=taxa_figsize, constrained_layout=True)
+
     _bar_with_stars(
         ax_tax,
         np.arange(len(taxa_order)),
         tax_means, tax_sems, cluster_ids,
         taxa_pvalues, taxa_order, taxa_order,
         ylabel="Mean Relative Abundance (± SE)",
-        title="(B) Reference Sites: Taxa by Cluster",
+        title="Reference Sites: Taxa by Cluster",
         colors=colors,
         one_sided_error=True,
     )
+    taxa_handles = [
+        Patch(facecolor=_cluster_color(cid), edgecolor="black", label=f"Cluster {cid}")
+        for cid in cluster_ids
+    ]
+    ax_tax.legend(
+        handles=taxa_handles,
+        loc="upper right",
+        framealpha=0.9,
+    )
 
-    return fig, np.array([ax_map, ax_env, ax_tax])
+    return {
+        "map": (fig_map, ax_map),
+        "env": (fig_env, ax_env),
+        "taxa": (fig_tax, ax_tax),
+    }

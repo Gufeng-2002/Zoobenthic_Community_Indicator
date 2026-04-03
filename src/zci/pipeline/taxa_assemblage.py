@@ -44,6 +44,7 @@ from ..models.lda import LDAResult
 from ..viz.clustering_plots import plot_dendrogram
 from ..viz.cluster_panel_plot import plot_cluster_panel, TAXA_DISPLAY_ORDER
 from ..viz.lda_plots import plot_lda_triplot, plot_cluster_comparison
+from ..viz.ordination_plots import save_env_pca_ordination
 from ..viz.taxa_trend_grid import plot_taxa_trend_grid, plot_taxa_trend_comparison, plot_env_trend_comparison
 
 
@@ -86,6 +87,7 @@ def taxa_assemblage_pipeline(
     n_mccv_iterations: int = 1000,
     mccv_test_size: float = 0.2,
     random_state: int | None = 42,
+    map_func=None,
     save_plots: bool = True,
     figure_formats: Sequence[str] = ("png",),
     table_formats: Sequence[str] = ("xlsx",),
@@ -219,9 +221,20 @@ def taxa_assemblage_pipeline(
     env_block = extract_block(data, "environmental", "raw")
     env_vars_present = [v for v in env_variables if v in env_block.columns]
     env_ref_raw = env_block.loc[labels_ref.index, env_vars_present]
+    lda_ref_index = env_ref_raw.dropna().index
+    if len(lda_ref_index) < len(env_ref_raw):
+        _log(
+            "       Dropping "
+            f"{len(env_ref_raw) - len(lda_ref_index)} reference sites with missing "
+            "environmental values for ANOVA/LDA."
+        )
+
+    env_ref_complete = env_ref_raw.loc[lda_ref_index]
+    labels_ref_complete = labels_ref.loc[lda_ref_index]
+    taxa_ref_complete = taxa_ref.loc[lda_ref_index]
 
     env_anova = anova_table(
-        env_ref_raw, labels_ref, env_vars_present,
+        env_ref_complete, labels_ref_complete, env_vars_present,
         transform=anova_transform, label_col="Variable",
     )
     save_table(env_anova, cc_tables / "anova_env",
@@ -229,7 +242,7 @@ def taxa_assemblage_pipeline(
     env_pvals = extract_pvalues(env_anova, label_col="Variable")
 
     taxa_anova = anova_table(
-        taxa_ref, labels_ref, list(taxa_ref.columns),
+        taxa_ref_complete, labels_ref_complete, list(taxa_ref_complete.columns),
         transform=anova_transform, label_col="Taxon",
     )
     save_table(taxa_anova, cc_tables / "anova_taxa",
@@ -240,26 +253,32 @@ def taxa_assemblage_pipeline(
     if save_plots:
         _log("[10/16] Saving cluster panel figure ...")
         sample_info = extract_block(data, "sample_info", "raw")
-        lat = sample_info.loc[labels_ref.index, "Latitude"]
-        lon = sample_info.loc[labels_ref.index, "Longitude"]
-        taxa_relabd = octave_to_relative_abundance(taxa_ref)
+        lat = sample_info.loc[labels_ref_complete.index, "Latitude"]
+        lon = sample_info.loc[labels_ref_complete.index, "Longitude"]
+        taxa_relabd = octave_to_relative_abundance(taxa_ref_complete)
 
-        fig_panel, _ = plot_cluster_panel(
-            cluster_labels=labels_ref,
+        panel_figures = plot_cluster_panel(
+            cluster_labels=labels_ref_complete,
             lat=lat,
             lon=lon,
-            env_data=env_ref_raw,
-            taxa_octave=taxa_ref,
+            env_data=env_ref_complete,
+            taxa_octave=taxa_ref_complete,
             taxa_relabd=taxa_relabd,
             env_pvalues=env_pvals,
             taxa_pvalues=taxa_pvals,
             maps_dir=maps_dir,
             env_vars=env_vars_present,
             taxa_order=TAXA_DISPLAY_ORDER,
+            map_func=map_func,
         )
-        save_figure(fig_panel, cc_figures / "cluster_panel",
-                    formats=figure_formats, verbose=verbose)
-        plt.close(fig_panel)
+        for suffix, (fig_panel, _) in panel_figures.items():
+            save_figure(
+                fig_panel,
+                cc_figures / f"cluster_{suffix}",
+                formats=figure_formats,
+                verbose=verbose,
+            )
+            plt.close(fig_panel)
 
     # -- 11. Save reference taxa clusters table ------------------------
     _log("[11/16] Saving reference taxa clusters table ...")
@@ -269,7 +288,11 @@ def taxa_assemblage_pipeline(
 
     # -- 12. Fit LDA on reference sites --------------------------------
     _log("[12/16] Fitting LDA on reference sites ...")
-    lda_fit = fit_lda(env_ref_raw, labels_ref.values, standardize=standardize_env)
+    lda_fit = fit_lda(
+        env_ref_complete,
+        labels_ref_complete.values,
+        standardize=standardize_env,
+    )
     _log(f"        Accuracy = {lda_fit.accuracy:.2%}")
 
     # -- 13. Wilks Lambda variable importance --------------------------
@@ -280,7 +303,7 @@ def taxa_assemblage_pipeline(
     # -- 14. Monte Carlo Cross-Validation ------------------------------
     _log(f"[14/16] MCCV ({n_mccv_iterations} iterations) ...")
     mccv = monte_carlo_cv(
-        env_ref_raw, labels_ref.values,
+        env_ref_complete, labels_ref_complete.values,
         standardize=standardize_env,
         n_iterations=n_mccv_iterations,
         test_size=mccv_test_size,
@@ -299,7 +322,12 @@ def taxa_assemblage_pipeline(
     save_table(wilks.axes_summary,
                cc_tables / "lda_axes_summary",
                formats=table_formats, verbose=verbose)
-    env_sig_table = build_env_significance_table(lda_fit, wilks, env_ref_raw, labels_ref)
+    env_sig_table = build_env_significance_table(
+        lda_fit,
+        wilks,
+        env_ref_complete,
+        labels_ref_complete,
+    )
     save_table(env_sig_table,
                cc_tables / "lda_env_significance",
                formats=table_formats, verbose=verbose)
@@ -332,6 +360,24 @@ def taxa_assemblage_pipeline(
         save_figure(fig_tri, cc_figures / "lda_triplot",
                     formats=figure_formats, verbose=verbose)
         plt.close(fig_tri)
+
+        # PCA ordination biplot in environmental space
+        _log("  Saving PCA ordination biplot ...")
+        env_short_names = [n.split("(")[0].strip() if "(" in n else n for n in env_vars_present]
+        lda_pred_ref = pd.Series(
+            lda_fit.predictions,
+            index=labels_ref_complete.index,
+            name="Predicted",
+        )
+        pca_path = save_env_pca_ordination(
+            env_ref=env_ref_complete,
+            true_labels=labels_ref_complete,
+            predicted_labels=lda_pred_ref,
+            output_path=cc_figures / "env_pca_ordination.png",
+            env_feature_names=env_short_names,
+        )
+        if verbose:
+            print(f"  > Saved figure: {pca_path}")
 
     # -- Save Phase 1 artifact -----------------------------------------
     augmented = result_clustering.to_augmented_dataframe()

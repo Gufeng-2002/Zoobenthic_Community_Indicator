@@ -28,6 +28,7 @@ from ..core.transforms import (
     octave_transform,
 )
 from ..core.anova import anova_table, extract_pvalues
+from ..core.lda import build_confusion_matrix_table
 from ..io.readers import extract_block, read_study_data
 from ..io.writers import save_table, save_figure
 from ..models.clustering import TAXA_COLUMNS
@@ -66,6 +67,7 @@ def mrt_pipeline(
     minsplit: int = 5,
     minbucket: int = 2,
     random_state: int | None = 42,
+    map_func=None,
     save_plots: bool = True,
     figure_formats: Sequence[str] = ("png",),
     table_formats: Sequence[str] = ("xlsx",),
@@ -117,7 +119,7 @@ def mrt_pipeline(
     data = read_study_data(data_path)
     _log(f"      {data.shape[0]} sites x {data.shape[1]} variables")
 
-    _log("[2/10] Reading Stage 1 artifact for SumRel scores...")
+    _log("[2/10] Reading Stage 1 artifact for site scores...")
     stage1 = pd.read_excel(stage1_artifact, header=[0, 1, 2], index_col=0)
     score_cols = [
         c for c in stage1.columns
@@ -126,7 +128,7 @@ def mrt_pipeline(
     if not score_cols:
         raise KeyError("No pollution score column found in Stage 1 artifact")
 
-    pollution_scores = stage1.loc[:, score_cols[0]].rename("SumRel_Score")
+    pollution_scores = stage1.loc[:, score_cols[0]].rename("Pollution_Score")
     _log(
         f"      Score range: [{pollution_scores.min():.4f}, {pollution_scores.max():.4f}]"
     )
@@ -262,14 +264,17 @@ def mrt_pipeline(
         print(f"  > Saved table: {merged_path}")
 
     # Confusion matrix: Ward_Cluster (true) vs Pre_Cluster (predicted)
-    confusion = pd.crosstab(
-        merged["Ward_Cluster"], merged["Pre_Cluster"],
-        rownames=["Ward_Cluster"], colnames=["Pre_Cluster"],
+    unique_clusters = sorted(merged["Ward_Cluster"].unique())
+    cluster_names = [f"Cluster {int(c)}" for c in unique_clusters]
+    from sklearn.metrics import confusion_matrix as _sk_cm
+    cm = _sk_cm(
+        merged["Ward_Cluster"].values,
+        merged["Pre_Cluster"].values,
+        labels=unique_clusters,
     )
-    confusion_path = cc_tables / f"{output_prefix}mrt_confusion_matrix.xlsx"
-    confusion.to_excel(confusion_path)
-    if verbose:
-        print(f"  > Saved table: {confusion_path}")
+    confusion_df = build_confusion_matrix_table(cm, cluster_names)
+    save_table(confusion_df, cc_tables / f"{output_prefix}mrt_confusion_matrix",
+               formats=table_formats, verbose=verbose)
 
     # Pickle artifact
     cc_artifacts.mkdir(parents=True, exist_ok=True)
@@ -311,7 +316,7 @@ def mrt_pipeline(
         lon = sample_info.loc[labels_ref.index, "Longitude"]
         taxa_relabd = octave_to_relative_abundance(taxa_ref_anova)
 
-        fig_panel, _ = plot_cluster_panel(
+        panel_figures = plot_cluster_panel(
             cluster_labels=labels_ref,
             lat=lat,
             lon=lon,
@@ -323,10 +328,16 @@ def mrt_pipeline(
             maps_dir=maps_dir,
             env_vars=env_vars_present,
             taxa_order=TAXA_DISPLAY_ORDER,
+            map_func=map_func,
         )
-        save_figure(fig_panel, cc_figures / f"{output_prefix}cluster_panel",
-                    formats=figure_formats, verbose=verbose)
-        plt.close(fig_panel)
+        for suffix, (fig_panel, _) in panel_figures.items():
+            save_figure(
+                fig_panel,
+                cc_figures / f"{output_prefix}cluster_{suffix}",
+                formats=figure_formats,
+                verbose=verbose,
+            )
+            plt.close(fig_panel)
 
         # PCA ordination biplot in environmental space
         _log("  Saving PCA ordination biplot ...")

@@ -40,7 +40,7 @@ if __name__ == "__main__":
         stage1_artifact=STAGE1_ARTIFACT,
         output_dir=OUTPUT_DIR,
         maps_dir=MAPS_DIR,
-        reference_quantile=0.20,
+        reference_quantile=0.23,
         taxa_transform="chord",
         n_clusters=3,
         label_map={1: 2,

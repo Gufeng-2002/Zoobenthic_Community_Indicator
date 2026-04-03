@@ -20,7 +20,9 @@ Writes : results/02_taxa_assemblage/reproduction_with_same_taxa_data/
              tables/anova_env.xlsx
              tables/anova_taxa.xlsx
              figures/ward_dendrogram.png
-             figures/cluster_panel.png
+             figures/cluster_map.png
+             figures/cluster_env.png
+             figures/cluster_taxa.png
 """
 
 from pathlib import Path
@@ -220,15 +222,15 @@ def run_reproduction(*, verbose: bool = True) -> None:
                formats=TABLE_FORMATS, verbose=verbose)
     taxa_pvals = extract_pvalues(taxa_anova, label_col="Taxon")
 
-    # ── C3. Cluster panel figure ─────────────────────────────────────
-    _log(f"\n[C3] Saving cluster panel figure …")
+    # ── C3. Standalone cluster figures ───────────────────────────────
+    _log(f"\n[C3] Saving cluster figures …")
     sample_info = extract_block(data, "sample_info", "raw")
     lat = sample_info.loc[present, "Latitude"]
     lon = sample_info.loc[present, "Longitude"]
 
     taxa_relabd = octave_to_relative_abundance(taxa_ref)
 
-    fig_panel, _ = plot_cluster_panel(
+    panel_figures = plot_cluster_panel(
         cluster_labels=labels_relabelled,
         lat=lat,
         lon=lon,
@@ -241,9 +243,14 @@ def run_reproduction(*, verbose: bool = True) -> None:
         env_vars=env_vars_present,
         taxa_order=TAXA_DISPLAY_ORDER,
     )
-    save_figure(fig_panel, figures_dir / "cluster_panel",
-                formats=FIGURE_FORMATS, verbose=verbose)
-    plt.close(fig_panel)
+    for suffix, (fig_panel, _) in panel_figures.items():
+        save_figure(
+            fig_panel,
+            figures_dir / f"cluster_{suffix}",
+            formats=FIGURE_FORMATS,
+            verbose=verbose,
+        )
+        plt.close(fig_panel)
 
     _log(f"\n✓ Reproduction complete.  Results in:\n  {OUTPUT_DIR}")
 

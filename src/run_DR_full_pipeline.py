@@ -1,38 +1,29 @@
 #!/usr/bin/env python
 """
-Run Full Pipeline – Detroit River (DR) Sites Only
-===================================================
+Run Detroit River Stage 1 + Stage 2 Pipelines
+=============================================
 
 Usage (from project root):
-    python src/run_DR_full_pipeline.py
+        python src/run_DR_full_pipeline.py
 
-Same 7-stage workflow as the SCDRS pipeline, but restricted to Detroit
-River sites (``Waterbody == "DR"``).  Differences from SCDRS:
+This runner is limited to the first three script-equivalent steps for the
+Detroit River subset only:
 
-  * Pre-filters the data to DR sites only and writes a separate Excel.
-  * From RDA onward, includes the extra environmental variable
-    ``"Velocity  at bottom (m/sec)"`` in the environmental block.
-  * Stage 4 uses lighter settings (fewer taus, smaller bootstrap,
-    fewer sensitivity fractions) for faster turnaround.
-  * All results go to ``results/DR_results/`` with the same sub-folder
-    structure as the SCDRS results/ layout.
+    1. Pre-filter DR sites from the full workbook.
+    2. Run Stage 1 outputs into ``results/DR_results/01_pollution_assessment``.
+    3. Run Stage 2 MRT outputs into
+         ``results/DR_results/02_taxa_assemblage/MRT_Method``.
+    4. Run Stage 2 WardsLDA outputs into
+         ``results/DR_results/02_taxa_assemblage/Wards_LDA``.
 
-Order:
-    1. Pre-filter — extract DR sites, save as new Excel workbook
-    2. Stage 1   — Pollution PCA
-    3. Stage RDA  — Redundancy Analysis  (with Velocity)
-    4. Stage 2   — Taxa Assemblage Clustering
-    5. Hindsight  — Remap cluster labels + ANOVA + cluster panel (with Velocity)
-    6. Stage 3   — LDA Classification (with Velocity)
-    7. Stage 3   — Bray–Curtis NMDS + ZCI
-    8. Stage 4   — Piecewise Quantile Regression (fast settings)
+No downstream RDA, hindsight relabel, LDA-only, NMDS, or PQR stages are run
+from this entrypoint.
 """
 
 import time
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
 # ── project root ─────────────────────────────────────────────────────
 
@@ -49,22 +40,24 @@ DR_DATA_PATH = (
     / "DR_env_taxa_chemical.xlsx"
 )
 MAPS_DIR = PROJECT_ROOT / "data" / "maps"
+BENCHMARK_PATH = (
+    PROJECT_ROOT / "data" / "TEC_PEC_consensus" / "10_chemicals_TEC_PEC.xlsx"
+)
 
-# ── DR result folder (mirrors results/ structure) ──────────────────────
+# ── DR result folder (mirrors baseline results/ structure) ─────────────
 
 DR_RESULTS = PROJECT_ROOT / "results" / "DR_results"
 
 STAGE1_DIR = DR_RESULTS / "01_pollution_assessment"
-RDA_DIR    = DR_RESULTS / "RDA_analysis"
 STAGE2_DIR = DR_RESULTS / "02_taxa_assemblage"
-STAGE3_DIR = DR_RESULTS / "03_bray_curtis_NMDS"
-STAGE4_DIR = DR_RESULTS / "04_piecewise_qr"
 
 # Artifact paths
-STAGE1_ARTIFACT = STAGE1_DIR / "PCA_Stressors" / "artifacts" / "01_updated_data.xlsx"
-STAGE2_ARTIFACT = STAGE2_DIR / "artifacts" / "02_updated_data.xlsx"
-STAGE2_HINDSIGHT_ARTIFACT = STAGE2_DIR / "artifacts" / "02_hindsight_updated_data.xlsx"
-STAGE3_ARTIFACT = STAGE3_DIR / "artifacts" / "03_updated_data.xlsx"
+SUMREL_STAGE1_ARTIFACT = (
+    STAGE1_DIR / "PCA_Stressors" / "artifacts" / "SumRel_01_updated_data.xlsx"
+)
+HZD_STAGE1_ARTIFACT = (
+    STAGE1_DIR / "HZD_Toxicity" / "artifacts" / "HZD_01_updated_data.xlsx"
+)
 
 # ── environmental variables ──────────────────────────────────────────
 
@@ -77,27 +70,22 @@ ENV_VARIABLES_BASE = [
     "LOI (%)",
 ]
 
-# DR has velocity available for all sites — add it from RDA onward
+# DR has velocity available for Stage 2 habitat-based classification
 ENV_VARIABLES_DR = ENV_VARIABLES_BASE + [
     "Velocity  at bottom (m/sec)",
 ]
+ENV_VARIABLES_DR_SHORT = ["Depth", "DO", "Temp", "MPS", "LOI", "Velocity"]
 
 
 # ── imports ──────────────────────────────────────────────────────────
 
 from zci.io.readers import read_study_data, extract_block
 from zci.pipeline.pollution_assessment import pollution_pca_pipeline
-from zci.pipeline.rda_analysis import rda_pipeline
+from zci.pipeline.hzd_scoring import hzd_scoring_pipeline
+from zci.pipeline.threshold_sensitivity import score_focus_pipeline
+from zci.pipeline.mrt import mrt_pipeline
 from zci.pipeline.taxa_assemblage import taxa_assemblage_pipeline
-from zci.pipeline.lda_classification import lda_pipeline
-from zci.pipeline.bray_curtis_nmds import nmds_pipeline
-from zci.pipeline.piecewise_qr_pipeline import pqr_pipeline
 from zci.viz.map_plots import plot_dr_bifurcation, plot_dr_map
-
-from run_hindsight_relabel import (
-    relabel_clusters,
-    run_anova_and_panel,
-)
 
 
 # ── helpers ──────────────────────────────────────────────────────────
@@ -146,21 +134,10 @@ def _filter_dr_sites(src_path: Path, dst_path: Path) -> int:
     return n_dr
 
 
-# ── main pipeline ────────────────────────────────────────────────────
+def _run_stage1() -> None:
+    _banner("STAGE 1 — Pollution Assessment  (DR sites)")
 
-def run_dr_full_pipeline() -> None:
-    t0 = time.time()
-
-    # ==================================================================
-    #  0. PRE-FILTER — Extract Detroit River sites
-    # ==================================================================
-    n_dr = _filter_dr_sites(ORIGINAL_DATA_PATH, DR_DATA_PATH)
-
-    # ==================================================================
-    #  1. STAGE 1 — Pollution PCA  (same as SCDRS but on DR data)
-    # ==================================================================
-    _banner("STAGE 1 — Pollution PCA  (DR sites)")
-    pollution_pca_pipeline(
+    result = pollution_pca_pipeline(
         data_path=DR_DATA_PATH,
         output_dir=STAGE1_DIR / "PCA_Stressors",
         pollution_standardize=True,
@@ -173,182 +150,132 @@ def run_dr_full_pipeline() -> None:
         save_plots=True,
     )
 
-    # ==================================================================
-    #  2. STAGE RDA — Redundancy Analysis  (+Velocity)
-    # ==================================================================
-    _banner("STAGE RDA — Redundancy Analysis  (DR, +Velocity)")
-    rda_pipeline(
+    stressor_pcs = result.pca_result.scores
+
+    hzd_result = hzd_scoring_pipeline(
         data_path=DR_DATA_PATH,
-        stage1_artifact=STAGE1_ARTIFACT,
-        output_dir=RDA_DIR,
-        env_variables=ENV_VARIABLES_DR,
-        reference_quantile=0.20,
-        standardize_env=True,
-        log_transform_env=False,
-        taxa_transform="octave",
-        n_permutations=999,
-        random_state=42,
-        cluster_column="Cluster",
+        output_dir=STAGE1_DIR / "HZD_Toxicity",
+        benchmark_path=BENCHMARK_PATH,
+        quotient_type="TEC",
+        maps_dir=MAPS_DIR,
+        threshold_quantile=0.20,
+        bifurcation_plot_func=plot_dr_bifurcation,
         save_plots=True,
     )
 
-    # ==================================================================
-    #  3. STAGE 2 — Taxa Assemblage Clustering
-    # ==================================================================
-    _banner("STAGE 2 — Taxa Assemblage Clustering  (DR sites)")
-    taxa_assemblage_pipeline(
+    focus_thresholds = np.arange(0.05, 1.01, 0.02).round(2)
+    for score, label in (
+        (result.sumrel_score, "SumRel"),
+        (result.maxrel_score, "MaxRel"),
+        (hzd_result.hzd_score, "HZD"),
+    ):
+        score_focus_pipeline(
+            data_path=DR_DATA_PATH,
+            output_dir=STAGE1_DIR / f"{label}_Focus",
+            score=score,
+            score_label=label,
+            env_variables=ENV_VARIABLES_BASE,
+            stressor_predictors=stressor_pcs,
+            thresholds=focus_thresholds,
+            rda_threshold=0.22,
+            taxa_transform="octave",
+            shade_range=(0.20, 0.26),
+            standardize_env=False,
+            log_transform_env=False,
+            save_plots=True,
+        )
+
+
+def _run_stage2_mrt() -> None:
+    _banner("STAGE 2 — MRT  (DR sites)")
+    result = mrt_pipeline(
         data_path=DR_DATA_PATH,
-        stage1_artifact=STAGE1_ARTIFACT,
-        output_dir=STAGE2_DIR,
+        stage1_artifact=SUMREL_STAGE1_ARTIFACT,
+        output_dir=STAGE2_DIR / "MRT_Method",
+        maps_dir=MAPS_DIR,
+        output_prefix="",
+        env_variables=ENV_VARIABLES_DR,
+        env_short=ENV_VARIABLES_DR_SHORT,
+        response_transform="octave",
         reference_quantile=0.20,
+        n_clusters=3,
+        k_folds=5,
+        cv_perms=10,
+        minsplit=3,
+        minbucket=2,
+        random_state=42,
+        map_func=plot_dr_map,
+        verbose=True,
+    )
+    print(f"\n{result.summary()}")
+
+
+def _run_stage2_wards_lda() -> None:
+    _banner("STAGE 2 — WardsLDA  (DR sites)")
+    results = taxa_assemblage_pipeline(
+        data_path=DR_DATA_PATH,
+        stage1_artifact=SUMREL_STAGE1_ARTIFACT,
+        output_dir=STAGE2_DIR / "Wards_LDA",
+        maps_dir=MAPS_DIR,
+        reference_quantile=0.23,
         taxa_transform="octave",
         n_clusters=3,
-        save_plots=True,
-    )
-
-    # ==================================================================
-    #  4. HINDSIGHT RELABEL — Remap clusters + ANOVA + panel (+Velocity)
-    # ==================================================================
-    _banner("HINDSIGHT RELABEL — Remap clusters + ANOVA + Cluster Panel  (DR)")
-
-    # First, inspect cluster distribution to decide the label map.
-    # Read the Stage 2 artifact to see the distribution.
-    _tmp_df = pd.read_excel(STAGE2_ARTIFACT, header=[0, 1, 2], index_col=0)
-    _cluster_key = ("02_taxa_assemblage", "raw", "Cluster")
-    if _cluster_key not in _tmp_df.columns:
-        _cands = [c for c in _tmp_df.columns if "Cluster" in str(c)]
-        _cluster_key = _cands[0] if _cands else _cluster_key
-    _clusters = _tmp_df[_cluster_key].dropna()
-    _dist = _clusters.value_counts().sort_index()
-    print(f"\n  Stage 2 cluster distribution (before relabel):")
-    for g, n in _dist.items():
-        print(f"    Cluster {int(g)}: {n} sites")
-
-    # Auto-determine label map: merge the smallest cluster into Cluster 1
-    # if there are 3 clusters and the smallest is very small.
-    _unique = sorted(_dist.index)
-    if len(_unique) == 3:
-        # Find the cluster with the fewest sites (excluding Cluster 1)
-        _others = {int(g): int(n) for g, n in _dist.items() if int(g) != 1}
-        _smallest_label = min(_others, key=_others.get)
-        _smallest_size = _others[_smallest_label]
-        if _smallest_size <= max(5, int(0.15 * len(_clusters))):
-            label_map = {_smallest_label: 1}
-            print(f"  → Auto label map: {label_map}  "
-                  f"(merging {_smallest_size}-site cluster into Cluster 1)")
-        else:
-            label_map = {}
-            print(f"  → No relabel needed (all clusters are substantial)")
-    elif len(_unique) == 2:
-        label_map = {}
-        print(f"  → Two clusters found — no relabel needed")
-    else:
-        label_map = {}
-        print(f"  → {len(_unique)} clusters found — keeping as-is")
-
-    if label_map:
-        relabelled_df = relabel_clusters(
-            artifact_path=STAGE2_ARTIFACT,
-            output_path=STAGE2_HINDSIGHT_ARTIFACT,
-            label_map=label_map,
-        )
-    else:
-        # No relabelling — just copy the artifact
-        import shutil
-        shutil.copy2(STAGE2_ARTIFACT, STAGE2_HINDSIGHT_ARTIFACT)
-        relabelled_df = _tmp_df
-        print("  → Copied Stage 2 artifact as-is (no relabel).")
-
-    run_anova_and_panel(
-        data_path=DR_DATA_PATH,
-        relabelled_artifact=relabelled_df,
-        output_dir=STAGE2_DIR,
-        maps_dir=MAPS_DIR,
+        label_map={1: 2, 2: 1},
         env_variables=ENV_VARIABLES_DR,
-        anova_transform="none",
-        map_func=plot_dr_map,
-        figure_formats=("png",),
-        table_formats=("xlsx",),
-    )
-
-    # ==================================================================
-    #  5. STAGE 3 — LDA Classification  (+Velocity)
-    # ==================================================================
-    _banner("STAGE 3 — LDA Classification  (DR, +Velocity)")
-    lda_pipeline(
-        data_path=DR_DATA_PATH,
-        stage1_artifact=STAGE1_ARTIFACT,
-        stage2_artifact=STAGE2_HINDSIGHT_ARTIFACT,
-        output_dir=STAGE3_DIR,
-        env_variables=ENV_VARIABLES_DR,
-        reference_quantile=0.20,
         standardize_env=True,
         n_mccv_iterations=1000,
         mccv_test_size=0.2,
         random_state=42,
+        map_func=plot_dr_map,
         save_plots=True,
     )
 
-    # ==================================================================
-    #  6. STAGE 3 — Bray–Curtis NMDS + ZCI  (same method/settings)
-    # ==================================================================
-    _banner("STAGE 3 — Bray–Curtis NMDS + ZCI  (DR sites)")
-    nmds_pipeline(
-        data_path=DR_DATA_PATH,
-        stage1_artifact=STAGE1_ARTIFACT,
-        stage2_artifact=STAGE2_ARTIFACT,
-        output_dir=STAGE3_DIR,
-        nmds_n_ep=5,
-        zci_config={
-            1: {"N_EP": 5, "Method": "BC-Direct"},
-            2: {"N_EP": 5, "Method": "BC-Direct"},
-            3: {"N_EP": 5, "Method": "BC-Direct"},
-        },
-        n_components=2,
-        n_nmds_iterations=3,
-        max_iter_per_run=1000,
-        n_init_first=10,
-        n_init_subsequent=4,
-        random_state=42,
-        save_plots=True,
-        figure_formats=("png",),
-        table_formats=("xlsx",),
+    clustering = results["clustering"]
+    lda = results["lda"]
+    print(f"\n{clustering.summary()}")
+    print(f"{lda.summary()}")
+    print("\nCluster distribution (reference sites only):")
+    print(results["labels_ref"].value_counts().sort_index())
+    print(f"\nTotal reference sites: {results['ref_mask'].sum()}")
+
+    print("\n-- LDA Axes Summary --")
+    print(lda.wilks.axes_summary.to_string())
+    print("\n-- Variable Importance --")
+    print(
+        lda.wilks.variable_importance[
+            ["Delta Wilks' Lambda", "F-statistic", "p-value", "Significance"]
+        ].to_string()
     )
 
+
+# ── main pipeline ────────────────────────────────────────────────────
+
+def run_dr_full_pipeline() -> None:
+    t0 = time.time()
+
     # ==================================================================
-    #  7. STAGE 4 — Piecewise Quantile Regression  (fast settings)
+    #  0. PRE-FILTER — Extract Detroit River sites
     # ==================================================================
-    _banner("STAGE 4 — Piecewise Quantile Regression  (DR, fast settings)")
-    pqr_pipeline(
-        stage1_artifact=STAGE1_ARTIFACT,
-        stage2_artifact=STAGE2_ARTIFACT,
-        stage3_artifact=STAGE3_ARTIFACT,
-        output_dir=STAGE4_DIR,
-        n_breakpoints=1,
-        # Fewer quantile levels: 7 instead of 17
-        taus=[0.10, 0.25, 0.40, 0.50, 0.60, 0.75, 0.90],
-        highlight_taus=(0.25, 0.50, 0.75),
-        # Smaller bootstrap
-        n_boot=200,
-        confidence=0.90,
-        grid_size=30,
-        search_range=(0.4, 0.6),
-        # Lighter sensitivity analysis
-        run_sensitivity=True,
-        sensitivity_tau=0.50,
-        sensitivity_fracs=[0.20, 0.40, 0.60, 0.80, 1.00],
-        sensitivity_repeats=5,
-        sensitivity_boot=100,
-        min_cluster_size=15,
-        random_state=42,
-        save_plots=True,
-        figure_formats=("png",),
-        table_formats=("xlsx",),
-    )
+    n_dr = _filter_dr_sites(ORIGINAL_DATA_PATH, DR_DATA_PATH)
+
+    # ==================================================================
+    #  1. STAGE 1 — Pollution Assessment
+    # ==================================================================
+    _run_stage1()
+
+    # ==================================================================
+    #  2. STAGE 2 — MRT
+    # ==================================================================
+    _run_stage2_mrt()
+
+    # ==================================================================
+    #  3. STAGE 2 — WardsLDA
+    # ==================================================================
+    _run_stage2_wards_lda()
 
     # ==================================================================
     elapsed = time.time() - t0
-    _banner(f"DR FULL PIPELINE COMPLETE — {elapsed:.1f} s")
+    _banner(f"DR STAGE 1 + STAGE 2 PIPELINES COMPLETE — {elapsed:.1f} s")
 
 
 if __name__ == "__main__":

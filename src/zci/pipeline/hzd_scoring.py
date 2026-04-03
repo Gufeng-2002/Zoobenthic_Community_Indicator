@@ -11,6 +11,8 @@ tables/
     hzd_benchmark_summary.xlsx    chemicals used + TEC / PEC values
 figures/
     HZD_corridor_bifurcation.png  spatial map coloured by HZD score
+artifacts/
+    HZD_01_updated_data.xlsx      Stage 1-style MultiIndex artifact with HZD score
 """
 
 from __future__ import annotations
@@ -59,6 +61,7 @@ def hzd_scoring_pipeline(
     quotient_type: str = "PEC",
     maps_dir: str | Path | None = None,
     threshold_quantile: float = 0.20,
+    bifurcation_plot_func=None,
     save_plots: bool = True,
     figure_formats: Sequence[str] = ("png",),
     table_formats: Sequence[str] = ("xlsx",),
@@ -86,6 +89,7 @@ def hzd_scoring_pipeline(
     output_dir = Path(output_dir)
     tables_dir = output_dir / "tables"
     figures_dir = output_dir / "figures"
+    artifacts_dir = output_dir / "artifacts"
 
     def _log(msg: str) -> None:
         if verbose:
@@ -150,12 +154,37 @@ def hzd_scoring_pipeline(
         formats=table_formats, verbose=verbose,
     )
 
-    # ── 6. Corridor map ──────────────────────────────────────────────
-    if save_plots and maps_dir is not None:
-        _log("  [5] Saving corridor map …")
-        sample_info = extract_block(data, "sample_info", "raw")
+    # ── 6. Save Stage 1-style artifact ───────────────────────────────
+    _log("  [5] Saving Stage 1 artifact …")
+    hzd_score_named = hzd_score.rename("HZD_Score")
+    hzd_category_named = hzd_category.rename("HZD_Category").astype(str)
+    artifact_df = pd.DataFrame(
+        {
+            "HZD_Score": hzd_score_named,
+            "HZD_Category": hzd_category_named,
+        },
+        index=hzd_score.index,
+    )
+    artifact_df.columns = pd.MultiIndex.from_tuples(
+        [
+            ("01_pollution_assessment", "raw", "HZD_Score"),
+            ("01_pollution_assessment", "raw", "HZD_Category"),
+        ],
+        names=["block", "subblock", "var"],
+    )
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    artifact_path = artifacts_dir / "HZD_01_updated_data.xlsx"
+    artifact_df.to_excel(artifact_path)
+    if verbose:
+        print(f"  ✓ Saved augmented data: {artifact_path}")
 
-        fig_map, _ = plot_corridor_bifurcation(
+    # ── 7. Corridor map ──────────────────────────────────────────────
+    if save_plots and maps_dir is not None:
+        _log("  [6] Saving corridor map …")
+        sample_info = extract_block(data, "sample_info", "raw")
+        map_plotter = bifurcation_plot_func or plot_corridor_bifurcation
+
+        fig_map, _ = map_plotter(
             scores=hzd_score,
             lat=sample_info["Latitude"],
             lon=sample_info["Longitude"],
