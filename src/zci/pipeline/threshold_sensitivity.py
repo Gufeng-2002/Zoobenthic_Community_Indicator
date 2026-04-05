@@ -48,7 +48,7 @@ def score_focus_pipeline(
     env_variables: Sequence[str] | None = None,
     stressor_predictors: pd.DataFrame | None = None,
     thresholds: Sequence[float] | None = np.arange(0.05, 1.01, 0.02).round(2),
-    rda_threshold: float = 0.20,
+    rda_threshold: int | float = 0.20,
     taxa_transform: str = "octave",
     shade_range: Tuple[float, float] | None = None,
     standardize_env: bool = False,
@@ -157,13 +157,15 @@ def score_focus_pipeline(
         )
 
     # ── 4. Comparison plots ──────────────────────────────────────────
+    n_total = len(score)
     if save_plots and stressor_metrics is not None:
         _log(f"  [4] Saving {score_label} comparison figures …")
 
         fig_r2, _ = plot_r2_env_vs_stressor(
             env_metrics, stressor_metrics,
             score_label=score_label,
-            shade_range=shade_range, taxa_transform=taxa_transform,
+            shade_range=shade_range, n_total=n_total,
+            taxa_transform=taxa_transform,
         )
         save_figure(
             fig_r2, figures_dir / f"{score_label}_r2_env_vs_stressor",
@@ -174,7 +176,8 @@ def score_focus_pipeline(
         fig_pf, _ = plot_pseudoF_env_vs_stressor(
             env_metrics, stressor_metrics,
             score_label=score_label,
-            shade_range=shade_range, taxa_transform=taxa_transform,
+            shade_range=shade_range, n_total=n_total,
+            taxa_transform=taxa_transform,
         )
         save_figure(
             fig_pf, figures_dir / f"{score_label}_pseudoF_env_vs_stressor",
@@ -185,7 +188,8 @@ def score_focus_pipeline(
         fig_pv, _ = plot_pvalue_env_vs_stressor(
             env_metrics, stressor_metrics,
             score_label=score_label,
-            shade_range=shade_range, taxa_transform=taxa_transform,
+            shade_range=shade_range, n_total=n_total,
+            taxa_transform=taxa_transform,
         )
         save_figure(
             fig_pv, figures_dir / f"{score_label}_pvalue_env_vs_stressor",
@@ -197,7 +201,8 @@ def score_focus_pipeline(
             fig_vif, _ = plot_vif_env_vs_stressor(
                 env_metrics, stressor_metrics,
                 score_label=score_label,
-                shade_range=shade_range, taxa_transform=taxa_transform,
+                shade_range=shade_range, n_total=n_total,
+                taxa_transform=taxa_transform,
             )
             save_figure(
                 fig_vif, figures_dir / f"{score_label}_vif_env_vs_stressor",

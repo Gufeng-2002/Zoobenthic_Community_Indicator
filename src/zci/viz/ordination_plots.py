@@ -25,6 +25,7 @@ def plot_env_pca_ordination(
     arrow_scale: float = 1.0,
     figsize: tuple[float, float] = (9, 8),
     dpi: int = 180,
+    title: str | None = None,
 ) -> tuple[plt.Figure, plt.Axes]:
     """Create PCA biplot of reference sites coloured by prediction accuracy.
 
@@ -119,7 +120,7 @@ def plot_env_pca_ordination(
     ax.set_xlabel(f"PC1 ({var_explained[0]:.1f}%)", fontsize=12)
     ax.set_ylabel(f"PC2 ({var_explained[1]:.1f}%)", fontsize=12)
     ax.set_title(
-        "PCA Ordination of Reference Sites in Environmental Space",
+        title or "PCA Ordination of Least Polluted Sites in Environmental Space",
         fontsize=13, fontweight="bold", pad=12,
     )
 

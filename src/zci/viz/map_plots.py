@@ -18,12 +18,14 @@ plot_dr_map (helper)
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Dict, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
+
+from ..core.clustering import resolve_n_ref
 
 # ---------------------------------------------------------------------------
 # Waterbody marker / colour defaults
@@ -115,7 +117,7 @@ def plot_corridor_bifurcation(
     waterbody: pd.Series,
     maps_dir: str | Path,
     *,
-    threshold_quantile: float = 0.20,
+    threshold_quantile: int | float = 0.20,
     score_label: str = "Pollution Score",
     waterbody_styles: Dict[str, Dict] | None = None,
     above_color: str | None = None,
@@ -130,8 +132,8 @@ def plot_corridor_bifurcation(
     ----------
     Sites plotted on the Huron-Erie Corridor.
     **Colour** encodes the three-way split:
-      * green  – bottom *threshold_quantile* (least polluted)
-      * red    – top *threshold_quantile* (most polluted)
+      * green  – lowest *n* sites (least polluted)
+      * red    – most polluted *n* sites
       * gray   – everything in between
     **Marker shape** encodes the water body but is *not* shown in the legend.
 
@@ -149,9 +151,10 @@ def plot_corridor_bifurcation(
         Waterbody label per site (``"DR"``, ``"SCR"``, ``"LSC"``).
     maps_dir : str or Path
         Path to ``data/maps/`` folder with shapefiles.
-    threshold_quantile : float
-        Quantile (0–1) for the lower cut.  The upper cut is
-        ``1 − threshold_quantile``.  Default ``0.20``.
+    threshold_quantile : int or float
+        If ``> 1`` → absolute number of sites for the lower/upper groups.
+        If ``<= 1`` → proportion (0–1) for the lower cut; the upper cut
+        is ``1 − threshold_quantile``.  Default ``0.20``.
     score_label : str
         Axis label for the score variable.
     waterbody_styles : dict, optional
@@ -174,12 +177,12 @@ def plot_corridor_bifurcation(
     c_above  = above_color  or _BIFURCATION_COLORS["above"]
 
     # ── thresholds ────────────────────────────────────────────────────────
-    lower_q = threshold_quantile
-    upper_q = 1.0 - threshold_quantile
-    lower_val = scores.quantile(lower_q)
-    upper_val = scores.quantile(upper_q)
-    pct_lo = f"{lower_q * 100:.0f}%"
-    pct_hi = f"{upper_q * 100:.0f}%"
+    n_total = len(scores)
+    n_lo = resolve_n_ref(threshold_quantile, n_total)
+    n_hi = n_lo  # symmetric split
+
+    lower_val = scores.nsmallest(n_lo).max()
+    upper_val = scores.nlargest(n_hi).min()
 
     is_below  = scores <= lower_val
     is_above  = scores >= upper_val
@@ -188,6 +191,10 @@ def plot_corridor_bifurcation(
     n_below  = is_below.sum()
     n_middle = is_middle.sum()
     n_above  = is_above.sum()
+
+    # Labels always show the absolute count
+    lbl_below = f"Lowest {n_below} sites"
+    lbl_above = f"Most polluted {n_above} sites"
 
     # ── figure layout (tight gap) ─────────────────────────────────────────
     fig = plt.figure(figsize=figsize, dpi=300, constrained_layout=True)
@@ -223,11 +230,11 @@ def plot_corridor_bifurcation(
     # legend: colour only
     colour_handles = [
         mlines.Line2D([], [], color=c_below, marker="o", linestyle="None",
-                      markersize=9, label=f"Bottom {pct_lo} (n={n_below})"),
+                      markersize=9, label=lbl_below),
         mlines.Line2D([], [], color=c_middle, marker="o", linestyle="None",
                       markersize=9, label=f"Middle (n={n_middle})"),
         mlines.Line2D([], [], color=c_above, marker="o", linestyle="None",
-                      markersize=9, label=f"Top {pct_lo} (n={n_above})"),
+                      markersize=9, label=lbl_above),
     ]
     ax_map.legend(
         handles=colour_handles,
@@ -247,18 +254,22 @@ def plot_corridor_bifurcation(
     n = len(sorted_scores)
     cum_prob = np.arange(1, n + 1) / n
 
+    # Compute proportion for ECDF y-axis placement
+    lower_q = n_below / n_total
+    upper_q = 1.0 - n_above / n_total
+
     ax_ecdf.step(sorted_scores, cum_prob, where="post", linewidth=2.5,
                  color="darkblue", alpha=0.8, label="ECDF")
 
     # lower threshold lines
     ax_ecdf.axhline(y=lower_q, color="red", ls="--", lw=2,
-                    label=f"{pct_lo} threshold", zorder=4)
+                    label=f"{lbl_below} threshold", zorder=4)
     ax_ecdf.axvline(x=lower_val, color="red", ls="--", lw=2,
                     alpha=0.7, zorder=4)
 
     # upper threshold lines
     ax_ecdf.axhline(y=upper_q, color="red", ls="--", lw=2,
-                    label=f"{pct_hi} threshold", zorder=4)
+                    label=f"{lbl_above} threshold", zorder=4)
     ax_ecdf.axvline(x=upper_val, color="red", ls="--", lw=2,
                     alpha=0.7, zorder=4)
 
@@ -267,7 +278,7 @@ def plot_corridor_bifurcation(
     ax_ecdf.fill_between(
         ref_scores, 0, lower_q,
         alpha=0.25, color=c_below,
-        label=f"Bottom {pct_lo} (n={n_below})",
+        label=lbl_below,
         zorder=1,
     )
 
@@ -276,7 +287,7 @@ def plot_corridor_bifurcation(
     ax_ecdf.fill_between(
         top_scores, upper_q, 1.0,
         alpha=0.20, color=c_above,
-        label=f"Top {pct_lo} (n={n_above})",
+        label=lbl_above,
         zorder=1,
     )
 
@@ -290,7 +301,7 @@ def plot_corridor_bifurcation(
 
     # annotation boxes
     ax_ecdf.annotate(
-        f"Lower = {lower_val:.3f}\n({pct_lo} of sites)",
+        f"Lower = {lower_val:.3f}\n({n_below} sites)",
         xy=(lower_val, lower_q),
         xytext=(lower_val - (sorted_scores[-1] - lower_val) * 0.5,
                 lower_q + 0.08),
@@ -300,7 +311,7 @@ def plot_corridor_bifurcation(
         arrowprops=dict(arrowstyle="->", color="red", lw=1.2),
     )
     ax_ecdf.annotate(
-        f"Upper = {upper_val:.3f}\n({pct_hi} of sites)",
+        f"Upper = {upper_val:.3f}\n({n_above} sites)",
         xy=(upper_val, upper_q),
         xytext=(upper_val - (sorted_scores[-1] - upper_val) * 1.2,
                 upper_q + 0.06),
@@ -380,7 +391,7 @@ def plot_dr_bifurcation(
     waterbody: pd.Series,
     maps_dir: str | Path,
     *,
-    threshold_quantile: float = 0.20,
+    threshold_quantile: int | float = 0.20,
     score_label: str = "Pollution Score",
     waterbody_styles: Dict[str, Dict] | None = None,
     above_color: str | None = None,
@@ -405,12 +416,12 @@ def plot_dr_bifurcation(
     c_above  = above_color  or _BIFURCATION_COLORS["above"]
 
     # ── thresholds ────────────────────────────────────────────────────────
-    lower_q = threshold_quantile
-    upper_q = 1.0 - threshold_quantile
-    lower_val = scores.quantile(lower_q)
-    upper_val = scores.quantile(upper_q)
-    pct_lo = f"{lower_q * 100:.0f}%"
-    pct_hi = f"{upper_q * 100:.0f}%"
+    n_total = len(scores)
+    n_lo = resolve_n_ref(threshold_quantile, n_total)
+    n_hi = n_lo
+
+    lower_val = scores.nsmallest(n_lo).max()
+    upper_val = scores.nlargest(n_hi).min()
 
     is_below  = scores <= lower_val
     is_above  = scores >= upper_val
@@ -419,6 +430,9 @@ def plot_dr_bifurcation(
     n_below  = is_below.sum()
     n_middle = is_middle.sum()
     n_above  = is_above.sum()
+
+    lbl_below = f"Lowest {n_below} sites"
+    lbl_above = f"Most polluted {n_above} sites"
 
     # ── figure layout ─────────────────────────────────────────────────────
     fig = plt.figure(figsize=figsize, dpi=300, constrained_layout=True)
@@ -452,11 +466,11 @@ def plot_dr_bifurcation(
     # legend: colour only
     colour_handles = [
         mlines.Line2D([], [], color=c_below, marker="o", linestyle="None",
-                      markersize=9, label=f"Bottom {pct_lo} (n={n_below})"),
+                      markersize=9, label=lbl_below),
         mlines.Line2D([], [], color=c_middle, marker="o", linestyle="None",
                       markersize=9, label=f"Middle (n={n_middle})"),
         mlines.Line2D([], [], color=c_above, marker="o", linestyle="None",
-                      markersize=9, label=f"Top {pct_lo} (n={n_above})"),
+                      markersize=9, label=lbl_above),
     ]
     ax_map.legend(
         handles=colour_handles,
@@ -476,15 +490,18 @@ def plot_dr_bifurcation(
     n = len(sorted_scores)
     cum_prob = np.arange(1, n + 1) / n
 
+    lower_q = n_below / n_total
+    upper_q = 1.0 - n_above / n_total
+
     ax_ecdf.step(sorted_scores, cum_prob, where="post", linewidth=2.5,
                  color="darkblue", alpha=0.8, label="ECDF")
 
     ax_ecdf.axhline(y=lower_q, color="red", ls="--", lw=2,
-                    label=f"{pct_lo} threshold", zorder=4)
+                    label=f"{lbl_below} threshold", zorder=4)
     ax_ecdf.axvline(x=lower_val, color="red", ls="--", lw=2,
                     alpha=0.7, zorder=4)
     ax_ecdf.axhline(y=upper_q, color="red", ls="--", lw=2,
-                    label=f"{pct_hi} threshold", zorder=4)
+                    label=f"{lbl_above} threshold", zorder=4)
     ax_ecdf.axvline(x=upper_val, color="red", ls="--", lw=2,
                     alpha=0.7, zorder=4)
 
@@ -492,14 +509,14 @@ def plot_dr_bifurcation(
     ax_ecdf.fill_between(
         ref_scores, 0, lower_q,
         alpha=0.25, color=c_below,
-        label=f"Bottom {pct_lo} (n={n_below})",
+        label=lbl_below,
         zorder=1,
     )
     top_scores = sorted_scores[sorted_scores >= upper_val]
     ax_ecdf.fill_between(
         top_scores, upper_q, 1.0,
         alpha=0.20, color=c_above,
-        label=f"Top {pct_lo} (n={n_above})",
+        label=lbl_above,
         zorder=1,
     )
 
@@ -511,7 +528,7 @@ def plot_dr_bifurcation(
         )
 
     ax_ecdf.annotate(
-        f"Lower = {lower_val:.3f}\n({pct_lo} of sites)",
+        f"Lower = {lower_val:.3f}\n({n_below} sites)",
         xy=(lower_val, lower_q),
         xytext=(lower_val - (sorted_scores[-1] - lower_val) * 0.5,
                 lower_q + 0.08),
@@ -521,7 +538,7 @@ def plot_dr_bifurcation(
         arrowprops=dict(arrowstyle="->", color="red", lw=1.2),
     )
     ax_ecdf.annotate(
-        f"Upper = {upper_val:.3f}\n({pct_hi} of sites)",
+        f"Upper = {upper_val:.3f}\n({n_above} sites)",
         xy=(upper_val, upper_q),
         xytext=(upper_val - (sorted_scores[-1] - upper_val) * 1.2,
                 upper_q + 0.06),

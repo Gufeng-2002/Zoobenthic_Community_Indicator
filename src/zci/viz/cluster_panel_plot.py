@@ -184,6 +184,7 @@ def plot_cluster_panel(
     env_figsize: Tuple[float, float] = (9.5, 5.2),
     taxa_figsize: Tuple[float, float] = (14.0, 6.8),
     label_fontsize: int = 12,
+    taxa_title: str | None = None,
 ) -> Dict[str, Tuple[plt.Figure, plt.Axes]]:
     """Build standalone cluster figures for map, environment, and taxa.
 
@@ -321,7 +322,7 @@ def plot_cluster_panel(
         tax_means, tax_sems, cluster_ids,
         taxa_pvalues, taxa_order, taxa_order,
         ylabel="Mean Relative Abundance (± SE)",
-        title="Reference Sites: Taxa by Cluster",
+        title=taxa_title or "Least Polluted Sites: Taxa by Cluster",
         colors=colors,
         one_sided_error=True,
     )

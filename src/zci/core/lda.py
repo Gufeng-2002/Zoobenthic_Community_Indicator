@@ -241,6 +241,7 @@ def monte_carlo_cv(
         all_true.extend(y_te.tolist())
         all_reports.append(classification_report(
             y_te, y_pred, target_names=cluster_names,
+            labels=sorted(np.unique(y)),
             output_dict=True, zero_division=0,
         ))
 

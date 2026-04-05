@@ -1,14 +1,15 @@
 """Stage 1 — HZD (Hazard) Toxicity Scoring Pipeline.
 
 Orchestrates:  read → extract chemical block → match benchmarks
-→ compute mean PEC quotient → classify → save tables + figures.
+→ compute McPhedran-style HZD effects → classify → save tables + figures.
 
 Outputs (under ``HZD_Toxicity/``)
 ---------------------------------
 tables/
-    hzd_site_scores.xlsx          per-site mean PEC-Q + category
-    hzd_chemical_quotients.xlsx   per-site × per-chemical quotient matrix
-    hzd_benchmark_summary.xlsx    chemicals used + TEC / PEC values
+    hzd_site_scores.xlsx          per-site HZD toxicity (%) + category
+    hzd_chemical_effects.xlsx     per-site × per-chemical HZD effect matrix
+    hzd_chemical_quotients.xlsx   per-site × per-chemical PEC quotient matrix
+    hzd_benchmark_summary.xlsx    chemicals used + TEC / PEC + curve parameters
 figures/
     HZD_corridor_bifurcation.png  spatial map coloured by HZD score
 artifacts/
@@ -28,7 +29,8 @@ from ..io.readers import read_study_data, extract_block
 from ..io.writers import save_table, save_figure
 from ..core.hzd import (
     load_tec_pec_benchmarks,
-    compute_hzd_score,
+    compute_hzd_curve_parameters,
+    compute_hzd_effect_matrix,
     classify_hzd,
 )
 
@@ -38,13 +40,16 @@ class HZDPipelineResult:
     """Container for HZD scoring outputs."""
 
     hzd_score: pd.Series
-    """Per-site mean PEC quotient (higher = more hazardous)."""
+    """Per-site HZD toxicity score on the 0–100 scale."""
 
     hzd_category: pd.Series
-    """Per-site hazard category (Minimal / Low / Moderate / High)."""
+    """Per-site hazard category on the HZD toxicity scale."""
+
+    effect_matrix: pd.DataFrame
+    """Sites × chemicals HZD effect percentages."""
 
     quotient_matrix: pd.DataFrame
-    """Sites × chemicals quotient matrix."""
+    """Sites × chemicals diagnostic PEC quotient matrix."""
 
     benchmarks: pd.DataFrame
     """TEC / PEC lookup used."""
@@ -58,9 +63,9 @@ def hzd_scoring_pipeline(
     output_dir: str | Path,
     benchmark_path: str | Path,
     *,
-    quotient_type: str = "PEC",
+    quotient_type: str | None = "TEC",
     maps_dir: str | Path | None = None,
-    threshold_quantile: float = 0.20,
+    threshold_quantile: int | float = 0.20,
     bifurcation_plot_func=None,
     save_plots: bool = True,
     figure_formats: Sequence[str] = ("png",),
@@ -77,8 +82,9 @@ def hzd_scoring_pipeline(
         Root output directory (e.g. ``results/01_pollution_assessment/HZD_Toxicity``).
     benchmark_path : path
         Path to the TEC/PEC benchmark Excel file.
-    quotient_type : {"PEC", "TEC"}
-        Which benchmark for the quotient denominator.
+    quotient_type : {"PEC", "TEC"} or None
+        Retained only for backward compatibility. The McPhedran HZD method
+        uses both TEC and PEC regardless of this argument.
     maps_dir : path or None
         Path to ``data/maps/`` folder for the corridor map.  ``None`` skips.
     threshold_quantile : float
@@ -96,7 +102,7 @@ def hzd_scoring_pipeline(
             print(msg)
 
     _log(f"\n{'=' * 60}")
-    _log("  HZD Toxicity Scoring (mean PEC quotient)")
+    _log("  HZD Toxicity Scoring (McPhedran hazard score)")
     _log(f"{'=' * 60}")
 
     # ── 1. Read data ─────────────────────────────────────────────────
@@ -110,31 +116,42 @@ def hzd_scoring_pipeline(
     _log(f"      {len(benchmarks)} chemicals in benchmark table")
 
     # ── 3. Extract chemical block and match ──────────────────────────
-    _log("  [3] Extracting chemical data & computing quotients …")
-    chem_all = extract_block(data, "chemical", "raw")
+    _log("  [3] Extracting chemical data & computing HZD effects …")
+    chem_all = extract_block(data, "chemical", "raw").apply(pd.to_numeric, errors="coerce")
     common = [c for c in benchmarks.index if c in chem_all.columns]
     _log(f"      Matched {len(common)} of {len(benchmarks)} benchmark chemicals: {common}")
 
     # ── 4. Compute HZD score ─────────────────────────────────────────
-    hzd_score = compute_hzd_score(
-        chem_all, benchmarks, quotient_type=quotient_type,
-    )
+    if quotient_type not in (None, "PEC", "TEC"):
+        raise ValueError(
+            f"quotient_type must be None, 'PEC', or 'TEC', got {quotient_type!r}"
+        )
+
+    benchmark_summary = benchmarks.loc[common].copy()
+    curve_params = compute_hzd_curve_parameters(benchmark_summary)
+    effect_matrix = compute_hzd_effect_matrix(chem_all[common], benchmark_summary)
+    hzd_score = effect_matrix.sum(axis=1, min_count=1).clip(lower=0.0, upper=100.0)
+    hzd_score.name = "HZD_Toxicity_Percent"
     hzd_category = classify_hzd(hzd_score)
 
-    _log(f"      HZD (mean {quotient_type}-Q) range: "
-         f"[{hzd_score.min():.4f}, {hzd_score.max():.4f}]")
+    benchmark_summary = benchmark_summary.join(curve_params)
+    benchmark_summary["TEC_Effect_%"] = 5.0
+    benchmark_summary["PEC_Effect_%"] = 50.0
+
+    _log(
+        f"      HZD toxicity (%) range: [{hzd_score.min():.4f}, {hzd_score.max():.4f}]"
+    )
     _log(f"      Category counts:\n{hzd_category.value_counts().to_string()}")
 
-    # Quotient matrix for per-chemical detail
-    bench_values = benchmarks.loc[common, quotient_type]
-    quotient_matrix = chem_all[common].div(bench_values, axis=1)
+    # Diagnostic PEC quotient matrix retained for comparability with prior output.
+    quotient_matrix = chem_all[common].div(benchmark_summary["PEC"], axis=1)
 
     # ── 5. Save tables ───────────────────────────────────────────────
     _log("  [4] Saving tables …")
 
     # Site scores
     site_df = pd.DataFrame({
-        f"mean_{quotient_type}_quotient": hzd_score,
+        "HZD_Toxicity_Percent": hzd_score,
         "category": hzd_category,
     })
     save_table(
@@ -142,15 +159,18 @@ def hzd_scoring_pipeline(
         formats=table_formats, verbose=verbose,
     )
 
-    # Chemical quotient matrix
+    save_table(
+        effect_matrix, tables_dir / "hzd_chemical_effects",
+        formats=table_formats, verbose=verbose,
+    )
+
     save_table(
         quotient_matrix, tables_dir / "hzd_chemical_quotients",
         formats=table_formats, verbose=verbose,
     )
 
-    # Benchmark summary
     save_table(
-        benchmarks.loc[common], tables_dir / "hzd_benchmark_summary",
+        benchmark_summary, tables_dir / "hzd_benchmark_summary",
         formats=table_formats, verbose=verbose,
     )
 
@@ -191,7 +211,7 @@ def hzd_scoring_pipeline(
             waterbody=sample_info["Waterbody"],
             maps_dir=maps_dir,
             threshold_quantile=threshold_quantile,
-            score_label="HZD (mean PEC-Q)",
+            score_label="HZD toxicity (%)",
         )
         save_figure(
             fig_map, figures_dir / "HZD_corridor_bifurcation",
@@ -203,7 +223,8 @@ def hzd_scoring_pipeline(
     return HZDPipelineResult(
         hzd_score=hzd_score,
         hzd_category=hzd_category,
+        effect_matrix=effect_matrix,
         quotient_matrix=quotient_matrix,
-        benchmarks=benchmarks,
+        benchmarks=benchmark_summary,
         data=data,
     )

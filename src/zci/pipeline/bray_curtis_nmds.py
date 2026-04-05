@@ -65,7 +65,7 @@ def nmds_pipeline(
     n_init_first: int = 10,
     n_init_subsequent: int = 4,
     # Pollution-score percentile cut-offs
-    reference_quantile: float = 0.20,
+    reference_quantile: int | float = 0.20,
     # Misc
     random_state: int = 42,
     save_plots: bool = True,

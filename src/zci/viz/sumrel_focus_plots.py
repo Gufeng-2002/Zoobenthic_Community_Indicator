@@ -20,7 +20,6 @@ from __future__ import annotations
 from typing import Tuple
 
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
 
@@ -69,6 +68,7 @@ def plot_r2_env_vs_stressor(
     *,
     score_label: str = "SumRel",
     shade_range: Tuple[float, float] | None = None,
+    n_total: int | None = None,
     taxa_transform: str | None = None,
     figsize: Tuple[float, float] = (8, 5),
     dpi: int = 300,
@@ -80,24 +80,25 @@ def plot_r2_env_vs_stressor(
     str_df = stressor_metrics.sort_values("threshold")
 
     ax.plot(
-        env_df["threshold"], env_df["r2_adj"],
+        env_df["n_sites"], env_df["r2_adj"],
         "o-", color="#1f77b4", lw=2, ms=5, label="Environmental",
     )
     ax.plot(
-        str_df["threshold"], str_df["r2_adj"],
+        str_df["n_sites"], str_df["r2_adj"],
         "s-", color="#ff7f0e", lw=2, ms=5, label="Stressors (PCA)",
     )
 
     ax.set_ylabel("Adjusted $R^2$", fontsize=12)
-    ax.set_xlabel("Cut-off Proportion", fontsize=12)
-    ax.xaxis.set_major_formatter(mtick.PercentFormatter(xmax=1.0))
+    ax.set_xlabel("Number of Reference Sites", fontsize=12)
     ax.grid(True, alpha=0.3)
 
-    if shade_range is not None:
+    if shade_range is not None and n_total is not None:
+        lo_n = max(int(shade_range[0] * n_total), 1)
+        hi_n = max(int(shade_range[1] * n_total), 1)
         ax.axvspan(
-            shade_range[0], shade_range[1],
+            lo_n, hi_n,
             color="gold", alpha=0.25, zorder=0,
-            label=f"Recommended: {shade_range[0]:.0%}\u2013{shade_range[1]:.0%}",
+            label=f"Recommended: {lo_n}\u2013{hi_n} sites",
         )
 
     ax.legend(fontsize=10)
@@ -118,6 +119,7 @@ def plot_pseudoF_env_vs_stressor(
     *,
     score_label: str = "SumRel",
     shade_range: Tuple[float, float] | None = None,
+    n_total: int | None = None,
     taxa_transform: str | None = None,
     figsize: Tuple[float, float] = (8, 5),
     dpi: int = 300,
@@ -129,11 +131,11 @@ def plot_pseudoF_env_vs_stressor(
     str_df = stressor_metrics.sort_values("threshold")
 
     ax.plot(
-        env_df["threshold"], env_df["global_F"],
+        env_df["n_sites"], env_df["global_F"],
         "o-", color="#1f77b4", lw=2, ms=5, label="Environmental",
     )
     ax.plot(
-        str_df["threshold"], str_df["global_F"],
+        str_df["n_sites"], str_df["global_F"],
         "s-", color="#ff7f0e", lw=2, ms=5, label="Stressors (PCA)",
     )
 
@@ -144,21 +146,23 @@ def plot_pseudoF_env_vs_stressor(
         crossing = _find_p_crossing(df, 0.05)
         if crossing is not None:
             t_cross, f_cross = crossing
+            n_cross = int(df.loc[(df["threshold"] - t_cross).abs().idxmin(), "n_sites"])
             ax.axhline(
                 f_cross, ls=":", color=c, lw=1.5, alpha=0.7,
-                label=f"{label_str} $p$=0.05: $F$={f_cross:.2f} (at {t_cross:.0%})",
+                label=f"{label_str} $p$=0.05: $F$={f_cross:.2f} (at {n_cross} sites)",
             )
 
     ax.set_ylabel("Global Pseudo-$F$", fontsize=12)
-    ax.set_xlabel("Cut-off Proportion", fontsize=12)
-    ax.xaxis.set_major_formatter(mtick.PercentFormatter(xmax=1.0))
+    ax.set_xlabel("Number of Reference Sites", fontsize=12)
     ax.grid(True, alpha=0.3)
 
-    if shade_range is not None:
+    if shade_range is not None and n_total is not None:
+        lo_n = max(int(shade_range[0] * n_total), 1)
+        hi_n = max(int(shade_range[1] * n_total), 1)
         ax.axvspan(
-            shade_range[0], shade_range[1],
+            lo_n, hi_n,
             color="gold", alpha=0.25, zorder=0,
-            label=f"Recommended: {shade_range[0]:.0%}\u2013{shade_range[1]:.0%}",
+            label=f"Recommended: {lo_n}\u2013{hi_n} sites",
         )
 
     ax.legend(fontsize=10)
@@ -179,6 +183,7 @@ def plot_pvalue_env_vs_stressor(
     *,
     score_label: str = "SumRel",
     shade_range: Tuple[float, float] | None = None,
+    n_total: int | None = None,
     taxa_transform: str | None = None,
     figsize: Tuple[float, float] = (8, 5),
     dpi: int = 300,
@@ -190,11 +195,11 @@ def plot_pvalue_env_vs_stressor(
     str_df = stressor_metrics.sort_values("threshold")
 
     ax.plot(
-        env_df["threshold"], env_df["global_p"],
+        env_df["n_sites"], env_df["global_p"],
         "o-", color="#1f77b4", lw=2, ms=5, label="Environmental",
     )
     ax.plot(
-        str_df["threshold"], str_df["global_p"],
+        str_df["n_sites"], str_df["global_p"],
         "s-", color="#ff7f0e", lw=2, ms=5, label="Stressors (PCA)",
     )
 
@@ -204,15 +209,16 @@ def plot_pvalue_env_vs_stressor(
     )
 
     ax.set_ylabel("Global Permutation $p$-value", fontsize=12)
-    ax.set_xlabel("Cut-off Proportion", fontsize=12)
-    ax.xaxis.set_major_formatter(mtick.PercentFormatter(xmax=1.0))
+    ax.set_xlabel("Number of Reference Sites", fontsize=12)
     ax.grid(True, alpha=0.3)
 
-    if shade_range is not None:
+    if shade_range is not None and n_total is not None:
+        lo_n = max(int(shade_range[0] * n_total), 1)
+        hi_n = max(int(shade_range[1] * n_total), 1)
         ax.axvspan(
-            shade_range[0], shade_range[1],
+            lo_n, hi_n,
             color="gold", alpha=0.25, zorder=0,
-            label=f"Recommended: {shade_range[0]:.0%}\u2013{shade_range[1]:.0%}",
+            label=f"Recommended: {lo_n}\u2013{hi_n} sites",
         )
 
     ax.legend(fontsize=10)
@@ -233,6 +239,7 @@ def plot_vif_env_vs_stressor(
     *,
     score_label: str = "SumRel",
     shade_range: Tuple[float, float] | None = None,
+    n_total: int | None = None,
     taxa_transform: str | None = None,
     figsize: Tuple[float, float] = (8, 5),
     dpi: int = 300,
@@ -244,11 +251,11 @@ def plot_vif_env_vs_stressor(
     str_df = stressor_metrics.sort_values("threshold")
 
     ax.plot(
-        env_df["threshold"], env_df["max_vif"],
+        env_df["n_sites"], env_df["max_vif"],
         "o-", color="#1f77b4", lw=2, ms=5, label="Environmental",
     )
     ax.plot(
-        str_df["threshold"], str_df["max_vif"],
+        str_df["n_sites"], str_df["max_vif"],
         "s-", color="#ff7f0e", lw=2, ms=5, label="Stressors (PCA)",
     )
 
@@ -262,15 +269,16 @@ def plot_vif_env_vs_stressor(
     )
 
     ax.set_ylabel("Maximum VIF", fontsize=12)
-    ax.set_xlabel("Cut-off Proportion", fontsize=12)
-    ax.xaxis.set_major_formatter(mtick.PercentFormatter(xmax=1.0))
+    ax.set_xlabel("Number of Reference Sites", fontsize=12)
     ax.grid(True, alpha=0.3)
 
-    if shade_range is not None:
+    if shade_range is not None and n_total is not None:
+        lo_n = max(int(shade_range[0] * n_total), 1)
+        hi_n = max(int(shade_range[1] * n_total), 1)
         ax.axvspan(
-            shade_range[0], shade_range[1],
+            lo_n, hi_n,
             color="gold", alpha=0.25, zorder=0,
-            label=f"Recommended: {shade_range[0]:.0%}\u2013{shade_range[1]:.0%}",
+            label=f"Recommended: {lo_n}\u2013{hi_n} sites",
         )
 
     ax.legend(fontsize=10)

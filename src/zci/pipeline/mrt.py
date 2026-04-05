@@ -35,7 +35,7 @@ from ..models.clustering import TAXA_COLUMNS
 from ..models.mrt import MRTResult
 from ..viz.mrt_plots import save_mrt_cp_tree_figure
 from ..viz.cluster_panel_plot import plot_cluster_panel, TAXA_DISPLAY_ORDER
-from ..viz.taxa_trend_grid import plot_taxa_trend_grid, plot_taxa_trend_comparison, plot_env_trend_comparison
+from ..viz.taxa_trend_grid import plot_taxa_trend_comparison, plot_env_trend_comparison
 from ..viz.ordination_plots import save_env_pca_ordination
 
 
@@ -419,17 +419,9 @@ def mrt_pipeline(
         _log("[P2-4] Creating taxa trend grid plots ...")
         cp_figures.mkdir(parents=True, exist_ok=True)
 
-        # Reference sites: taxa trend grid
+        # Data for comparison figure
         taxa_ref_relabd = octave_to_relative_abundance(taxa_all.loc[labels_ref.index])
         avg_score_ref = pollution_scores.loc[labels_ref.index].mean()
-        fig_ref_trend, _ = plot_taxa_trend_grid(
-            taxa_relabd=taxa_ref_relabd,
-            cluster_labels=labels_ref,
-            title=f"Reference Sites: Taxa Trends Across MRT Clusters (avg score: {avg_score_ref:.2f})",
-        )
-        save_figure(fig_ref_trend, cp_figures / f"{output_prefix}taxa_trend_ref",
-                    formats=figure_formats, verbose=verbose)
-        plt.close(fig_ref_trend)
 
         # Most polluted sites: top quantile by pollution score (same n as ref)
         n_ref = int(ref_mask.sum())
@@ -442,14 +434,6 @@ def mrt_pipeline(
             taxa_top_relabd = octave_to_relative_abundance(
                 taxa_all.loc[top_polluted_idx.intersection(taxa_all.index)]
             )
-            fig_top_trend, _ = plot_taxa_trend_grid(
-                taxa_relabd=taxa_top_relabd,
-                cluster_labels=top_polluted_labels,
-                title=f"Most Polluted Sites (Top 25%): Taxa Trends Across MRT Clusters (avg score: {avg_score_pol:.2f})",
-            )
-            save_figure(fig_top_trend, cp_figures / f"{output_prefix}taxa_trend_most_polluted",
-                        formats=figure_formats, verbose=verbose)
-            plt.close(fig_top_trend)
             # Combined comparison figure: ref vs most polluted
             fig_cmp, _ = plot_taxa_trend_comparison(
                 taxa_relabd_ref=taxa_ref_relabd,

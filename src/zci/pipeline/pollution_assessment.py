@@ -62,7 +62,7 @@ def pollution_pca_pipeline(
     selected_pcs: Sequence[str] | None = None,
     composite_transform: str = "min-max",
     maps_dir: str | Path | None = None,
-    threshold_quantile: float = 0.20,
+    threshold_quantile: int | float = 0.20,
     bifurcation_plot_func=None,
     save_plots: bool = True,
     figure_formats: Sequence[str] = ("png",),

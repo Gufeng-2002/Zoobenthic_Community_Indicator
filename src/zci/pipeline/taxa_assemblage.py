@@ -27,7 +27,7 @@ from ..core.transforms import (
     octave_to_hellinger,
     octave_to_log_chord,
 )
-from ..core.clustering import ward_cluster, select_reference_sites
+from ..core.clustering import ward_cluster, select_reference_sites, resolve_n_ref
 from ..core.anova import anova_table, extract_pvalues
 from ..core.lda import (
     fit_lda,
@@ -45,7 +45,7 @@ from ..viz.clustering_plots import plot_dendrogram
 from ..viz.cluster_panel_plot import plot_cluster_panel, TAXA_DISPLAY_ORDER
 from ..viz.lda_plots import plot_lda_triplot, plot_cluster_comparison
 from ..viz.ordination_plots import save_env_pca_ordination
-from ..viz.taxa_trend_grid import plot_taxa_trend_grid, plot_taxa_trend_comparison, plot_env_trend_comparison
+from ..viz.taxa_trend_grid import plot_taxa_trend_comparison, plot_env_trend_comparison
 
 
 _TRANSFORMS = {
@@ -77,7 +77,7 @@ def taxa_assemblage_pipeline(
     maps_dir: str | _Path,
     *,
     taxa_columns: Sequence[str] = TAXA_COLUMNS,
-    reference_quantile: float = 0.25,
+    reference_quantile: int | float = 0.25,
     taxa_transform: str = "chord",
     n_clusters: int = 3,
     label_map: Dict[int, int] | None = None,
@@ -126,8 +126,9 @@ def taxa_assemblage_pipeline(
     # ============================================================
     #  PHASE 1: Cluster Classifier (reference sites)
     # ============================================================
+    _ref_hint = f"Least Polluted {int(reference_quantile)} Sites" if reference_quantile > 1 else "Least Polluted Sites"
     _log("=" * 60)
-    _log("  PHASE 1: Cluster Classifier (Reference Sites)")
+    _log(f"  PHASE 1: Cluster Classifier ({_ref_hint})")
     _log("=" * 60)
 
     # -- 1. Read original data -----------------------------------------
@@ -150,13 +151,13 @@ def taxa_assemblage_pipeline(
     _log(f"       Score range: [{pollution_score.min():.4f}, {pollution_score.max():.4f}]")
 
     # -- 3. Select reference sites -------------------------------------
-    _log(f"[3/16] Selecting reference sites (bottom {reference_quantile*100:.0f}%) ...")
+    _log(f"[3/16] Selecting least polluted {resolve_n_ref(reference_quantile, len(pollution_score))} sites ...")
     ref_mask = select_reference_sites(pollution_score, quantile=reference_quantile)
     n_ref = ref_mask.sum()
-    _log(f"       {n_ref} reference sites out of {len(ref_mask)} total")
+    _log(f"       {n_ref} least polluted sites out of {len(ref_mask)} total")
 
     # -- 4. Extract taxa block -----------------------------------------
-    _log("[4/16] Extracting taxa data for reference sites ...")
+    _log(f"[4/16] Extracting taxa data for least polluted {n_ref} sites ...")
     taxa_all = extract_block(data, "taxa", "raw")[list(taxa_columns)]
     taxa_ref = taxa_all.loc[ref_mask]
     _log(f"       {taxa_ref.shape[0]} sites x {taxa_ref.shape[1]} taxa")
@@ -211,6 +212,7 @@ def taxa_assemblage_pipeline(
                 f"Ward Dendrogram -- {taxa_transform.replace('_', ' ').title()} "
                 f"(k = {n_clusters})"
             ),
+            ylabel=f"Least Polluted {n_ref} Sites",
         )
         save_figure(fig_dend, cc_figures / "ward_dendrogram",
                     formats=figure_formats, verbose=verbose)
@@ -270,6 +272,7 @@ def taxa_assemblage_pipeline(
             env_vars=env_vars_present,
             taxa_order=TAXA_DISPLAY_ORDER,
             map_func=map_func,
+            taxa_title=f"Least Polluted {n_ref} Sites: Taxa by Cluster",
         )
         for suffix, (fig_panel, _) in panel_figures.items():
             save_figure(
@@ -287,7 +290,7 @@ def taxa_assemblage_pipeline(
                formats=table_formats, verbose=verbose)
 
     # -- 12. Fit LDA on reference sites --------------------------------
-    _log("[12/16] Fitting LDA on reference sites ...")
+    _log(f"[12/16] Fitting LDA on least polluted {n_ref} sites ...")
     lda_fit = fit_lda(
         env_ref_complete,
         labels_ref_complete.values,
@@ -375,6 +378,7 @@ def taxa_assemblage_pipeline(
             predicted_labels=lda_pred_ref,
             output_path=cc_figures / "env_pca_ordination.png",
             env_feature_names=env_short_names,
+            title=f"PCA Ordination of Least Polluted {n_ref} Sites in Environmental Space",
         )
         if verbose:
             print(f"  > Saved figure: {pca_path}")
@@ -393,7 +397,7 @@ def taxa_assemblage_pipeline(
     #  PHASE 2: Classifier Prediction (non-reference sites)
     # ============================================================
     _log("\n" + "=" * 60)
-    _log("  PHASE 2: Classifier Prediction (Non-Reference Sites)")
+    _log(f"  PHASE 2: Classifier Prediction (Most Polluted {n_ref} Sites)")
     _log("=" * 60)
 
     # -- P2-1. Predict non-reference sites -----------------------------
@@ -401,7 +405,7 @@ def taxa_assemblage_pipeline(
     nonref_mask = ~ref_mask
     env_nonref = env_block.loc[nonref_mask, env_vars_present].dropna()
     nonref_preds, nonref_probs = predict_sites(lda_fit, env_nonref)
-    _log(f"         Predicted {len(nonref_preds)} non-reference sites")
+    _log(f"         Predicted {len(nonref_preds)} remaining sites")
     for g in sorted(nonref_preds.unique()):
         _log(f"           Cluster {int(g)}: {(nonref_preds == g).sum()} sites")
 
@@ -427,6 +431,7 @@ def taxa_assemblage_pipeline(
             cluster_labels_all=cluster_all,
             ref_mask=ref_mask,
             env_variables=env_vars_present,
+            n_ref=n_ref,
         )
         save_figure(fig_comp, cp_figures / "cluster_comparison",
                     formats=figure_formats, verbose=verbose)
@@ -457,17 +462,9 @@ def taxa_assemblage_pipeline(
         _log("[P2-5] Creating taxa trend grid plots ...")
         cp_figures.mkdir(parents=True, exist_ok=True)
 
-        # Reference sites: taxa trend grid
+        # Data for comparison figure
         taxa_ref_relabd = octave_to_relative_abundance(taxa_ref)
         avg_score_ref = pollution_score.loc[labels_ref.index].mean()
-        fig_ref_trend, _ = plot_taxa_trend_grid(
-            taxa_relabd=taxa_ref_relabd,
-            cluster_labels=labels_ref,
-            title=f"Reference Sites: Taxa Trends Across Ward/LDA Clusters (avg score: {avg_score_ref:.2f})",
-        )
-        save_figure(fig_ref_trend, cp_figures / "taxa_trend_ref",
-                    formats=figure_formats, verbose=verbose)
-        plt.close(fig_ref_trend)
 
         # Most polluted sites: top quantile by pollution score (same n as ref)
         n_ref = int(ref_mask.sum())
@@ -480,21 +477,15 @@ def taxa_assemblage_pipeline(
             taxa_top_relabd = octave_to_relative_abundance(
                 taxa_all.loc[top_polluted_idx.intersection(taxa_all.index)]
             )
-            fig_top_trend, _ = plot_taxa_trend_grid(
-                taxa_relabd=taxa_top_relabd,
-                cluster_labels=top_polluted_labels,
-                title=f"Most Polluted Sites (Top 25%): Taxa Trends Across Ward/LDA Clusters (avg score: {avg_score_pol:.2f})",
-            )
-            save_figure(fig_top_trend, cp_figures / "taxa_trend_most_polluted",
-                        formats=figure_formats, verbose=verbose)
-            plt.close(fig_top_trend)
             # Combined comparison figure: ref vs most polluted
             fig_cmp, _ = plot_taxa_trend_comparison(
                 taxa_relabd_ref=taxa_ref_relabd,
                 cluster_labels_ref=labels_ref,
                 taxa_relabd_polluted=taxa_top_relabd,
                 cluster_labels_polluted=top_polluted_labels,
-                title=f"Reference (avg: {avg_score_ref:.2f}) vs Most Polluted (avg: {avg_score_pol:.2f}): Taxa Trends Across Ward/LDA Clusters",
+                title=f"Least Polluted {n_ref} (avg: {avg_score_ref:.2f}) vs Most Polluted {n_ref} (avg: {avg_score_pol:.2f}): Taxa Trends",
+                label_ref=f"Least Polluted {n_ref}",
+                label_polluted=f"Most Polluted {n_ref}",
             )
             save_figure(fig_cmp, cp_figures / "taxa_trend_ref_vs_polluted",
                         formats=figure_formats, verbose=verbose)
@@ -524,7 +515,9 @@ def taxa_assemblage_pipeline(
             env_nonref=env_pol_plot,
             cluster_labels_nonref=labels_pol_plot,
             env_variables=env_vars_present,
-            title="Least Polluted vs Most Polluted: Env Features Across Ward/LDA Clusters",
+            title=f"Least Polluted {n_ref} vs Most Polluted {n_ref}: Env Features Across Ward/LDA Clusters",
+            label_ref=f"Least Polluted {n_ref}",
+            label_nonref=f"Most Polluted {n_ref}",
         )
         save_figure(fig_env, cp_figures / "env_trend_ref_vs_nonref",
                     formats=figure_formats, verbose=verbose)

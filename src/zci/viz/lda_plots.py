@@ -244,6 +244,7 @@ def plot_cluster_comparison(
     ref_mask: pd.Series,
     env_variables: Sequence[str],
     *,
+    n_ref: int | None = None,
     taxa_order: Sequence[str] | None = None,
     anova_transform: str = "none",
     figsize: Tuple[float, float] = (20, 14),
@@ -391,6 +392,9 @@ def plot_cluster_comparison(
 
     env_display = [_ENV_SHORT.get(v, v) for v in env_vars_present]
 
+    ref_label = f"Least Polluted {n_ref} Sites" if n_ref else "Reference Sites"
+    nonref_label = f"Most Polluted {n_ref} Sites" if n_ref else "Non-Reference Sites"
+
     _bar_panel(
         axes[0, 0], np.arange(len(env_vars_present)),
         env_z_means, env_z_sems, cluster_ids,
@@ -405,7 +409,7 @@ def plot_cluster_comparison(
         ref_tax_means, ref_tax_sems, cluster_ids,
         ref_tax_pvals, taxa_order, taxa_order,
         ylabel="Mean Relative Abundance ± SE (%)",
-        title="(B) Reference Sites: Taxa by Cluster",
+        title=f"(B) {ref_label}: Taxa by Cluster",
     )
 
     _bar_panel(
@@ -413,7 +417,7 @@ def plot_cluster_comparison(
         nonref_tax_means, nonref_tax_sems, cluster_ids,
         nonref_tax_pvals, taxa_order, taxa_order,
         ylabel="Mean Relative Abundance ± SE (%)",
-        title="(C) Non-Reference Sites: Taxa by Cluster",
+        title=f"(C) {nonref_label}: Taxa by Cluster",
     )
 
     _bar_panel(
@@ -421,7 +425,7 @@ def plot_cluster_comparison(
         diff_means, diff_sems, cluster_ids,
         diff_pvals, taxa_order, taxa_order,
         ylabel="Difference of Relative Abundance ± SE (%)",
-        title="(D) Average Difference (Non-Ref − Ref)",
+        title=f"(D) Average Difference ({nonref_label} − {ref_label})",
         one_sided_error=True,
     )
 

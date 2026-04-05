@@ -27,6 +27,7 @@ def plot_dendrogram(
     n_clusters: int = 2,
     *,
     title: str = "Ward's Dendrogram",
+    ylabel: str = "Site",
     figsize: tuple[float, float] = (8, 10),
     leaf_fontsize: int = 9,
     title_fontsize: int = 14,
@@ -104,7 +105,7 @@ def plot_dendrogram(
     set_link_color_palette(None)
 
     ax.set_xlabel("Linkage Distance", fontsize=label_fontsize)
-    ax.set_ylabel("Reference Site", fontsize=label_fontsize)
+    ax.set_ylabel(ylabel, fontsize=label_fontsize)
     ax.set_title(title, fontsize=title_fontsize, fontweight="bold")
     ax.xaxis.set_major_locator(MaxNLocator(nbins=6))
     ax.grid(axis="x", alpha=0.3)

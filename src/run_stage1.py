@@ -7,7 +7,7 @@ Usage (from project root):
     python src/run_stage1.py
 
 Phase 1 — PCA Stressors (PCA + SumRel / MaxRel scoring)
-Phase 2 — HZD Toxicity (mean PEC-quotient scoring)
+Phase 2 — HZD Toxicity (McPhedran hazard score)
 Phase 3 — SumRel Focus (Env vs Stressor comparison + variance partitioning)
 Phase 4 — MaxRel Focus (Env vs Stressor comparison + variance partitioning)
 Phase 5 — HZD Focus   (Env vs Stressor comparison + variance partitioning)
@@ -20,7 +20,8 @@ Writes : results/01_pollution_assessment/
                  figures/ — variance_explained, ridge_loadings, corridor maps
                  artifacts/ — SumRel_01_updated_data.xlsx, MaxRel_01_updated_data.xlsx
              HZD_Toxicity/
-                 tables/ — hzd_site_scores, hzd_chemical_quotients, hzd_benchmark_summary
+                 tables/ — hzd_site_scores, hzd_chemical_effects,
+                           hzd_chemical_quotients, hzd_benchmark_summary
                  figures/ — HZD_corridor_bifurcation
              SumRel_Focus/
                  tables/ — env_cutoff_metrics, stressor_cutoff_metrics, varpart_summary
@@ -74,9 +75,9 @@ if __name__ == "__main__":
         pollution_standardize=True,
         n_components=5,
         selected_pcs=None,
-        composite_transform="min-max",
+        composite_transform="none",
         maps_dir=MAPS_DIR,
-        threshold_quantile=0.20,
+        threshold_quantile=40,
         save_plots=True,
     )
 
@@ -91,23 +92,24 @@ if __name__ == "__main__":
     stressor_pcs = pca.scores  # sites × PCs (e.g. PC1–PC5)
 
     # ==================================================================
-    #  PHASE 2 — HZD Toxicity (mean PEC-quotient scoring)
+    #  PHASE 2 — HZD Toxicity (McPhedran hazard score)
     # ==================================================================
     print("\n" + "=" * 60)
-    print("  PHASE 2: HZD Toxicity (mean PEC-quotient)")
+    print("  PHASE 2: HZD Toxicity (McPhedran hazard score)")
     print("=" * 60)
 
     hzd_result = hzd_scoring_pipeline(
         data_path=DATA_PATH,
         output_dir=OUTPUT_DIR / "HZD_Toxicity",
         benchmark_path=BENCHMARK_PATH,
-        quotient_type="TEC",
         maps_dir=MAPS_DIR,
-        threshold_quantile=0.20,
+        threshold_quantile=40,
         save_plots=True,
     )
 
-    print(f"\nHZD range: [{hzd_result.hzd_score.min():.4f}, {hzd_result.hzd_score.max():.4f}]")
+    print(
+        f"\nHZD toxicity (%) range: [{hzd_result.hzd_score.min():.4f}, {hzd_result.hzd_score.max():.4f}]"
+    )
     print(f"Categories:\n{hzd_result.hzd_category.value_counts().to_string()}")
 
     # ==================================================================
@@ -126,7 +128,7 @@ if __name__ == "__main__":
         stressor_predictors=stressor_pcs,
         thresholds=np.arange(0.05, 1.01, 0.02).round(2),
         rda_threshold=0.22,
-        taxa_transform="octave",
+        taxa_transform="chord",
         shade_range=(0.20, 0.26),
         standardize_env=False,
         log_transform_env=False,
@@ -149,7 +151,7 @@ if __name__ == "__main__":
         stressor_predictors=stressor_pcs,
         thresholds=np.arange(0.05, 1.01, 0.02).round(2),
         rda_threshold=0.22,
-        taxa_transform="octave",
+        taxa_transform="chord",
         shade_range=(0.20, 0.26),
         standardize_env=False,
         log_transform_env=False,
@@ -169,10 +171,10 @@ if __name__ == "__main__":
         score=hzd_result.hzd_score,
         score_label="HZD",
         env_variables=ENV_VARIABLES,
-        stressor_predictors=stressor_pcs,
+        stressor_predictors=hzd_result.hzd_score.to_frame("HZD"),
         thresholds=np.arange(0.05, 1.01, 0.02).round(2),
         rda_threshold=0.22,
-        taxa_transform="octave",
+        taxa_transform="chord",
         shade_range=(0.20, 0.26),
         standardize_env=False,
         log_transform_env=False,

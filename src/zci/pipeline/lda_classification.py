@@ -31,7 +31,7 @@ import matplotlib.pyplot as plt
 
 from ..io.readers import read_study_data, extract_block
 from ..io.writers import save_table, save_figure
-from ..core.clustering import select_reference_sites
+from ..core.clustering import select_reference_sites, resolve_n_ref
 from ..core.lda import (
     fit_lda,
     wilks_lambda_importance,
@@ -58,7 +58,7 @@ def lda_pipeline(
     *,
     env_variables: Sequence[str] | None = None,
     taxa_columns: Sequence[str] | None = None,
-    reference_quantile: float = 0.20,
+    reference_quantile: int | float = 0.20,
     standardize_env: bool = True,
     n_mccv_iterations: int = 1000,
     mccv_test_size: float = 0.2,
@@ -150,7 +150,7 @@ def lda_pipeline(
 
     ref_mask = select_reference_sites(pollution, quantile=reference_quantile)
     n_ref = ref_mask.sum()
-    _log(f"       {n_ref} reference sites (bottom {reference_quantile*100:.0f} %)")
+    _log(f"       {n_ref} reference sites (lowest {n_ref} sites)")
 
     # ── 3. Read Stage 2 artifact → cluster labels ────────────────────
     _log("[3/12] Reading Stage 2 artifact for cluster labels …")

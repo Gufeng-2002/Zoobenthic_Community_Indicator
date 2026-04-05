@@ -31,7 +31,7 @@ from sklearn.preprocessing import StandardScaler
 from ..io.readers import read_study_data, extract_block
 from ..io.writers import save_table, save_figure
 from ..core.rda import RDA
-from ..core.clustering import select_reference_sites
+from ..core.clustering import select_reference_sites, resolve_n_ref
 from ..models.rda import RDAScores, PermutationTestResult, RDAResult
 from ..viz.rda_plots import plot_rda_triplot
 
@@ -106,7 +106,7 @@ def rda_pipeline(
     output_prefix: str = "",
     env_variables: Sequence[str] | None = None,
     taxa_columns: Sequence[str] | None = None,
-    reference_quantile: float = 0.20,
+    reference_quantile: int | float = 0.20,
     standardize_env: bool = True,
     log_transform_env: bool = False,
     taxa_transform: str = "octave",
@@ -202,7 +202,7 @@ def rda_pipeline(
 
     ref_mask = select_reference_sites(ps, quantile=reference_quantile)
     n_ref = ref_mask.sum()
-    _log(f"       {n_ref} reference sites (bottom {reference_quantile*100:.0f} %)")
+    _log(f"       {n_ref} reference sites (lowest {n_ref} sites)")
 
     # ── 3. Environmental matrix ──────────────────────────────────────
     if env_variables is None:
