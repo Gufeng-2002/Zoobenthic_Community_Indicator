@@ -1,0 +1,28 @@
+\begin{table}[htbp]
+  \centering
+  \caption{Confusion Matrix Unified (Lda Method — Modelb Coreperipheral)}
+  \label{tab:LDA_Method_ModelB_CorePeripheral_tables_confusion_matrix_unified}
+  \begin{tabular}{lrrrr}
+    \toprule
+    Part 1: Training Resubstitution — Core (n=35) + Peripheral (n=10) &  &  &  &  \\
+    \midrule
+     & \% Correct & Cluster C1 & Cluster C2 & Cluster C3 \\
+    Cluster C1 & 67 & 10 & 2 & 3 \\
+    Cluster C2 & 62 & 1 & 8 & 4 \\
+    Cluster C3 & 53 & 6 & 2 & 9 \\
+    Total & 60 & 17 & 12 & 16 \\
+    Part 2: 5-Fold x 10 Cross-Validation — Core (n=35) + Peripheral (n=10) &  &  &  &  \\
+     & \% Correct & Cluster C1 & Cluster C2 & Cluster C3 \\
+    Cluster C1 & 62 & 93 & 18 & 39 \\
+    Cluster C2 & 48 & 21 & 63 & 46 \\
+    Cluster C3 & 34 & 74 & 39 & 57 \\
+    Total & 47 & 188 & 120 & 142 \\
+    Part 3: Held-out Prediction — Uncertain (n=5) &  &  &  &  \\
+     & \% Correct & Cluster C1 & Cluster C2 & Cluster C3 \\
+    Cluster C1 & 25 & 1 & 0 & 3 \\
+    Cluster C2 & 0 & 0 & 0 & 0 \\
+    Cluster C3 & 100 & 0 & 0 & 1 \\
+    Total & 40 & 1 & 0 & 4 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

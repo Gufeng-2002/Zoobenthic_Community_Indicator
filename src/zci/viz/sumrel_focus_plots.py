@@ -51,12 +51,45 @@ def _find_p_crossing(df: pd.DataFrame, p_target: float = 0.05):
     return first["threshold"], first["global_F"]
 
 
-def _build_title(base: str, score_label: str, taxa_transform: str | None) -> str:
-    """Build a two- or three-line suptitle."""
-    title = f"{base} — {score_label} (Env vs Stressors)"
+def _taxa_suffix(taxa_transform: str | None) -> str:
+    """Return '  (Taxa - Chord)' style suffix for y-axis labels."""
     if taxa_transform:
-        title += f"\nTaxa transform: {_transform_label(taxa_transform)}"
-    return title
+        return f"  (Taxa - {_transform_label(taxa_transform)})"
+    return ""
+
+
+def _add_score_top_axis(
+    ax: plt.Axes,
+    pollution_score: pd.Series,
+    score_label: str,
+) -> None:
+    """Add a twin top x-axis mapping site counts to contamination scores."""
+    sorted_score = pollution_score.sort_values()
+    lo, hi = ax.get_xlim()
+    n_sites = len(sorted_score)
+
+    # Tick every 25 sites, starting at 25
+    tick_ns = list(range(25, n_sites + 1, 25))
+    tick_labels = []
+    for n in tick_ns:
+        if n < 1 or n > n_sites:
+            tick_labels.append("")
+        else:
+            tick_labels.append(f"{sorted_score.iloc[n - 1]:.2f}")
+
+    ax2 = ax.twiny()
+    ax2.set_xlim(lo, hi)
+    ax2.set_xticks(tick_ns)
+    ax2.set_xticklabels(tick_labels, fontsize=8)
+    ax2.set_xlabel(f"{score_label} Scores", fontsize=12)
+
+    # Draw a right-pointing arrow at the right end of the top axis
+    ax2.annotate(
+        "", xy=(1.0, 1.0), xytext=(0.92, 1.0),
+        xycoords="axes fraction", textcoords="axes fraction",
+        arrowprops=dict(arrowstyle="->", color="black", lw=1.5),
+        annotation_clip=False,
+    )
 
 
 # ─── adj-R² comparison ──────────────────────────────────────────────
@@ -70,6 +103,8 @@ def plot_r2_env_vs_stressor(
     shade_range: Tuple[float, float] | None = None,
     n_total: int | None = None,
     taxa_transform: str | None = None,
+    pollution_score: pd.Series | None = None,
+    single_score_metrics: pd.DataFrame | None = None,
     figsize: Tuple[float, float] = (8, 5),
     dpi: int = 300,
 ) -> Tuple[plt.Figure, plt.Axes]:
@@ -85,11 +120,18 @@ def plot_r2_env_vs_stressor(
     )
     ax.plot(
         str_df["n_sites"], str_df["r2_adj"],
-        "s-", color="#ff7f0e", lw=2, ms=5, label="Stressors (PCA)",
+        "s-", color="#ff7f0e", lw=2, ms=5, label="Stressors",
     )
 
-    ax.set_ylabel("Adjusted $R^2$", fontsize=12)
-    ax.set_xlabel("Number of Reference Sites", fontsize=12)
+    if single_score_metrics is not None:
+        ss_df = single_score_metrics.sort_values("threshold")
+        ax.plot(
+            ss_df["n_sites"], ss_df["r2_adj"],
+            "^-", color="#2ca02c", lw=2, ms=5, label=score_label,
+        )
+
+    ax.set_ylabel(f"Adjusted $R^2${_taxa_suffix(taxa_transform)}", fontsize=12)
+    ax.set_xlabel("Number of Sites Passed to RDA Fitting", fontsize=12)
     ax.grid(True, alpha=0.3)
 
     if shade_range is not None and n_total is not None:
@@ -98,15 +140,15 @@ def plot_r2_env_vs_stressor(
         ax.axvspan(
             lo_n, hi_n,
             color="gold", alpha=0.25, zorder=0,
-            label=f"Recommended: {lo_n}\u2013{hi_n} sites",
+            label=f"Cut-off for Ref-Sites ({lo_n}\u2013{hi_n})",
         )
 
     ax.legend(fontsize=10)
-    fig.suptitle(
-        _build_title("Adjusted $R^2$ vs Cut-off", score_label, taxa_transform),
-        fontsize=14, fontweight="bold", y=1.02,
-    )
     fig.tight_layout()
+
+    if pollution_score is not None:
+        _add_score_top_axis(ax, pollution_score, score_label)
+
     return fig, ax
 
 
@@ -121,6 +163,8 @@ def plot_pseudoF_env_vs_stressor(
     shade_range: Tuple[float, float] | None = None,
     n_total: int | None = None,
     taxa_transform: str | None = None,
+    pollution_score: pd.Series | None = None,
+    single_score_metrics: pd.DataFrame | None = None,
     figsize: Tuple[float, float] = (8, 5),
     dpi: int = 300,
 ) -> Tuple[plt.Figure, plt.Axes]:
@@ -136,8 +180,15 @@ def plot_pseudoF_env_vs_stressor(
     )
     ax.plot(
         str_df["n_sites"], str_df["global_F"],
-        "s-", color="#ff7f0e", lw=2, ms=5, label="Stressors (PCA)",
+        "s-", color="#ff7f0e", lw=2, ms=5, label="Stressors",
     )
+
+    if single_score_metrics is not None:
+        ss_df = single_score_metrics.sort_values("threshold")
+        ax.plot(
+            ss_df["n_sites"], ss_df["global_F"],
+            "^-", color="#2ca02c", lw=2, ms=5, label=score_label,
+        )
 
     for label_str, df, c in [
         ("Env", env_df, "#1f77b4"),
@@ -152,8 +203,8 @@ def plot_pseudoF_env_vs_stressor(
                 label=f"{label_str} $p$=0.05: $F$={f_cross:.2f} (at {n_cross} sites)",
             )
 
-    ax.set_ylabel("Global Pseudo-$F$", fontsize=12)
-    ax.set_xlabel("Number of Reference Sites", fontsize=12)
+    ax.set_ylabel(f"Global Pseudo-$F${_taxa_suffix(taxa_transform)}", fontsize=12)
+    ax.set_xlabel("Number of Sites Passed to RDA Fitting", fontsize=12)
     ax.grid(True, alpha=0.3)
 
     if shade_range is not None and n_total is not None:
@@ -162,15 +213,15 @@ def plot_pseudoF_env_vs_stressor(
         ax.axvspan(
             lo_n, hi_n,
             color="gold", alpha=0.25, zorder=0,
-            label=f"Recommended: {lo_n}\u2013{hi_n} sites",
+            label=f"Cut-off for Ref-Sites ({lo_n}\u2013{hi_n})",
         )
 
     ax.legend(fontsize=10)
-    fig.suptitle(
-        _build_title("Global Pseudo-$F$ vs Cut-off", score_label, taxa_transform),
-        fontsize=14, fontweight="bold", y=1.02,
-    )
     fig.tight_layout()
+
+    if pollution_score is not None:
+        _add_score_top_axis(ax, pollution_score, score_label)
+
     return fig, ax
 
 
@@ -185,6 +236,8 @@ def plot_pvalue_env_vs_stressor(
     shade_range: Tuple[float, float] | None = None,
     n_total: int | None = None,
     taxa_transform: str | None = None,
+    pollution_score: pd.Series | None = None,
+    single_score_metrics: pd.DataFrame | None = None,
     figsize: Tuple[float, float] = (8, 5),
     dpi: int = 300,
 ) -> Tuple[plt.Figure, plt.Axes]:
@@ -200,16 +253,23 @@ def plot_pvalue_env_vs_stressor(
     )
     ax.plot(
         str_df["n_sites"], str_df["global_p"],
-        "s-", color="#ff7f0e", lw=2, ms=5, label="Stressors (PCA)",
+        "s-", color="#ff7f0e", lw=2, ms=5, label="Stressors",
     )
+
+    if single_score_metrics is not None:
+        ss_df = single_score_metrics.sort_values("threshold")
+        ax.plot(
+            ss_df["n_sites"], ss_df["global_p"],
+            "^-", color="#2ca02c", lw=2, ms=5, label=score_label,
+        )
 
     ax.axhline(
         0.05, ls="--", color="red", lw=1.5, alpha=0.7,
         label="$p$ = 0.05",
     )
 
-    ax.set_ylabel("Global Permutation $p$-value", fontsize=12)
-    ax.set_xlabel("Number of Reference Sites", fontsize=12)
+    ax.set_ylabel(f"Global Permutation $p$-value{_taxa_suffix(taxa_transform)}", fontsize=12)
+    ax.set_xlabel("Number of Sites Passed to RDA Fitting", fontsize=12)
     ax.grid(True, alpha=0.3)
 
     if shade_range is not None and n_total is not None:
@@ -218,15 +278,15 @@ def plot_pvalue_env_vs_stressor(
         ax.axvspan(
             lo_n, hi_n,
             color="gold", alpha=0.25, zorder=0,
-            label=f"Recommended: {lo_n}\u2013{hi_n} sites",
+            label=f"Cut-off for Ref-Sites ({lo_n}\u2013{hi_n})",
         )
 
     ax.legend(fontsize=10)
-    fig.suptitle(
-        _build_title("Global Permutation Test $p$-value vs Cut-off", score_label, taxa_transform),
-        fontsize=14, fontweight="bold", y=1.02,
-    )
     fig.tight_layout()
+
+    if pollution_score is not None:
+        _add_score_top_axis(ax, pollution_score, score_label)
+
     return fig, ax
 
 
@@ -241,6 +301,8 @@ def plot_vif_env_vs_stressor(
     shade_range: Tuple[float, float] | None = None,
     n_total: int | None = None,
     taxa_transform: str | None = None,
+    pollution_score: pd.Series | None = None,
+    single_score_metrics: pd.DataFrame | None = None,
     figsize: Tuple[float, float] = (8, 5),
     dpi: int = 300,
 ) -> Tuple[plt.Figure, plt.Axes]:
@@ -256,8 +318,15 @@ def plot_vif_env_vs_stressor(
     )
     ax.plot(
         str_df["n_sites"], str_df["max_vif"],
-        "s-", color="#ff7f0e", lw=2, ms=5, label="Stressors (PCA)",
+        "s-", color="#ff7f0e", lw=2, ms=5, label="Stressors",
     )
+
+    if single_score_metrics is not None:
+        ss_df = single_score_metrics.sort_values("threshold")
+        ax.plot(
+            ss_df["n_sites"], ss_df["max_vif"],
+            "^-", color="#2ca02c", lw=2, ms=5, label=score_label,
+        )
 
     ax.axhline(
         10, ls="--", color="red", lw=1.5, alpha=0.7,
@@ -268,8 +337,8 @@ def plot_vif_env_vs_stressor(
         label="VIF = 5 (moderate)",
     )
 
-    ax.set_ylabel("Maximum VIF", fontsize=12)
-    ax.set_xlabel("Number of Reference Sites", fontsize=12)
+    ax.set_ylabel(f"Maximum VIF{_taxa_suffix(taxa_transform)}", fontsize=12)
+    ax.set_xlabel("Number of Sites Passed to RDA Fitting", fontsize=12)
     ax.grid(True, alpha=0.3)
 
     if shade_range is not None and n_total is not None:
@@ -278,15 +347,15 @@ def plot_vif_env_vs_stressor(
         ax.axvspan(
             lo_n, hi_n,
             color="gold", alpha=0.25, zorder=0,
-            label=f"Recommended: {lo_n}\u2013{hi_n} sites",
+            label=f"Cut-off for Ref-Sites ({lo_n}\u2013{hi_n})",
         )
 
     ax.legend(fontsize=10)
-    fig.suptitle(
-        _build_title("Maximum VIF vs Cut-off", score_label, taxa_transform),
-        fontsize=14, fontweight="bold", y=1.02,
-    )
     fig.tight_layout()
+
+    if pollution_score is not None:
+        _add_score_top_axis(ax, pollution_score, score_label)
+
     return fig, ax
 
 

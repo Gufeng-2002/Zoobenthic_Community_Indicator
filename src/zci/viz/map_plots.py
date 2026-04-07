@@ -261,19 +261,7 @@ def plot_corridor_bifurcation(
     ax_ecdf.step(sorted_scores, cum_prob, where="post", linewidth=2.5,
                  color="darkblue", alpha=0.8, label="ECDF")
 
-    # lower threshold lines
-    ax_ecdf.axhline(y=lower_q, color="red", ls="--", lw=2,
-                    label=f"{lbl_below} threshold", zorder=4)
-    ax_ecdf.axvline(x=lower_val, color="red", ls="--", lw=2,
-                    alpha=0.7, zorder=4)
-
-    # upper threshold lines
-    ax_ecdf.axhline(y=upper_q, color="red", ls="--", lw=2,
-                    label=f"{lbl_above} threshold", zorder=4)
-    ax_ecdf.axvline(x=upper_val, color="red", ls="--", lw=2,
-                    alpha=0.7, zorder=4)
-
-    # shade bottom region (green)
+    # shade bottom region (green) with dashed boundary edges
     ref_scores = sorted_scores[sorted_scores <= lower_val]
     ax_ecdf.fill_between(
         ref_scores, 0, lower_q,
@@ -281,8 +269,14 @@ def plot_corridor_bifurcation(
         label=lbl_below,
         zorder=1,
     )
+    # dashed border at the right edge of the green area (vertical up to the point only)
+    ax_ecdf.plot([lower_val, lower_val], [0, lower_q],
+                 color=c_below, ls="--", lw=1.5, alpha=0.7, zorder=3)
+    # draw the horizontal edge of the green area in data coords
+    ax_ecdf.plot([sorted_scores[0] - 0.3, lower_val], [lower_q, lower_q],
+                 color=c_below, ls="--", lw=1.5, alpha=0.7, zorder=3)
 
-    # shade top region (red)
+    # shade top region (red) with dashed boundary edges
     top_scores = sorted_scores[sorted_scores >= upper_val]
     ax_ecdf.fill_between(
         top_scores, upper_q, 1.0,
@@ -290,6 +284,12 @@ def plot_corridor_bifurcation(
         label=lbl_above,
         zorder=1,
     )
+    # dashed border at the left edge of the red area (vertical from point up to top)
+    ax_ecdf.plot([upper_val, upper_val], [upper_q, 1.0],
+                 color=c_above, ls="--", lw=1.5, alpha=0.7, zorder=3)
+    # draw the horizontal edge of the red area in data coords
+    ax_ecdf.plot([upper_val, sorted_scores[-1] + 0.8], [upper_q, upper_q],
+                 color=c_above, ls="--", lw=1.5, alpha=0.7, zorder=3)
 
     # percentile guide lines
     for pct in (10, 25, 50, 75, 90):
@@ -299,35 +299,15 @@ def plot_corridor_bifurcation(
             f"{pct}%", fontsize=label_fontsize - 2, color="gray", va="center",
         )
 
-    # annotation boxes
-    ax_ecdf.annotate(
-        f"Lower = {lower_val:.3f}\n({n_below} sites)",
-        xy=(lower_val, lower_q),
-        xytext=(lower_val - (sorted_scores[-1] - lower_val) * 0.5,
-                lower_q + 0.08),
-        fontsize=label_fontsize - 2,
-        bbox=dict(boxstyle="round,pad=0.35", fc="wheat", alpha=0.85,
-                  ec="red", lw=1.5),
-        arrowprops=dict(arrowstyle="->", color="red", lw=1.2),
-    )
-    ax_ecdf.annotate(
-        f"Upper = {upper_val:.3f}\n({n_above} sites)",
-        xy=(upper_val, upper_q),
-        xytext=(upper_val - (sorted_scores[-1] - upper_val) * 1.2,
-                upper_q + 0.06),
-        fontsize=label_fontsize - 2,
-        bbox=dict(boxstyle="round,pad=0.35", fc="wheat", alpha=0.85,
-                  ec="red", lw=1.5),
-        arrowprops=dict(arrowstyle="->", color="red", lw=1.2),
-    )
-
     ax_ecdf.set_xlabel(score_label, fontsize=label_fontsize)
     ax_ecdf.set_ylabel("Cumulative Probability", fontsize=label_fontsize)
+    ax_ecdf.set_yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+    ax_ecdf.set_yticklabels(["0%", "20%", "40%", "60%", "80%", "100%"])
     ax_ecdf.tick_params(labelsize=label_fontsize - 1)
     ax_ecdf.set_ylim(0, 1.05)
     ax_ecdf.set_xlim(sorted_scores[0] - 0.3, sorted_scores[-1] + 0.8)
     ax_ecdf.grid(True, alpha=0.3)
-    ax_ecdf.legend(fontsize=label_fontsize - 2, loc="lower right")
+    ax_ecdf.legend(fontsize=label_fontsize - 2, loc="upper left")
 
     return fig, np.array([ax_map, ax_ecdf])
 
@@ -550,10 +530,12 @@ def plot_dr_bifurcation(
 
     ax_ecdf.set_xlabel(score_label, fontsize=label_fontsize)
     ax_ecdf.set_ylabel("Cumulative Probability", fontsize=label_fontsize)
+    ax_ecdf.set_yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+    ax_ecdf.set_yticklabels(["0%", "20%", "40%", "60%", "80%", "100%"])
     ax_ecdf.tick_params(labelsize=label_fontsize - 1)
     ax_ecdf.set_ylim(0, 1.05)
     ax_ecdf.set_xlim(sorted_scores[0] - 0.3, sorted_scores[-1] + 0.8)
     ax_ecdf.grid(True, alpha=0.3)
-    ax_ecdf.legend(fontsize=label_fontsize - 2, loc="lower right")
+    ax_ecdf.legend(fontsize=label_fontsize - 2, loc="upper left")
 
     return fig, np.array([ax_map, ax_ecdf])

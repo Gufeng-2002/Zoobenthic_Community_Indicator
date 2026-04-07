@@ -19,6 +19,7 @@ def save_table(
     formats: Sequence[str] = ("xlsx",),
     float_format: str = "%.6f",
     verbose: bool = True,
+    header: bool = True,
 ) -> Dict[str, Path]:
     """Save a DataFrame to one or more file formats.
 
@@ -48,9 +49,9 @@ def save_table(
     for fmt in formats:
         out = path.with_suffix(f".{fmt}")
         if fmt == "xlsx":
-            df.to_excel(out)
+            df.to_excel(out, header=header)
         elif fmt == "csv":
-            df.to_csv(out, float_format=float_format)
+            df.to_csv(out, float_format=float_format, header=header)
         else:
             raise ValueError(f"Unsupported table format: {fmt!r}")
         saved[fmt] = out

@@ -66,6 +66,7 @@ class MCCVResult:
     test_size: float
     all_true_labels: List
     all_predictions: List
+    per_fold_cms: Optional[List[np.ndarray]] = field(default=None, repr=False)
 
 
 # ─── pipeline-level result container ────────────────────────────────

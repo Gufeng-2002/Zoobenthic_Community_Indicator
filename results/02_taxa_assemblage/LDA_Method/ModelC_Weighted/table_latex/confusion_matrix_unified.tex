@@ -1,0 +1,28 @@
+\begin{table}[htbp]
+  \centering
+  \caption{Confusion Matrix Unified (Lda Method — Modelc Weighted)}
+  \label{tab:LDA_Method_ModelC_Weighted_tables_confusion_matrix_unified}
+  \begin{tabular}{lrrrr}
+    \toprule
+    Part 1: Training Resubstitution — Core (n=35) + Peripheral (n=10) &  &  &  &  \\
+    \midrule
+     & \% Correct & Cluster C1 & Cluster C2 & Cluster C3 \\
+    Cluster C1 & 33 & 5 & 2 & 8 \\
+    Cluster C2 & 77 & 0 & 10 & 3 \\
+    Cluster C3 & 53 & 2 & 6 & 9 \\
+    Total & 53 & 7 & 18 & 20 \\
+    Part 2: 5-Fold x 10 Cross-Validation — Core (n=35) + Peripheral (n=10) &  &  &  &  \\
+     & \% Correct & Cluster C1 & Cluster C2 & Cluster C3 \\
+    Cluster C1 & 23 & 34 & 20 & 96 \\
+    Cluster C2 & 58 & 13 & 75 & 42 \\
+    Cluster C3 & 44 & 33 & 63 & 74 \\
+    Total & 41 & 80 & 158 & 212 \\
+    Part 3: Held-out Prediction — Uncertain (n=5) &  &  &  &  \\
+     & \% Correct & Cluster C1 & Cluster C2 & Cluster C3 \\
+    Cluster C1 & 0 & 0 & 0 & 4 \\
+    Cluster C2 & 0 & 0 & 0 & 0 \\
+    Cluster C3 & 0 & 0 & 1 & 0 \\
+    Total & 0 & 0 & 1 & 4 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

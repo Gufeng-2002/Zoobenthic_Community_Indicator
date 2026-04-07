@@ -1,0 +1,35 @@
+\begin{table}[htbp]
+  \centering
+  \small
+  \caption{Cv Confusion Matrices Combined (Mrt Method — Modelcompar)}
+  \label{tab:MRT_Method_ModelCompar_tables_cv_confusion_matrices_combined}
+  \begin{tabular}{lrrrr}
+    \toprule
+     & \% Correct & Cluster $C_{1}$ & Cluster $C_{2}$ & Cluster $C_{3}$ \\
+    \midrule
+    \multicolumn{5}{l}{\textbf{Model A (fully trained on 35 core sites); $5$-fold $\times$ $10$ cross-validation}} \\
+    Cluster $C_{1}$ & 0 & 17 & 16 & 27 \\
+    Cluster $C_{2}$ & 50 & 14 & 67 & 49 \\
+    Cluster $C_{3}$ & 67 & 23 & 47 & 90 \\
+    Total & 50 & 54 & 130 & 166 \\
+    \midrule
+    \multicolumn{5}{l}{\textbf{Model B (fully trained on 35 core + 10 peripheral sites); $5$-fold $\times$ $10$ cross-validation}} \\
+    Cluster $C_{1}$ & 33 & 70 & 14 & 66 \\
+    Cluster $C_{2}$ & 50 & 15 & 68 & 47 \\
+    Cluster $C_{3}$ & 33 & 68 & 39 & 63 \\
+    Total & 44 & 153 & 121 & 176 \\
+    \midrule
+    \multicolumn{5}{l}{\textbf{Model C (fully trained on 35 core + 10 peripheral sites, weighted); $5$-fold $\times$ $10$ cross-validation}} \\
+    Cluster $C_{1}$ & 0 & 0 & 29 & 121 \\
+    Cluster $C_{2}$ & 100 & 0 & 99 & 31 \\
+    Cluster $C_{3}$ & 67 & 0 & 75 & 95 \\
+    Total & 44 & 0 & 203 & 247 \\
+    \midrule
+    \multicolumn{5}{l}{\textbf{Model D (fully trained on 35 core + 10 peripheral + 5 uncertain sites); $5$-fold $\times$ $10$ cross-validation}} \\
+    Cluster $C_{1}$ & 50 & 101 & 31 & 58 \\
+    Cluster $C_{2}$ & 50 & 21 & 75 & 34 \\
+    Cluster $C_{3}$ & 33 & 71 & 52 & 57 \\
+    Total & 50 & 193 & 158 & 149 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

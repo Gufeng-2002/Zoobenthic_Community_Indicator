@@ -1,0 +1,39 @@
+\begin{table}[htbp]
+  \centering
+  \small
+  \caption{Confusion Matrix All Refsites (Lda Method — Modelcompar)}
+  \label{tab:LDA_Method_ModelCompar_tables_confusion_matrix_all_refsites}
+  \begin{tabular}{lrrrr}
+    \toprule
+     & \% Correct & Cluster $C_{1}$ & Cluster $C_{2}$ & Cluster $C_{3}$ \\
+    \midrule
+    \multicolumn{5}{l}{\textbf{Model A (fully trained on 35 core sites)}} \\
+    Cluster $C_{1}$ & 16 & 3 & 2 & 14 \\
+    Cluster $C_{2}$ & 62 & 0 & 8 & 5 \\
+    Cluster $C_{3}$ & 83 & 1 & 2 & 15 \\
+    Total & 52 & 4 & 12 & 34 \\
+    Held-out ($n=15$) & 20 & $p_{\max}=0.562$ & $\Delta p=0.284$ &  \\
+    \midrule
+    \multicolumn{5}{l}{\textbf{Model B (fully trained on 35 core + 10 peripheral sites)}} \\
+    Cluster $C_{1}$ & 58 & 11 & 2 & 6 \\
+    Cluster $C_{2}$ & 62 & 1 & 8 & 4 \\
+    Cluster $C_{3}$ & 56 & 6 & 2 & 10 \\
+    Total & 58 & 18 & 12 & 20 \\
+    Held-out ($n=5$) & 40 & $p_{\max}=0.518$ & $\Delta p=0.224$ &  \\
+    \midrule
+    \multicolumn{5}{l}{\textbf{Model C (fully trained on 35 core + 10 peripheral sites, weighted)}} \\
+    Cluster $C_{1}$ & 26 & 5 & 2 & 12 \\
+    Cluster $C_{2}$ & 77 & 0 & 10 & 3 \\
+    Cluster $C_{3}$ & 50 & 2 & 7 & 9 \\
+    Total & 48 & 7 & 19 & 24 \\
+    Held-out ($n=5$) & 0 & $p_{\max}=0.542$ & $\Delta p=0.239$ &  \\
+    \midrule
+    \multicolumn{5}{l}{\textbf{Model D (fully trained on 35 core + 10 peripheral + 5 uncertain sites)}} \\
+    Cluster $C_{1}$ & 63 & 12 & 2 & 5 \\
+    Cluster $C_{2}$ & 62 & 1 & 8 & 4 \\
+    Cluster $C_{3}$ & 44 & 8 & 2 & 8 \\
+    Total & 56 & 21 & 12 & 17 \\
+    Held-out ($n=0$) & / & / & / & / \\
+    \bottomrule
+  \end{tabular}
+\end{table}

@@ -47,6 +47,7 @@ def score_focus_pipeline(
     *,
     env_variables: Sequence[str] | None = None,
     stressor_predictors: pd.DataFrame | None = None,
+    single_score_predictor: bool = False,
     thresholds: Sequence[float] | None = np.arange(0.05, 1.01, 0.02).round(2),
     rda_threshold: int | float = 0.20,
     taxa_transform: str = "octave",
@@ -156,6 +157,27 @@ def score_focus_pipeline(
             formats=table_formats, verbose=verbose,
         )
 
+    # ── 3b. Sweep thresholds for single-score predictor ────────────
+    single_score_metrics = None
+    if single_score_predictor:
+        _log(f"  [3b] Sweeping cut-offs ({score_label} · single score) …")
+        score_pred = score.to_frame(name=score_label)
+        single_score_metrics = sweep_thresholds(
+            score, score_pred, taxa_all,
+            thresholds=thresholds,
+            standardize_env=False,
+            log_transform_env=False,
+            taxa_transform=taxa_transform,
+            n_permutations=n_permutations,
+            random_state=random_state,
+            verbose=verbose,
+        )
+        save_table(
+            single_score_metrics,
+            tables_dir / f"{score_label}_single_cutoff_metrics",
+            formats=table_formats, verbose=verbose,
+        )
+
     # ── 4. Comparison plots ──────────────────────────────────────────
     n_total = len(score)
     if save_plots and stressor_metrics is not None:
@@ -166,6 +188,8 @@ def score_focus_pipeline(
             score_label=score_label,
             shade_range=shade_range, n_total=n_total,
             taxa_transform=taxa_transform,
+            pollution_score=score,
+            single_score_metrics=single_score_metrics,
         )
         save_figure(
             fig_r2, figures_dir / f"{score_label}_r2_env_vs_stressor",
@@ -178,6 +202,8 @@ def score_focus_pipeline(
             score_label=score_label,
             shade_range=shade_range, n_total=n_total,
             taxa_transform=taxa_transform,
+            pollution_score=score,
+            single_score_metrics=single_score_metrics,
         )
         save_figure(
             fig_pf, figures_dir / f"{score_label}_pseudoF_env_vs_stressor",
@@ -190,6 +216,8 @@ def score_focus_pipeline(
             score_label=score_label,
             shade_range=shade_range, n_total=n_total,
             taxa_transform=taxa_transform,
+            pollution_score=score,
+            single_score_metrics=single_score_metrics,
         )
         save_figure(
             fig_pv, figures_dir / f"{score_label}_pvalue_env_vs_stressor",
@@ -203,6 +231,8 @@ def score_focus_pipeline(
                 score_label=score_label,
                 shade_range=shade_range, n_total=n_total,
                 taxa_transform=taxa_transform,
+                pollution_score=score,
+                single_score_metrics=single_score_metrics,
             )
             save_figure(
                 fig_vif, figures_dir / f"{score_label}_vif_env_vs_stressor",

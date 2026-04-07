@@ -1,0 +1,28 @@
+\begin{table}[htbp]
+  \centering
+  \caption{Confusion Matrix Unified (Mrt Method — Modela Coreonly)}
+  \label{tab:MRT_Method_ModelA_CoreOnly_tables_confusion_matrix_unified}
+  \begin{tabular}{lrrrr}
+    \toprule
+    Part 1: Training Resubstitution — Core (n=35) &  &  &  &  \\
+    \midrule
+     & \% Correct & Cluster C1 & Cluster C2 & Cluster C3 \\
+    Cluster C1 & 0 & 0 & 0 & 6 \\
+    Cluster C2 & 85 & 0 & 11 & 2 \\
+    Cluster C3 & 100 & 0 & 0 & 16 \\
+    Total & 77 & 0 & 11 & 24 \\
+    Part 2: 5-Fold x 10 Cross-Validation — Core (n=35) &  &  &  &  \\
+     & \% Correct & Cluster C1 & Cluster C2 & Cluster C3 \\
+    Cluster C1 & 28 & 17 & 16 & 27 \\
+    Cluster C2 & 52 & 14 & 67 & 49 \\
+    Cluster C3 & 56 & 23 & 47 & 90 \\
+    Total & 50 & 54 & 130 & 166 \\
+    Part 3: Held-out Prediction — Peripheral (n=10) + Uncertain (n=5) &  &  &  &  \\
+     & \% Correct & Cluster C1 & Cluster C2 & Cluster C3 \\
+    Cluster C1 & 0 & 0 & 1 & 12 \\
+    Cluster C2 & 0 & 0 & 0 & 0 \\
+    Cluster C3 & 50 & 0 & 1 & 1 \\
+    Total & 7 & 0 & 2 & 13 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

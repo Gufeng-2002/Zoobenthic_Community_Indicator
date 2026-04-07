@@ -438,6 +438,176 @@ def build_confusion_matrix_table(
     return df
 
 
+# ─── Comparison confusion-matrix builders ────────────────────────────
+
+
+def _model_site_desc(train_eval: pd.DataFrame, model_name: str,
+                     is_weighted: bool = False) -> str:
+    """Build e.g. 'Model A (fully trained on 35 core sites)' from training evaluation."""
+    counts = train_eval["Status"].value_counts()
+    n_core = int(counts.get("Core", 0))
+    n_periph = int(counts.get("Peripheral", 0))
+    n_uncertain = int(counts.get("Uncertain", 0))
+    parts = []
+    if n_core:
+        parts.append(f"{n_core} core")
+    if n_periph:
+        parts.append(f"{n_periph} peripheral")
+    if n_uncertain:
+        parts.append(f"{n_uncertain} uncertain")
+    desc = " + ".join(parts) + " sites"
+    if is_weighted:
+        desc += ", weighted"
+    # Extract model letter from model_name (e.g. "Model A (Core Only)" -> "Model A")
+    prefix = " ".join(model_name.split()[:2])
+    return f"{prefix} (fully trained on {desc})"
+
+
+def build_allref_comparison_table(
+    sections: List[dict],
+) -> pd.DataFrame:
+    """Build all-ref-sites comparison confusion matrix table.
+
+    Each element of *sections* is a dict with keys:
+      header  : str           - section header
+      cm      : np.ndarray    - confusion matrix
+      cnames  : list[str]     - cluster names
+      stats   : dict | None   - {n_heldout, accuracy, pmax_mean, deltap_mean}
+    """
+    col_clusters = [
+        f"Cluster C{int(n.split()[-1])}" for n in sections[0]["cnames"]
+    ]
+    all_cols = ["% Correct"] + col_clusters
+
+    parts: List[pd.DataFrame] = []
+    for idx, sec in enumerate(sections):
+        if idx > 0:
+            blank = pd.DataFrame(
+                [[""] * len(all_cols)], columns=all_cols, index=[""],
+            )
+            parts.append(blank)
+
+        # Section header row
+        header_data = [""] * len(all_cols)
+        header_row = pd.DataFrame(
+            [header_data], columns=all_cols, index=[sec["header"]],
+        )
+        parts.append(header_row)
+
+        # CM body (no note)
+        cm_df = build_confusion_matrix_table(sec["cm"], sec["cnames"], note="")
+        parts.append(cm_df)
+
+        # Held-out stats footer (always present)
+        s = sec.get("stats")
+        if s and s["n_heldout"] > 0:
+            stats_data = {c: "" for c in all_cols}
+            stats_data["% Correct"] = int(round(s["accuracy"] * 100))
+            if len(col_clusters) >= 1:
+                stats_data[col_clusters[0]] = f"p_max={s['pmax_mean']:.3f}"
+            if len(col_clusters) >= 2:
+                stats_data[col_clusters[1]] = f"Dp={s['deltap_mean']:.3f}"
+            stats_idx = f"Held-out (n={s['n_heldout']})"
+        else:
+            stats_data = {c: "/" for c in all_cols}
+            stats_data["% Correct"] = "/"
+            stats_idx = "Held-out (n=0)"
+        stats_row = pd.DataFrame(
+            [list(stats_data.values())], columns=all_cols,
+            index=[stats_idx],
+        )
+        parts.append(stats_row)
+
+    return pd.concat(parts)
+
+
+def build_cv_comparison_table(
+    sections: List[dict],
+) -> pd.DataFrame:
+    """Build CV comparison confusion matrix table with median % correct.
+
+    Each element of *sections* is a dict with keys:
+      header    : str              - section header
+      agg_cm    : np.ndarray       - aggregate confusion matrix
+      fold_cms  : list[np.ndarray] - per-fold confusion matrices
+      cnames    : list[str]        - cluster names
+    """
+    col_clusters = [
+        f"Cluster C{int(n.split()[-1])}" for n in sections[0]["cnames"]
+    ]
+    all_cols = ["% Correct"] + col_clusters
+
+    parts: List[pd.DataFrame] = []
+    for idx, sec in enumerate(sections):
+        if idx > 0:
+            blank = pd.DataFrame(
+                [[""] * len(all_cols)], columns=all_cols, index=[""],
+            )
+            parts.append(blank)
+
+        # Section header row
+        header_data = [""] * len(all_cols)
+        header_row = pd.DataFrame(
+            [header_data], columns=all_cols, index=[sec["header"]],
+        )
+        parts.append(header_row)
+
+        # Compute median per-fold % correct per cluster
+        agg_cm = sec["agg_cm"]
+        fold_cms = sec["fold_cms"]
+        cnames = sec["cnames"]
+
+        if fold_cms is not None and len(fold_cms) > 0:
+            fold_pcts: List[np.ndarray] = []
+            fold_overall: List[float] = []
+            for cm in fold_cms:
+                rt = cm.sum(axis=1)
+                diag = np.diag(cm)
+                pct = np.where(rt > 0, (diag / rt) * 100, np.nan)
+                fold_pcts.append(pct)
+                total = cm.sum()
+                if total > 0:
+                    fold_overall.append(float(np.trace(cm)) / total * 100)
+            median_pcts = np.nanmedian(np.array(fold_pcts), axis=0)
+            median_overall = np.nanmedian(fold_overall)
+        else:
+            # Fall back to aggregate
+            rt = agg_cm.sum(axis=1)
+            diag = np.diag(agg_cm)
+            median_pcts = np.where(rt > 0, (diag / rt) * 100, 0).astype(float)
+            total = agg_cm.sum()
+            median_overall = float(np.trace(agg_cm)) / total * 100 if total else 0
+
+        # Build CM rows with median % correct
+        rows: List[dict] = []
+        col_totals = agg_cm.sum(axis=0)
+        for i, name in enumerate(cnames):
+            cid = int(name.split()[-1])
+            row: dict = {
+                "Group": f"Cluster C{cid}",
+                "% Correct": int(round(median_pcts[i])),
+            }
+            for j, pn in enumerate(cnames):
+                pid = int(pn.split()[-1])
+                row[f"Cluster C{pid}"] = int(agg_cm[i, j])
+            rows.append(row)
+
+        total_row: dict = {
+            "Group": "Total",
+            "% Correct": int(round(median_overall)),
+        }
+        for j, pn in enumerate(cnames):
+            pid = int(pn.split()[-1])
+            total_row[f"Cluster C{pid}"] = int(col_totals[j])
+        rows.append(total_row)
+
+        cm_df = pd.DataFrame(rows).set_index("Group")
+        cm_df.index.name = ""
+        parts.append(cm_df)
+
+    return pd.concat(parts)
+
+
 def build_classification_report_table(
     lda_fit: LDAFit,
 ) -> pd.DataFrame:

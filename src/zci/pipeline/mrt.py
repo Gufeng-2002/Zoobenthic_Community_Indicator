@@ -1,9 +1,10 @@
-"""Stage MRT -- Ward-targeted classifier tree pipeline.
+"""Stage 2 -- MRT Classification Pipeline.
 
-Phase 1 (cluster_classifier): reference sites only
-    read data -> pollution scores -> select ref sites -> transform taxa
-    -> Ward clustering -> tree classifier fit/prune by CVRE
-    -> ANOVA -> cluster panel -> save.
+Requires pre-computed Ward clustering labels from the WardsClustering pipeline.
+
+Phase 1 (classifier_training): reference sites only
+    use Ward cluster labels -> tree classifier fit/prune by CVRE
+    -> env PCA ordination -> save.
 
 Phase 2 (classifier_prediction): non-reference sites
     tree predict on non-ref sites -> save tables -> save artifact.
@@ -15,10 +16,10 @@ import pickle
 from pathlib import Path as _Path
 from typing import Sequence
 
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from ..core.clustering import select_reference_sites, ward_cluster
 from ..core.mrt import fit_mrt
 from ..core.transforms import (
     octave_to_chord,
@@ -27,14 +28,12 @@ from ..core.transforms import (
     octave_to_relative_abundance,
     octave_transform,
 )
-from ..core.anova import anova_table, extract_pvalues
 from ..core.lda import build_confusion_matrix_table
 from ..io.readers import extract_block, read_study_data
 from ..io.writers import save_table, save_figure
 from ..models.clustering import TAXA_COLUMNS
 from ..models.mrt import MRTResult
 from ..viz.mrt_plots import save_mrt_cp_tree_figure
-from ..viz.cluster_panel_plot import plot_cluster_panel, TAXA_DISPLAY_ORDER
 from ..viz.taxa_trend_grid import plot_taxa_trend_comparison, plot_env_trend_comparison
 from ..viz.ordination_plots import save_env_pca_ordination
 
@@ -54,32 +53,36 @@ def mrt_pipeline(
     output_dir: str | _Path,
     maps_dir: str | _Path,
     *,
+    site_robustness: pd.DataFrame,
     output_prefix: str = "",
     taxa_columns: Sequence[str] = TAXA_COLUMNS,
     env_variables: Sequence[str] | None = None,
     env_short: Sequence[str] | None = None,
     response_transform: str = "chord",
-    reference_quantile: float = 0.22,
-    n_clusters: int = 3,
-    anova_transform: str = "none",
     k_folds: int = 10,
     cv_perms: int = 100,
     minsplit: int = 5,
     minbucket: int = 2,
     random_state: int | None = 42,
-    map_func=None,
     save_plots: bool = True,
     figure_formats: Sequence[str] = ("png",),
     table_formats: Sequence[str] = ("xlsx",),
     verbose: bool = True,
 ) -> MRTResult:
-    """Run the combined Ward clustering + MRT classifier pipeline."""
+    """Run the MRT classifier pipeline using pre-computed Ward clustering.
+
+    Parameters
+    ----------
+    site_robustness : pd.DataFrame
+        Site robustness table from WardsClustering (index=Site, columns include
+        Original_Cluster, Branch_AU, Silhouette, etc.).
+    """
     output_dir = _Path(output_dir)
-    cc_dir = output_dir / "cluster_classifier"
+    ct_dir = output_dir / "classifier_training"
     cp_dir = output_dir / "classifier_prediction"
-    cc_tables = cc_dir / "tables"
-    cc_figures = cc_dir / "figures"
-    cc_artifacts = cc_dir / "artifacts"
+    ct_tables = ct_dir / "tables"
+    ct_figures = ct_dir / "figures"
+    ct_artifacts = ct_dir / "artifacts"
     cp_tables = cp_dir / "tables"
     cp_figures = cp_dir / "figures"
     cp_artifacts = cp_dir / "artifacts"
@@ -111,15 +114,33 @@ def mrt_pipeline(
         if verbose:
             print(msg)
 
+    # ============================================================
+    #  Extract cluster labels from site robustness table
+    # ============================================================
+    ward_labels_ref = site_robustness["Original_Cluster"].copy()
+    n_clusters = int(ward_labels_ref.nunique())
+
     _log("=" * 60)
-    _log("  MRT PHASE 1: Ward-Targeted Cluster Classifier")
+    _log("  MRT PHASE 1: Classifier Training")
     _log("=" * 60)
 
-    _log("[1/10] Reading original study data...")
+    _log(f"       {len(ward_labels_ref)} reference sites, {n_clusters} clusters (from Ward)")
+    for g in sorted(ward_labels_ref.unique()):
+        _log(f"         Group {g}: {(ward_labels_ref == g).sum()} sites")
+
+    # -- 1. Read original data -----------------------------------------
+    _log("[1/6] Reading original study data...")
     data = read_study_data(data_path)
     _log(f"      {data.shape[0]} sites x {data.shape[1]} variables")
 
-    _log("[2/10] Reading Stage 1 artifact for site scores...")
+    # Build reference mask over all sites
+    ref_mask = pd.Series(False, index=data.index, name="Is_Reference")
+    ref_mask.loc[ref_mask.index.isin(ward_labels_ref.index)] = True
+    reference_quantile = float(ref_mask.sum()) / len(ref_mask)
+    ward_linkage = None
+
+    # -- 2. Read Stage 1 artifact for pollution scores -----------------
+    _log("[2/6] Reading Stage 1 artifact for site scores...")
     stage1 = pd.read_excel(stage1_artifact, header=[0, 1, 2], index_col=0)
     score_cols = [
         c for c in stage1.columns
@@ -127,35 +148,26 @@ def mrt_pipeline(
     ]
     if not score_cols:
         raise KeyError("No pollution score column found in Stage 1 artifact")
-
     pollution_scores = stage1.loc[:, score_cols[0]].rename("Pollution_Score")
-    _log(
-        f"      Score range: [{pollution_scores.min():.4f}, {pollution_scores.max():.4f}]"
-    )
 
-    _log(f"[3/10] Selecting reference sites (bottom {reference_quantile * 100:.0f}%)...")
-    ref_mask = select_reference_sites(pollution_scores, quantile=reference_quantile)
-    threshold = float(pollution_scores.loc[ref_mask].max())
-    ref_stations = pollution_scores.index[ref_mask]
-    _log(
-        f"      {len(ref_stations)} reference sites out of {len(ref_mask)} total "
-        f"(threshold = {threshold:.4f})"
-    )
-
-    _log("[4/10] Preparing taxa and environmental data...")
+    # -- 3. Prepare taxa and environmental data ------------------------
+    _log("[3/6] Preparing taxa and environmental data...")
     taxa_all = extract_block(data, "taxa", "raw")[list(taxa_columns)]
     env_all = extract_block(data, "environmental", "raw")
 
+    ref_stations = ward_labels_ref.index
     taxa_ref_oct = taxa_all.loc[ref_stations].copy()
     taxa_response = response_transform_fn(taxa_ref_oct)
     taxa_response.index = ref_stations
     env_ref_raw = env_all.loc[ref_stations, list(env_variables)].copy().dropna()
 
+    # Align to complete-case sites
     taxa_ref_oct = taxa_ref_oct.loc[env_ref_raw.index]
     taxa_response = taxa_response.loc[env_ref_raw.index]
-    ref_mask = ref_mask.copy()
-    ref_mask.loc[:] = False
-    ref_mask.loc[env_ref_raw.index] = True
+    ward_labels_aligned = ward_labels_ref.loc[env_ref_raw.index]
+    ref_mask_aligned = ref_mask.copy()
+    ref_mask_aligned.loc[:] = False
+    ref_mask_aligned.loc[env_ref_raw.index] = True
     ref_stations = env_ref_raw.index
     env_ref = env_ref_raw.copy()
     env_ref.columns = list(env_short)
@@ -165,20 +177,16 @@ def mrt_pipeline(
         f"{env_ref.shape[1]} environmental predictors"
     )
 
-    _log(f"[5/10] Ward clustering on transformed reference taxa (k = {n_clusters})...")
-    ward_labels_ref, ward_linkage = ward_cluster(taxa_response, n_clusters=n_clusters)
-    for cluster_id in sorted(ward_labels_ref.unique()):
-        _log(f"        Cluster {int(cluster_id)}: {(ward_labels_ref == cluster_id).sum()} sites")
-
+    # -- 4. Train decision-tree classifier -----------------------------
     _log(
-        f"[6/10] Training decision-tree classifier ({k_folds}-fold CV x {cv_perms} random assignments)..."
+        f"[4/6] Training decision-tree classifier ({k_folds}-fold CV x {cv_perms} random assignments)..."
     )
     result = fit_mrt(
         taxa_response,
         env_ref,
-        cluster_labels=ward_labels_ref,
+        cluster_labels=ward_labels_aligned,
         ward_linkage=ward_linkage,
-        ref_mask=ref_mask,
+        ref_mask=ref_mask_aligned,
         ref_stations=ref_stations,
         taxa_ref_octave=taxa_ref_oct.loc[env_ref.index],
         reference_quantile=reference_quantile,
@@ -198,7 +206,8 @@ def mrt_pipeline(
     for name, count in result.variable_counts.items():
         _log(f"        {name}: {int(count)} splits")
 
-    _log("[7/10] Selecting smallest-CVRE tree...")
+    # -- 5. Select smallest-CVRE tree ----------------------------------
+    _log("[5/6] Selecting smallest-CVRE tree...")
     selected_size = result.pruned_nsplits + 1
     _log(
         f"      Min CVRE: {result.min_cv_error:.4f} (SE={result.min_cv_se:.4f}) at size {selected_size}"
@@ -211,20 +220,19 @@ def mrt_pipeline(
         _log(
             "\n  WARNING: Pruned tree has only 1 leaf (root-only). "
             "All reference sites fall into a single cluster.\n"
-            "  ANOVA, cluster panel, and Phase 2 predictions will "
-            "reflect a single group.\n"
         )
 
-    _log("[8/10] Saving classifier tree outputs...")
-    figure_path = save_mrt_cp_tree_figure(result, cc_figures / f"{output_prefix}mrt_cp_tree.png")
+    # -- 6. Save classifier training outputs ---------------------------
+    _log("[6/6] Saving classifier training outputs...")
+    figure_path = save_mrt_cp_tree_figure(result, ct_figures / f"{output_prefix}mrt_cp_tree.png")
     if verbose:
         print(f"  > Saved figure: {figure_path}")
 
     # CP table
-    save_table(result.cp_table, cc_tables / f"{output_prefix}mrt_cp_table", verbose=verbose)
+    save_table(result.cp_table, ct_tables / f"{output_prefix}mrt_cp_table", verbose=verbose)
 
     # Leaf membership
-    leaf_path = cc_tables / f"{output_prefix}mrt_leaf_membership.xlsx"
+    leaf_path = ct_tables / f"{output_prefix}mrt_leaf_membership.xlsx"
     leaf_path.parent.mkdir(parents=True, exist_ok=True)
     result.leaf_membership.to_excel(leaf_path, index=False)
     if verbose:
@@ -232,14 +240,12 @@ def mrt_pipeline(
 
     # Reference taxa clusters table
     ref_table = result.to_ref_table()
-    ref_table_path = cc_tables / f"{output_prefix}reference_taxa_clusters.xlsx"
+    ref_table_path = ct_tables / f"{output_prefix}reference_taxa_clusters.xlsx"
     ref_table.to_excel(ref_table_path)
     if verbose:
         print(f"  > Saved table: {ref_table_path}")
 
     # ── Majority-vote leaf→cluster mapping and merged table ───────
-    import numpy as _np
-
     leaf_mem = result.leaf_membership.copy()
     leaf_mem = leaf_mem.set_index("StationID")
     true_labels_aligned = result.cluster_labels_ref.loc[leaf_mem.index]
@@ -258,7 +264,7 @@ def mrt_pipeline(
     merged = ref_table.copy()
     merged.insert(0, "Pre_Cluster", pred_cluster.loc[merged.index].values)
     merged.rename(columns={"Cluster": "Ward_Cluster"}, inplace=True)
-    merged_path = cc_tables / f"{output_prefix}mrt_cluster_comparison.xlsx"
+    merged_path = ct_tables / f"{output_prefix}mrt_cluster_comparison.xlsx"
     merged.to_excel(merged_path)
     if verbose:
         print(f"  > Saved table: {merged_path}")
@@ -273,79 +279,36 @@ def mrt_pipeline(
         labels=unique_clusters,
     )
     confusion_df = build_confusion_matrix_table(cm, cluster_names)
-    save_table(confusion_df, cc_tables / f"{output_prefix}mrt_confusion_matrix",
+    save_table(confusion_df, ct_tables / f"{output_prefix}mrt_confusion_matrix",
                formats=table_formats, verbose=verbose)
 
     # Pickle artifact
-    cc_artifacts.mkdir(parents=True, exist_ok=True)
-    artifact_path = cc_artifacts / f"{output_prefix}mrt_model.pkl"
+    ct_artifacts.mkdir(parents=True, exist_ok=True)
+    artifact_path = ct_artifacts / f"{output_prefix}mrt_model.pkl"
     with artifact_path.open("wb") as f:
         pickle.dump(result, f)
     if verbose:
         print(f"  > Saved artifact: {artifact_path}")
 
+    # Save augmented site robustness table
+    augmented_robustness = site_robustness.copy()
+    augmented_robustness["Predicted_Cluster"] = pred_cluster.reindex(
+        augmented_robustness.index
+    )
+    rob_path = ct_artifacts / f"{output_prefix}site_robustness.xlsx"
+    augmented_robustness.to_excel(rob_path)
+    if verbose:
+        print(f"  > Saved augmented robustness: {rob_path}")
+
+    # PCA ordination biplot in environmental space
     labels_ref = result.cluster_labels
-    _log("[9/10] Running ANOVA tests on Ward target clusters ...")
-
-    env_ref_long = env_all.loc[labels_ref.index]
-    env_vars_present = [v for v in env_variables if v in env_ref_long.columns]
-    env_ref_anova = env_ref_long[env_vars_present]
-
-    taxa_ref_anova = result.taxa_ref_octave
-
-    env_anova = anova_table(
-        env_ref_anova, labels_ref, env_vars_present,
-        transform=anova_transform, label_col="Variable",
-    )
-    save_table(env_anova, cc_tables / f"{output_prefix}anova_env",
-               formats=table_formats, verbose=verbose)
-    env_pvals = extract_pvalues(env_anova, label_col="Variable")
-
-    taxa_anova = anova_table(
-        taxa_ref_anova, labels_ref, list(taxa_ref_anova.columns),
-        transform=anova_transform, label_col="Taxon",
-    )
-    save_table(taxa_anova, cc_tables / f"{output_prefix}anova_taxa",
-               formats=table_formats, verbose=verbose)
-    taxa_pvals = extract_pvalues(taxa_anova, label_col="Taxon")
-
     if save_plots:
-        _log("[10/10] Saving Ward-target cluster panel figure ...")
-        sample_info = extract_block(data, "sample_info", "raw")
-        lat = sample_info.loc[labels_ref.index, "Latitude"]
-        lon = sample_info.loc[labels_ref.index, "Longitude"]
-        taxa_relabd = octave_to_relative_abundance(taxa_ref_anova)
-
-        panel_figures = plot_cluster_panel(
-            cluster_labels=labels_ref,
-            lat=lat,
-            lon=lon,
-            env_data=env_ref_anova,
-            taxa_octave=taxa_ref_anova,
-            taxa_relabd=taxa_relabd,
-            env_pvalues=env_pvals,
-            taxa_pvalues=taxa_pvals,
-            maps_dir=maps_dir,
-            env_vars=env_vars_present,
-            taxa_order=TAXA_DISPLAY_ORDER,
-            map_func=map_func,
-        )
-        for suffix, (fig_panel, _) in panel_figures.items():
-            save_figure(
-                fig_panel,
-                cc_figures / f"{output_prefix}cluster_{suffix}",
-                formats=figure_formats,
-                verbose=verbose,
-            )
-            plt.close(fig_panel)
-
-        # PCA ordination biplot in environmental space
         _log("  Saving PCA ordination biplot ...")
         pca_path = save_env_pca_ordination(
             env_ref=env_ref,
             true_labels=labels_ref,
             predicted_labels=pred_cluster.loc[labels_ref.index],
-            output_path=cc_figures / f"{output_prefix}env_pca_ordination.png",
+            output_path=ct_figures / f"{output_prefix}env_pca_ordination.png",
             env_feature_names=list(env_short),
         )
         if verbose:
@@ -371,12 +334,15 @@ def mrt_pipeline(
         f"  RE: {selected['rel error']:.3f}   CVRE: {selected['CV error']:.3f}   SE: {selected['CV std']:.3f}"
     )
 
+    # ============================================================
+    #  PHASE 2: Classifier Prediction (Non-Reference Sites)
+    # ============================================================
     _log("\n" + "=" * 60)
     _log("  MRT PHASE 2: Classifier Prediction (Non-Reference Sites)")
     _log("=" * 60)
 
     _log("[P2-1/3] Predicting non-reference sites via classifier tree ...")
-    nonref_mask = ~ref_mask
+    nonref_mask = ~ref_mask_aligned
     env_nonref_raw = env_all.loc[nonref_mask, list(env_variables)].copy().dropna()
     env_nonref = env_nonref_raw.copy()
     env_nonref.columns = list(env_short)
@@ -408,7 +374,7 @@ def mrt_pipeline(
     ])
     aug = pd.DataFrame(index=data.index, columns=cols)
     aug[("02_taxa_assemblage_mrt", "raw", "Predicted_Cluster")] = cluster_all
-    aug[("02_taxa_assemblage_mrt", "raw", "Is_Reference")] = ref_mask.astype(int)
+    aug[("02_taxa_assemblage_mrt", "raw", "Is_Reference")] = ref_mask_aligned.astype(int)
     aug_path = cp_artifacts / f"{output_prefix}mrt_predicted_data.xlsx"
     aug.to_excel(aug_path)
     if verbose:
@@ -419,14 +385,11 @@ def mrt_pipeline(
         _log("[P2-4] Creating taxa trend grid plots ...")
         cp_figures.mkdir(parents=True, exist_ok=True)
 
-        # Data for comparison figure
         taxa_ref_relabd = octave_to_relative_abundance(taxa_all.loc[labels_ref.index])
         avg_score_ref = pollution_scores.loc[labels_ref.index].mean()
 
-        # Most polluted sites: top quantile by pollution score (same n as ref)
-        n_ref = int(ref_mask.sum())
+        n_ref = int(ref_mask_aligned.sum())
         top_polluted_idx = pollution_scores.nlargest(n_ref).index
-        # Keep only those with predicted cluster labels
         top_polluted_idx = top_polluted_idx.intersection(cluster_all.dropna().index)
         if len(top_polluted_idx) > 0:
             top_polluted_labels = cluster_all.loc[top_polluted_idx].astype(int)
@@ -434,7 +397,6 @@ def mrt_pipeline(
             taxa_top_relabd = octave_to_relative_abundance(
                 taxa_all.loc[top_polluted_idx.intersection(taxa_all.index)]
             )
-            # Combined comparison figure: ref vs most polluted
             fig_cmp, _ = plot_taxa_trend_comparison(
                 taxa_relabd_ref=taxa_ref_relabd,
                 cluster_labels_ref=labels_ref,
@@ -448,7 +410,6 @@ def mrt_pipeline(
         else:
             _log("      WARNING: No polluted sites with cluster labels found.")
 
-        # Environmental trend comparison: ref vs most polluted
         _log("[P2-5] Creating env trend comparison plot ...")
         env_ref_plot = env_all.loc[labels_ref.index, list(env_variables)]
         if len(top_polluted_idx) > 0:
