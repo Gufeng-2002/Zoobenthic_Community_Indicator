@@ -57,7 +57,7 @@ if __name__ == "__main__":
         stage1_artifact=STAGE1_ARTIFACT,
         output_dir=OUTPUT_DIR,
         site_robustness=robustness,
-        response_transform="chord",
+        response_transform="octave",
         k_folds=5,
         cv_perms=10,
         minsplit=3,
