@@ -20,6 +20,7 @@ def _fit_tree(
     minsplit: int,
     minbucket: int,
     random_state: int | None,
+    max_leaf_nodes: int | None = None,
 ) -> DecisionTreeClassifier:
     model = DecisionTreeClassifier(
         criterion="gini",
@@ -27,6 +28,7 @@ def _fit_tree(
         min_samples_split=minsplit,
         min_samples_leaf=minbucket,
         ccp_alpha=float(ccp_alpha),
+        max_leaf_nodes=max_leaf_nodes,
     )
     model.fit(X, y)
     return model
@@ -62,6 +64,7 @@ def _cross_validated_relative_errors(
     minsplit: int,
     minbucket: int,
     random_state: int | None,
+    max_leaf_nodes: int | None = None,
 ) -> np.ndarray:
     if cv_perms < 1:
         raise ValueError("cv_perms must be >= 1")
@@ -88,6 +91,7 @@ def _cross_validated_relative_errors(
                 minsplit=minsplit,
                 minbucket=minbucket,
                 random_state=random_state,
+                max_leaf_nodes=max_leaf_nodes,
             )
             preds = model.predict(X[test_idx])
             fold_errors += _misclassified(y[test_idx], preds)
@@ -115,8 +119,13 @@ def fit_mrt(
     minsplit: int = 5,
     minbucket: int = 2,
     random_state: int | None = 42,
+    target_leaves: int | None = None,
 ) -> MRTResult:
-    """Fit a pruned tree classifier to Ward-defined reference clusters."""
+    """Fit a pruned tree classifier to Ward-defined reference clusters.
+
+    If *target_leaves* is given the tree with that many leaves is selected
+    instead of the one with minimum CVRE.
+    """
     aligned_clusters = cluster_labels.loc[env_df.index].astype(int)
     X = env_df.astype(float)
     y = aligned_clusters.astype(int)
@@ -187,10 +196,54 @@ def fit_mrt(
     cp_table = pd.DataFrame(candidate_rows.values()).sort_values("nsplit").reset_index(drop=True)
     cp_table.index = np.arange(1, len(cp_table) + 1)
 
-    best_pos = int(cp_table["CV error"].to_numpy(dtype=float).argmin())
-    best_row = cp_table.iloc[best_pos]
-    best_nsplit = int(best_row["nsplit"])
-    best_tree = candidate_models[best_nsplit]
+    if target_leaves is not None:
+        target_nsplit = target_leaves - 1
+        matches = cp_table.loc[cp_table["nsplit"] == target_nsplit]
+        if not matches.empty:
+            best_row = matches.iloc[0]
+            best_nsplit = int(best_row["nsplit"])
+            best_tree = candidate_models[best_nsplit]
+        else:
+            # Pruning path skipped this size; fit directly with max_leaf_nodes
+            forced = DecisionTreeClassifier(
+                criterion="gini",
+                random_state=random_state,
+                min_samples_split=minsplit,
+                min_samples_leaf=minbucket,
+                max_leaf_nodes=target_leaves,
+            )
+            forced.fit(X, y)
+            best_tree = forced
+            best_nsplit = int(forced.get_n_leaves() - 1)
+            train_err = _misclassified(y.to_numpy(dtype=int), forced.predict(X)) / root_error
+            cv_errs = _cross_validated_relative_errors(
+                X.to_numpy(dtype=float), y.to_numpy(dtype=int),
+                ccp_alpha=0.0, root_error=root_error,
+                k_folds=effective_k_folds, cv_perms=cv_perms,
+                minsplit=minsplit, minbucket=minbucket,
+                random_state=random_state,
+                max_leaf_nodes=target_leaves,
+            )
+            # Insert into cp_table so the plot can find it
+            new_row = {
+                "CP": 0.0, "nsplit": best_nsplit,
+                "rel error": float(train_err),
+                "CV error": float(cv_errs.mean()),
+                "CV std": float(cv_errs.std(ddof=1) / np.sqrt(len(cv_errs))) if len(cv_errs) > 1 else 0.0,
+                "CV lo": float(np.percentile(cv_errs, 2.5)) if len(cv_errs) > 1 else float(cv_errs.mean()),
+                "CV hi": float(np.percentile(cv_errs, 97.5)) if len(cv_errs) > 1 else float(cv_errs.mean()),
+            }
+            new_df = pd.DataFrame([new_row])
+            cp_table = pd.concat([cp_table.reset_index(drop=True), new_df], ignore_index=True)
+            cp_table = cp_table.sort_values("nsplit").reset_index(drop=True)
+            cp_table.index = np.arange(1, len(cp_table) + 1)
+            best_row = cp_table.loc[cp_table["nsplit"] == best_nsplit].iloc[0]
+            candidate_models[best_nsplit] = best_tree
+    else:
+        best_pos = int(cp_table["CV error"].to_numpy(dtype=float).argmin())
+        best_row = cp_table.iloc[best_pos]
+        best_nsplit = int(best_row["nsplit"])
+        best_tree = candidate_models[best_nsplit]
 
     leaf_membership = pd.DataFrame(
         {

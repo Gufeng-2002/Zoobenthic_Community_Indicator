@@ -322,7 +322,7 @@ def plot_cluster_panel(
         tax_means, tax_sems, cluster_ids,
         taxa_pvalues, taxa_order, taxa_order,
         ylabel="Mean Relative Abundance (± SE)",
-        title=taxa_title or "Least Polluted Sites: Taxa by Cluster",
+        title=taxa_title or "Reference Sites: Taxa by Cluster",
         colors=colors,
         one_sided_error=True,
     )

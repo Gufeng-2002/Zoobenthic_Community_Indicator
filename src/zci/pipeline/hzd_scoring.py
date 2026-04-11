@@ -65,7 +65,7 @@ def hzd_scoring_pipeline(
     *,
     quotient_type: str | None = "TEC",
     maps_dir: str | Path | None = None,
-    threshold_quantile: int | float = 0.20,
+    threshold_quantile: float = 0.20,
     bifurcation_plot_func=None,
     save_plots: bool = True,
     figure_formats: Sequence[str] = ("png",),

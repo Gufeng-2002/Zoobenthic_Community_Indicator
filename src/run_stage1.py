@@ -74,10 +74,10 @@ if __name__ == "__main__":
         output_dir=OUTPUT_DIR / "PCA_Stressors",
         pollution_standardize=True,
         n_components=5,
-        selected_pcs=None,
+        selected_pcs=['PC1', 'PC2', 'PC3', 'PC4', 'PC5'],
         composite_transform="none",
         maps_dir=MAPS_DIR,
-        threshold_quantile=40,
+        threshold_quantile=0.20,
         save_plots=True,
     )
 
@@ -103,7 +103,7 @@ if __name__ == "__main__":
         output_dir=OUTPUT_DIR / "HZD_Toxicity",
         benchmark_path=BENCHMARK_PATH,
         maps_dir=MAPS_DIR,
-        threshold_quantile=40,
+        threshold_quantile=0.20,
         save_plots=True,
     )
 
@@ -173,7 +173,8 @@ if __name__ == "__main__":
         score=hzd_result.hzd_score,
         score_label="HZD",
         env_variables=ENV_VARIABLES,
-        stressor_predictors=hzd_result.hzd_score.to_frame("HZD"),
+        stressor_predictors=stressor_pcs,
+        single_score_predictor=True,
         thresholds=np.arange(0.05, 1.01, 0.02).round(2),
         rda_threshold=0.22,
         taxa_transform="octave",

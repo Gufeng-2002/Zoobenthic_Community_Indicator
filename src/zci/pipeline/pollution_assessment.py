@@ -142,6 +142,27 @@ def pollution_pca_pipeline(
     pollution_raw = extract_block(data, "chemical", "raw")[list(pollution_vars)]
     _log(f"      {pollution_raw.shape[1]} variables, {pollution_raw.shape[0]} sites")
 
+    # ── 2b. Descriptive statistics of raw chemical concentrations ─────────
+    _log("[2b/9] Computing descriptive statistics of raw chemical variables …")
+    desc = pollution_raw.describe().T  # count, mean, std, min, 25%, 50%, 75%, max
+    desc = desc.rename(columns={
+        "25%": "Q1 (25%)",
+        "50%": "Median (50%)",
+        "75%": "Q3 (75%)",
+    })
+    desc["CV (%)"] = (desc["std"] / desc["mean"] * 100).round(2)
+    desc["Range"] = desc["max"] - desc["min"]
+    desc.index.name = "Chemical"
+    # Reorder columns
+    desc = desc[["count", "mean", "std", "CV (%)", "min",
+                 "Q1 (25%)", "Median (50%)", "Q3 (75%)", "max", "Range"]]
+    save_table(
+        desc,
+        tables_dir / "chemical_descriptive_stats",
+        formats=table_formats,
+        verbose=verbose,
+    )
+
     # ── 3. Screen variables ───────────────────────────────────────────────
     _log("[3/9] Screening variables for negligible variation …")
     low_var = pollution_raw.std() < 1e-10

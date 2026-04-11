@@ -66,6 +66,7 @@ def _fit_weighted_tree(
     minsplit: int,
     minbucket: int,
     random_state: int | None,
+    max_leaf_nodes: int | None = None,
 ) -> DecisionTreeClassifier:
     """Fit a classification tree with sample weights."""
     model = DecisionTreeClassifier(
@@ -74,6 +75,7 @@ def _fit_weighted_tree(
         min_samples_split=minsplit,
         min_samples_leaf=minbucket,
         ccp_alpha=float(ccp_alpha),
+        max_leaf_nodes=max_leaf_nodes,
     )
     model.fit(X, y, sample_weight=sample_weight)
     return model
@@ -91,6 +93,7 @@ def _weighted_cvre(
     minsplit: int,
     minbucket: int,
     random_state: int | None,
+    max_leaf_nodes: int | None = None,
 ) -> np.ndarray:
     """Repeated stratified k-fold CVRE with sample weights."""
     from sklearn.model_selection import StratifiedKFold
@@ -112,6 +115,7 @@ def _weighted_cvre(
                 X[train_idx], y[train_idx], sample_weight[train_idx],
                 ccp_alpha=ccp_alpha, minsplit=minsplit,
                 minbucket=minbucket, random_state=random_state,
+                max_leaf_nodes=max_leaf_nodes,
             )
             preds = model.predict(X[test_idx])
             fold_errors += int(np.count_nonzero(y[test_idx] != preds))
@@ -129,8 +133,13 @@ def _fit_weighted_mrt(
     minsplit: int,
     minbucket: int,
     random_state: int | None,
+    target_leaves: int | None = None,
 ) -> tuple[DecisionTreeClassifier, pd.DataFrame, float, float, float, int, int]:
-    """Fit a weighted pruned tree, returning (model, cp_table, best_cp, min_cvre, se, nsplits, nleaves)."""
+    """Fit a weighted pruned tree, returning (model, cp_table, best_cp, min_cvre, se, nsplits, nleaves).
+
+    If *target_leaves* is given the tree with that many leaves is selected
+    instead of the one with minimum CVRE.
+    """
     from ..core.mrt import _root_node_error
 
     aligned = cluster_labels.loc[env_df.index].astype(int)
@@ -178,10 +187,50 @@ def _fit_weighted_mrt(
     cp_table = pd.DataFrame(candidates.values()).sort_values("nsplit").reset_index(drop=True)
     cp_table.index = np.arange(1, len(cp_table) + 1)
 
-    best_pos = int(cp_table["CV error"].to_numpy(float).argmin())
-    best_row = cp_table.iloc[best_pos]
-    best_nsplit = int(best_row["nsplit"])
-    best_tree = models[best_nsplit]
+    if target_leaves is not None:
+        target_nsplit = target_leaves - 1
+        matches = cp_table.loc[cp_table["nsplit"] == target_nsplit]
+        if not matches.empty:
+            best_row = matches.iloc[0]
+            best_nsplit = int(best_row["nsplit"])
+            best_tree = models[best_nsplit]
+        else:
+            # Pruning path skipped this size; fit directly with max_leaf_nodes
+            forced = DecisionTreeClassifier(
+                criterion="gini",
+                random_state=random_state,
+                min_samples_split=minsplit,
+                min_samples_leaf=minbucket,
+                max_leaf_nodes=target_leaves,
+            )
+            forced.fit(X, y, sample_weight=w)
+            best_tree = forced
+            best_nsplit = int(forced.get_n_leaves() - 1)
+            train_err = int(np.count_nonzero(y != forced.predict(X))) / root_error
+            cv_errs = _weighted_cvre(
+                X, y, w, ccp_alpha=0.0, root_error=root_error,
+                k_folds=effective_k, cv_perms=cv_perms,
+                minsplit=minsplit, minbucket=minbucket,
+                random_state=random_state,
+                max_leaf_nodes=target_leaves,
+            )
+            new_row = {
+                "CP": 0.0, "nsplit": best_nsplit,
+                "rel error": float(train_err),
+                "CV error": float(cv_errs.mean()),
+                "CV std": float(cv_errs.std(ddof=1) / np.sqrt(len(cv_errs))) if len(cv_errs) > 1 else 0.0,
+            }
+            new_df = pd.DataFrame([new_row])
+            cp_table = pd.concat([cp_table.reset_index(drop=True), new_df], ignore_index=True)
+            cp_table = cp_table.sort_values("nsplit").reset_index(drop=True)
+            cp_table.index = np.arange(1, len(cp_table) + 1)
+            best_row = cp_table.loc[cp_table["nsplit"] == best_nsplit].iloc[0]
+            models[best_nsplit] = best_tree
+    else:
+        best_pos = int(cp_table["CV error"].to_numpy(float).argmin())
+        best_row = cp_table.iloc[best_pos]
+        best_nsplit = int(best_row["nsplit"])
+        best_tree = models[best_nsplit]
 
     return (
         best_tree, cp_table,
@@ -353,6 +402,7 @@ def _train_single_mrt(
     minsplit: int,
     minbucket: int,
     random_state: int | None,
+    target_leaves: int | None = None,
     model_dir: _Path,
     env_short: list[str] | None = None,
     save_plots: bool = True,
@@ -390,6 +440,7 @@ def _train_single_mrt(
             k_folds=k_folds, cv_perms=cv_perms,
             minsplit=minsplit, minbucket=minbucket,
             random_state=random_state,
+            target_leaves=target_leaves,
         )
     else:
         _log(f"  [{model_name}] Fitting unweighted tree on {n_train} sites ...")
@@ -408,6 +459,7 @@ def _train_single_mrt(
             k_folds=k_folds, cv_perms=cv_perms,
             minsplit=minsplit, minbucket=minbucket,
             random_state=random_state,
+            target_leaves=target_leaves,
         )
         classifier_model = mrt_result.classifier_model
         cp_table = mrt_result.cp_table
@@ -575,6 +627,7 @@ def confidence_mrt_pipeline(
     minsplit: int = 3,
     minbucket: int = 2,
     random_state: int | None = 42,
+    target_leaves: int | None = None,
     save_plots: bool = True,
     figure_formats: Sequence[str] = ("png",),
     table_formats: Sequence[str] = ("xlsx",),
@@ -700,6 +753,7 @@ def confidence_mrt_pipeline(
         k_folds=k_folds, cv_perms=cv_perms,
         minsplit=minsplit, minbucket=minbucket,
         random_state=random_state,
+        target_leaves=target_leaves,
         env_short=list(env_short),
         save_plots=save_plots,
         figure_formats=figure_formats,

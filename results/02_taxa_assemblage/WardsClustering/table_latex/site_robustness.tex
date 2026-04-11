@@ -1,18 +1,20 @@
-% Requires: \usepackage{longtable, booktabs}
-{\small
-\begin{longtable}{lrrrrrrr}
-  \caption{Site Robustness (Wardsclustering)}
+% Requires: \usepackage{longtable, booktabs, makecell}
+{\scriptsize
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{1.05}
+\begin{longtable}{@{}lccccccl@{}}
+  \caption{Site Robustness (Ward Clustering)}
   \label{tab:WardsClustering_tables_site_robustness} \\
   \toprule
-  Site & Original\_Cluster & Branch\_AU & Silhouette & Own\_Coassign & Best\_Alt\_Coassign & Margin & Status \\
+  Site & \makecell[c]{Original\\Cluster} & \makecell[c]{Branch\\AU} & Silhouette & \makecell[c]{Own\\Coassignment} & \makecell[c]{Best Alt.\\Coassignment} & Margin & Status \\
   \midrule
   \endfirsthead
-  \multicolumn{8}{l}{\tablename\ \thetable\ -- continued} \\
+  \multicolumn{8}{@{}l}{\tablename\ \thetable\ -- continued} \\
   \toprule
-  Site & Original\_Cluster & Branch\_AU & Silhouette & Own\_Coassign & Best\_Alt\_Coassign & Margin & Status \\
+  Site & \makecell[c]{Original\\Cluster} & \makecell[c]{Branch\\AU} & Silhouette & \makecell[c]{Own\\Coassignment} & \makecell[c]{Best Alt.\\Coassignment} & Margin & Status \\
   \midrule
   \endhead
-  \midrule \multicolumn{8}{r}{{Continued on next page}} \\
+  \midrule \multicolumn{8}{@{}r}{{Continued on next page}} \\
   \endfoot
   \bottomrule
   \endlastfoot

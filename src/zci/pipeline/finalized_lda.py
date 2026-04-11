@@ -160,12 +160,19 @@ def finalized_lda_pipeline(
 
     # ─── Step 2: Build plotting dataset ──────────────────────────────
     _log("[4] Building site plotting dataset ...")
-    site_data = build_site_plot_data(pca_result, ref_labels, pred_all)
-    save_table(site_data, tables_dir / "site_plot_data",
+    site_data_12 = build_site_plot_data(pca_result, ref_labels, pred_all,
+                                        pc_x="PC1", pc_y="PC2")
+    save_table(site_data_12, tables_dir / "site_plot_data",
                formats=table_formats, verbose=verbose)
 
+    site_data_13 = build_site_plot_data(pca_result, ref_labels, pred_all,
+                                        pc_x="PC1", pc_y="PC3")
+
+    site_data_23 = build_site_plot_data(pca_result, ref_labels, pred_all,
+                                        pc_x="PC2", pc_y="PC3")
+
     # Classification summary for reference sites
-    ref_data = site_data[site_data["is_reference"]]
+    ref_data = site_data_12[site_data_12["is_reference"]]
     n_ref = len(ref_data)
     n_correct = int(ref_data["ref_correct"].sum())
     _log(f"    Reference accuracy: {n_correct}/{n_ref} "
@@ -173,117 +180,287 @@ def finalized_lda_pipeline(
 
     # ─── Step 3: Reference-cluster support ───────────────────────────
     _log("[5] Computing reference-cluster support in PC space ...")
-    ref_pca = site_data.loc[site_data["is_reference"], ["PC1", "PC2"]].values
-    ref_true = site_data.loc[site_data["is_reference"], "true_cluster"].values.astype(int)
+    ref_true = site_data_12.loc[site_data_12["is_reference"], "true_cluster"].values.astype(int)
 
-    hulls = compute_cluster_hulls(ref_pca, ref_true)
-    ellipses = compute_cluster_ellipses(ref_pca, ref_true, confidence=0.95)
-    _log(f"    Hulls for clusters: {list(hulls.keys())}")
-    _log(f"    Ellipses for clusters: {list(ellipses.keys())}")
+    # PC1-PC2
+    ref_pca_12 = site_data_12.loc[site_data_12["is_reference"], ["PC1", "PC2"]].values
+    hulls_12 = compute_cluster_hulls(ref_pca_12, ref_true)
+    ellipses_12 = compute_cluster_ellipses(ref_pca_12, ref_true, confidence=0.95)
+    allref_ellipse_12 = compute_allref_ellipse(ref_pca_12, confidence=0.95)
+    _log(f"    PC1-PC2 ellipses for clusters: {list(ellipses_12.keys())}")
 
-    # All-ref ellipse (pooled)
-    allref_ellipse = compute_allref_ellipse(ref_pca, confidence=0.95)
-    _log(f"    All-ref ellipse center: ({allref_ellipse['center'][0]:.2f}, "
-         f"{allref_ellipse['center'][1]:.2f})")
+    # PC1-PC3
+    ref_pca_13 = site_data_13.loc[site_data_13["is_reference"], ["PC1", "PC3"]].values
+    hulls_13 = compute_cluster_hulls(ref_pca_13, ref_true)
+    ellipses_13 = compute_cluster_ellipses(ref_pca_13, ref_true, confidence=0.95)
+    allref_ellipse_13 = compute_allref_ellipse(ref_pca_13, confidence=0.95)
+    _log(f"    PC1-PC3 ellipses for clusters: {list(ellipses_13.keys())}")
 
-    # ─── Step 4: Prediction grid ─────────────────────────────────────
-    _log("[6] Building prediction grid (conditional on PC1–PC2) ...")
-    xx, yy, grid_labels = build_prediction_grid(
+    # PC2-PC3
+    ref_pca_23 = site_data_23.loc[site_data_23["is_reference"], ["PC2", "PC3"]].values
+    hulls_23 = compute_cluster_hulls(ref_pca_23, ref_true)
+    ellipses_23 = compute_cluster_ellipses(ref_pca_23, ref_true, confidence=0.95)
+    allref_ellipse_23 = compute_allref_ellipse(ref_pca_23, confidence=0.95)
+    _log(f"    PC2-PC3 ellipses for clusters: {list(ellipses_23.keys())}")
+
+    # ─── Step 4: Prediction grids ────────────────────────────────────
+    _log("[6] Building prediction grids ...")
+
+    # PC1-PC2 full-model grid
+    xx_12, yy_12, gl_12 = build_prediction_grid(
         pca_result,
         classifier_model=lda_fit.model,
         classifier_scaler=lda_fit.scaler,
+        pc_indices=(0, 1),
         grid_resolution=grid_resolution,
     )
-    _log(f"    Grid shape: {xx.shape}, unique labels: {sorted(np.unique(grid_labels))}")
+    _log(f"    PC1-PC2 grid shape: {xx_12.shape}")
 
-    # Save prediction grid (down-sampled summary)
+    # PC1-PC3 full-model grid
+    xx_13, yy_13, gl_13 = build_prediction_grid(
+        pca_result,
+        classifier_model=lda_fit.model,
+        classifier_scaler=lda_fit.scaler,
+        pc_indices=(0, 2),
+        grid_resolution=grid_resolution,
+    )
+    _log(f"    PC1-PC3 grid shape: {xx_13.shape}")
+
+    # PC2-PC3 full-model grid
+    xx_23, yy_23, gl_23 = build_prediction_grid(
+        pca_result,
+        classifier_model=lda_fit.model,
+        classifier_scaler=lda_fit.scaler,
+        pc_indices=(1, 2),
+        grid_resolution=grid_resolution,
+    )
+    _log(f"    PC2-PC3 grid shape: {xx_23.shape}")
+
+    # Save prediction grid (PC1-PC2)
     grid_df = pd.DataFrame({
-        "PC1": xx.ravel(),
-        "PC2": yy.ravel(),
-        "Predicted_Cluster": grid_labels.ravel().astype(int),
+        "PC1": xx_12.ravel(),
+        "PC2": yy_12.ravel(),
+        "Predicted_Cluster": gl_12.ravel().astype(int),
     })
     save_table(grid_df, tables_dir / "prediction_grid",
                formats=table_formats, verbose=verbose)
 
-    # ─── Step 4b: 2-PC LDA (native PC1–PC2) ─────────────────────────
-    _log("[6b] Fitting 2-PC LDA on reference sites in PC1–PC2 ...")
-    lda_pc2 = fit_pc2_lda(ref_pca, ref_true)
-    pc2_preds_ref = lda_pc2.predict(ref_pca)
-    pc2_acc = (pc2_preds_ref == ref_true).mean()
-    _log(f"    2-PC LDA ref accuracy: {pc2_acc:.1%}")
+    # ─── Step 4b: 2-PC LDA (native PC1–PC2 and PC1–PC3) ─────────────
+    _log("[6b] Fitting 2-PC LDA on reference sites ...")
 
-    xx2, yy2, grid_labels_pc2 = build_pc2_lda_grid(
-        pca_result, lda_pc2, grid_resolution=grid_resolution,
+    # PC1-PC2
+    lda_pc12 = fit_pc2_lda(ref_pca_12, ref_true)
+    pc12_acc = (lda_pc12.predict(ref_pca_12) == ref_true).mean()
+    _log(f"    2-PC LDA (PC1-PC2) ref accuracy: {pc12_acc:.1%}")
+    xx2_12, yy2_12, gl2_12 = build_pc2_lda_grid(
+        pca_result, lda_pc12, pc_indices=(0, 1),
+        grid_resolution=grid_resolution,
     )
-    _log(f"    2-PC LDA grid unique labels: {sorted(np.unique(grid_labels_pc2))}")
 
-    # NOTE: site colours / shapes always reflect the *finalized* full-model
-    # predictions (pred_all) and Ward clustering labels.  The 2-PC LDA is
-    # used ONLY for the decision-region background, not for site labelling.
+    # PC1-PC3
+    lda_pc13 = fit_pc2_lda(ref_pca_13, ref_true)
+    pc13_acc = (lda_pc13.predict(ref_pca_13) == ref_true).mean()
+    _log(f"    2-PC LDA (PC1-PC3) ref accuracy: {pc13_acc:.1%}")
+    xx2_13, yy2_13, gl2_13 = build_pc2_lda_grid(
+        pca_result, lda_pc13, pc_indices=(0, 2),
+        grid_resolution=grid_resolution,
+    )
+
+    # PC2-PC3
+    lda_pc23 = fit_pc2_lda(ref_pca_23, ref_true)
+    pc23_acc = (lda_pc23.predict(ref_pca_23) == ref_true).mean()
+    _log(f"    2-PC LDA (PC2-PC3) ref accuracy: {pc23_acc:.1%}")
+    xx2_23, yy2_23, gl2_23 = build_pc2_lda_grid(
+        pca_result, lda_pc23, pc_indices=(1, 2),
+        grid_resolution=grid_resolution,
+    )
 
     # ─── Step 5–6: Visualizations ────────────────────────────────────
     if save_plots:
         _log("[7] Creating visualizations ...")
-        plot_kwargs = dict(
-            xx=xx, yy=yy, grid_labels=grid_labels,
+
+        # === PC1 × PC2 figures ===
+        plot_kw_12 = dict(
+            xx=xx_12, yy=yy_12, grid_labels=gl_12,
             loadings=pca_result.loadings,
             variance_explained=pca_result.variance_explained,
             env_short_names=env_short,
+            pc_x_col="PC1", pc_y_col="PC2",
+            loading_indices=(0, 1),
         )
 
-        # ── Single all-ref ellipse: full-model decision regions ─────
-        _log("  Creating all-ref ellipse (full-model) ...")
-        fig_full, _ = plot_allref_ellipse(
-            site_data, allref_ellipse,
+        _log("  Creating PC1-PC2 all-ref ellipse (full-model) ...")
+        fig_full_12, _ = plot_allref_ellipse(
+            site_data_12, allref_ellipse_12,
             title=(f"{chosen_model.model_name} — "
                    f"All Reference Sites 95% Ellipse (Full-Model)"),
-            **plot_kwargs,
+            **plot_kw_12,
         )
-        save_figure(fig_full, figures_dir / "allref_ellipse_fullmodel",
+        save_figure(fig_full_12, figures_dir / "pc12_allref_ellipse_fullmodel",
                     formats=figure_formats, verbose=verbose)
-        plt.close(fig_full)
+        plt.close(fig_full_12)
 
-        # ── 2×2 ellipse panel: full-model decision regions ───────────
-        _log("  Creating 2×2 ellipse panel (full-model) ...")
-        fig_panel_full = plot_ellipse_panel_2x2(
-            site_data, ellipses, allref_ellipse,
+        _log("  Creating PC1-PC2 2×2 ellipse panel (full-model) ...")
+        fig_panel_12 = plot_ellipse_panel_2x2(
+            site_data_12, ellipses_12, allref_ellipse_12,
             suptitle=(f"{chosen_model.model_name} — "
-                      f"Full-Model Decision Regions"),
-            **plot_kwargs,
+                      f"Full-Model Decision Regions (PC1–PC2)"),
+            **plot_kw_12,
         )
-        save_figure(fig_panel_full,
-                    figures_dir / "ellipse_panel_fullmodel",
+        save_figure(fig_panel_12, figures_dir / "pc12_ellipse_panel_fullmodel",
                     formats=figure_formats, verbose=verbose)
-        plt.close(fig_panel_full)
+        plt.close(fig_panel_12)
 
-        # ── Single all-ref ellipse: 2-PC LDA decision regions ──────
-        _log("  Creating all-ref ellipse (2-PC LDA) ...")
-        plot_kwargs_pc2 = dict(
-            xx=xx2, yy=yy2, grid_labels=grid_labels_pc2,
+        plot_kw2_12 = dict(
+            xx=xx2_12, yy=yy2_12, grid_labels=gl2_12,
             loadings=pca_result.loadings,
             variance_explained=pca_result.variance_explained,
             env_short_names=env_short,
+            pc_x_col="PC1", pc_y_col="PC2",
+            loading_indices=(0, 1),
         )
-        fig_pc2, _ = plot_allref_ellipse(
-            site_data, allref_ellipse,
-            title="2-PC LDA — All Reference Sites 95% Ellipse",
-            **plot_kwargs_pc2,
-        )
-        save_figure(fig_pc2, figures_dir / "allref_ellipse_pc2lda",
-                    formats=figure_formats, verbose=verbose)
-        plt.close(fig_pc2)
 
-        # ── 2×2 ellipse panel: 2-PC LDA decision regions ────────────
-        _log("  Creating 2×2 ellipse panel (2-PC LDA) ...")
-        fig_panel_pc2 = plot_ellipse_panel_2x2(
-            site_data, ellipses, allref_ellipse,
-            suptitle="2-PC LDA — Decision Regions in PC1–PC2",
-            **plot_kwargs_pc2,
+        _log("  Creating PC1-PC2 all-ref ellipse (2-PC LDA) ...")
+        fig_pc2_12, _ = plot_allref_ellipse(
+            site_data_12, allref_ellipse_12,
+            title="2-PC LDA — All Reference Sites 95% Ellipse (PC1–PC2)",
+            **plot_kw2_12,
         )
-        save_figure(fig_panel_pc2,
-                    figures_dir / "ellipse_panel_pc2lda",
+        save_figure(fig_pc2_12, figures_dir / "pc12_allref_ellipse_pc2lda",
                     formats=figure_formats, verbose=verbose)
-        plt.close(fig_panel_pc2)
+        plt.close(fig_pc2_12)
+
+        _log("  Creating PC1-PC2 2×2 ellipse panel (2-PC LDA) ...")
+        fig_panel2_12 = plot_ellipse_panel_2x2(
+            site_data_12, ellipses_12, allref_ellipse_12,
+            suptitle="2-PC LDA — Decision Regions in PC1–PC2",
+            **plot_kw2_12,
+        )
+        save_figure(fig_panel2_12, figures_dir / "pc12_ellipse_panel_pc2lda",
+                    formats=figure_formats, verbose=verbose)
+        plt.close(fig_panel2_12)
+
+        # === PC1 × PC3 figures ===
+        plot_kw_13 = dict(
+            xx=xx_13, yy=yy_13, grid_labels=gl_13,
+            loadings=pca_result.loadings,
+            variance_explained=pca_result.variance_explained,
+            env_short_names=env_short,
+            pc_x_col="PC1", pc_y_col="PC3",
+            loading_indices=(0, 2),
+        )
+
+        _log("  Creating PC1-PC3 all-ref ellipse (full-model) ...")
+        fig_full_13, _ = plot_allref_ellipse(
+            site_data_13, allref_ellipse_13,
+            title=(f"{chosen_model.model_name} — "
+                   f"All Reference Sites 95% Ellipse (Full-Model, PC1–PC3)"),
+            **plot_kw_13,
+        )
+        save_figure(fig_full_13, figures_dir / "pc13_allref_ellipse_fullmodel",
+                    formats=figure_formats, verbose=verbose)
+        plt.close(fig_full_13)
+
+        _log("  Creating PC1-PC3 2×2 ellipse panel (full-model) ...")
+        fig_panel_13 = plot_ellipse_panel_2x2(
+            site_data_13, ellipses_13, allref_ellipse_13,
+            suptitle=(f"{chosen_model.model_name} — "
+                      f"Full-Model Decision Regions (PC1–PC3)"),
+            **plot_kw_13,
+        )
+        save_figure(fig_panel_13, figures_dir / "pc13_ellipse_panel_fullmodel",
+                    formats=figure_formats, verbose=verbose)
+        plt.close(fig_panel_13)
+
+        plot_kw2_13 = dict(
+            xx=xx2_13, yy=yy2_13, grid_labels=gl2_13,
+            loadings=pca_result.loadings,
+            variance_explained=pca_result.variance_explained,
+            env_short_names=env_short,
+            pc_x_col="PC1", pc_y_col="PC3",
+            loading_indices=(0, 2),
+        )
+
+        _log("  Creating PC1-PC3 all-ref ellipse (2-PC LDA) ...")
+        fig_pc2_13, _ = plot_allref_ellipse(
+            site_data_13, allref_ellipse_13,
+            title="2-PC LDA — All Reference Sites 95% Ellipse (PC1–PC3)",
+            **plot_kw2_13,
+        )
+        save_figure(fig_pc2_13, figures_dir / "pc13_allref_ellipse_pc2lda",
+                    formats=figure_formats, verbose=verbose)
+        plt.close(fig_pc2_13)
+
+        _log("  Creating PC1-PC3 2×2 ellipse panel (2-PC LDA) ...")
+        fig_panel2_13 = plot_ellipse_panel_2x2(
+            site_data_13, ellipses_13, allref_ellipse_13,
+            suptitle="2-PC LDA — Decision Regions in PC1–PC3",
+            **plot_kw2_13,
+        )
+        save_figure(fig_panel2_13, figures_dir / "pc13_ellipse_panel_pc2lda",
+                    formats=figure_formats, verbose=verbose)
+        plt.close(fig_panel2_13)
+
+        # === PC2 × PC3 figures ===
+        plot_kw_23 = dict(
+            xx=xx_23, yy=yy_23, grid_labels=gl_23,
+            loadings=pca_result.loadings,
+            variance_explained=pca_result.variance_explained,
+            env_short_names=env_short,
+            pc_x_col="PC2", pc_y_col="PC3",
+            loading_indices=(1, 2),
+        )
+
+        _log("  Creating PC2-PC3 all-ref ellipse (full-model) ...")
+        fig_full_23, _ = plot_allref_ellipse(
+            site_data_23, allref_ellipse_23,
+            title=(f"{chosen_model.model_name} — "
+                   f"All Reference Sites 95% Ellipse (Full-Model, PC2–PC3)"),
+            **plot_kw_23,
+        )
+        save_figure(fig_full_23, figures_dir / "pc23_allref_ellipse_fullmodel",
+                    formats=figure_formats, verbose=verbose)
+        plt.close(fig_full_23)
+
+        _log("  Creating PC2-PC3 2×2 ellipse panel (full-model) ...")
+        fig_panel_23 = plot_ellipse_panel_2x2(
+            site_data_23, ellipses_23, allref_ellipse_23,
+            suptitle=(f"{chosen_model.model_name} — "
+                      f"Full-Model Decision Regions (PC2–PC3)"),
+            **plot_kw_23,
+        )
+        save_figure(fig_panel_23, figures_dir / "pc23_ellipse_panel_fullmodel",
+                    formats=figure_formats, verbose=verbose)
+        plt.close(fig_panel_23)
+
+        plot_kw2_23 = dict(
+            xx=xx2_23, yy=yy2_23, grid_labels=gl2_23,
+            loadings=pca_result.loadings,
+            variance_explained=pca_result.variance_explained,
+            env_short_names=env_short,
+            pc_x_col="PC2", pc_y_col="PC3",
+            loading_indices=(1, 2),
+        )
+
+        _log("  Creating PC2-PC3 all-ref ellipse (2-PC LDA) ...")
+        fig_pc2_23, _ = plot_allref_ellipse(
+            site_data_23, allref_ellipse_23,
+            title="2-PC LDA — All Reference Sites 95% Ellipse (PC2–PC3)",
+            **plot_kw2_23,
+        )
+        save_figure(fig_pc2_23, figures_dir / "pc23_allref_ellipse_pc2lda",
+                    formats=figure_formats, verbose=verbose)
+        plt.close(fig_pc2_23)
+
+        _log("  Creating PC2-PC3 2×2 ellipse panel (2-PC LDA) ...")
+        fig_panel2_23 = plot_ellipse_panel_2x2(
+            site_data_23, ellipses_23, allref_ellipse_23,
+            suptitle="2-PC LDA — Decision Regions in PC2–PC3",
+            **plot_kw2_23,
+        )
+        save_figure(fig_panel2_23, figures_dir / "pc23_ellipse_panel_pc2lda",
+                    formats=figure_formats, verbose=verbose)
+        plt.close(fig_panel2_23)
 
     # ─── Step 7: Save artifacts ──────────────────────────────────────
     _log("[8] Saving artifacts ...")
@@ -332,9 +509,13 @@ def finalized_lda_pipeline(
 
     return {
         "pca_result": pca_result,
-        "site_data": site_data,
+        "site_data_12": site_data_12,
+        "site_data_13": site_data_13,
+        "site_data_23": site_data_23,
         "predictions": pred_df,
-        "hulls": hulls,
-        "ellipses": ellipses,
-        "grid": (xx, yy, grid_labels),
+        "hulls_12": hulls_12,
+        "ellipses_12": ellipses_12,
+        "grid_12": (xx_12, yy_12, gl_12),
+        "grid_13": (xx_13, yy_13, gl_13),
+        "grid_23": (xx_23, yy_23, gl_23),
     }

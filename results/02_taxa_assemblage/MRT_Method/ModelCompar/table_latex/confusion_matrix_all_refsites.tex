@@ -3,37 +3,49 @@
   \small
   \caption{Confusion Matrix All Refsites (Mrt Method — Modelcompar)}
   \label{tab:MRT_Method_ModelCompar_tables_confusion_matrix_all_refsites}
-  \begin{tabular}{lrrrr}
+  \renewcommand{\arraystretch}{1.10}
+
+  \begin{tabularx}{0.96\textwidth}{@{}Y Y Y Y Y@{}}
     \toprule
-     & \% Correct & Cluster $C_{1}$ & Cluster $C_{2}$ & Cluster $C_{3}$ \\
+    \multicolumn{5}{@{}l}{\textbf{Model A (fully trained on 35 core sites)}} \\
+    \hdashline
+    Label & \% Correct & Cluster $C_{1}$ & Cluster $C_{2}$ & Cluster $C_{3}$ \\
     \midrule
-    \multicolumn{5}{l}{\textbf{Model A (fully trained on 35 core sites)}} \\
     Cluster $C_{1}$ & 0 & 0 & 1 & 18 \\
     Cluster $C_{2}$ & 85 & 0 & 11 & 2 \\
     Cluster $C_{3}$ & 94 & 0 & 1 & 17 \\
     Total & 56 & 0 & 13 & 37 \\
-    Held-out ($n=15$) & 7 & $p_{\max}=0.700$ & $\Delta p=0.476$ &  \\
+    Held-out ($n=15$) & 7 & \multicolumn{3}{@{}>{\centering\arraybackslash}p{0.53\textwidth}@{}}{$p_{\max}=0.700$\hfill$\Delta p=0.476$} \\
     \midrule
-    \multicolumn{5}{l}{\textbf{Model B (fully trained on 35 core + 10 peripheral sites)}} \\
+    \multicolumn{5}{@{}l}{\textbf{Model B (fully trained on 35 core + 10 peripheral sites)}} \\
+    \hdashline
+    Label & \% Correct & Cluster $C_{1}$ & Cluster $C_{2}$ & Cluster $C_{3}$ \\
+    \midrule
     Cluster $C_{1}$ & 63 & 12 & 2 & 5 \\
     Cluster $C_{2}$ & 92 & 0 & 12 & 1 \\
     Cluster $C_{3}$ & 83 & 1 & 2 & 15 \\
     Total & 78 & 13 & 16 & 21 \\
-    Held-out ($n=5$) & 0 & $p_{\max}=0.871$ & $\Delta p=0.742$ &  \\
+    Held-out ($n=5$) & 0 & \multicolumn{3}{@{}>{\centering\arraybackslash}p{0.53\textwidth}@{}}{$p_{\max}=0.871$\hfill$\Delta p=0.742$} \\
     \midrule
-    \multicolumn{5}{l}{\textbf{Model C (fully trained on 35 core + 10 peripheral sites, weighted)}} \\
+    \multicolumn{5}{@{}l}{\textbf{Model C (fully trained on 35 core + 10 peripheral sites, weighted)}} \\
+    \hdashline
+    Label & \% Correct & Cluster $C_{1}$ & Cluster $C_{2}$ & Cluster $C_{3}$ \\
+    \midrule
     Cluster $C_{1}$ & 74 & 14 & 5 & 0 \\
     Cluster $C_{2}$ & 92 & 1 & 12 & 0 \\
     Cluster $C_{3}$ & 0 & 11 & 7 & 0 \\
     Total & 52 & 26 & 24 & 0 \\
-    Held-out ($n=5$) & 20 & $p_{\max}=0.694$ & $\Delta p=0.448$ &  \\
+    Held-out ($n=5$) & 20 & \multicolumn{3}{@{}>{\centering\arraybackslash}p{0.53\textwidth}@{}}{$p_{\max}=0.694$\hfill$\Delta p=0.448$} \\
     \midrule
-    \multicolumn{5}{l}{\textbf{Model D (fully trained on 35 core + 10 peripheral + 5 uncertain sites)}} \\
+    \multicolumn{5}{@{}l}{\textbf{Model D (fully trained on 35 core + 10 peripheral + 5 uncertain sites)}} \\
+    \hdashline
+    Label & \% Correct & Cluster $C_{1}$ & Cluster $C_{2}$ & Cluster $C_{3}$ \\
+    \midrule
     Cluster $C_{1}$ & 89 & 17 & 1 & 1 \\
     Cluster $C_{2}$ & 85 & 1 & 11 & 1 \\
     Cluster $C_{3}$ & 83 & 3 & 0 & 15 \\
     Total & 86 & 21 & 12 & 17 \\
-    Held-out ($n=0$) & / & / & / & / \\
+    Held-out ($n=0$) & / & \multicolumn{3}{@{}>{\centering\arraybackslash}p{0.53\textwidth}@{}}{/} \\
     \bottomrule
-  \end{tabular}
+  \end{tabularx}
 \end{table}

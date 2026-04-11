@@ -1,71 +1,47 @@
-% \begin{table}[htbp]
-%   \centering
-%   \small
-%   \caption{Cv Confusion Matrices Combined (Lda Method — Modelcompar)}
-%   \label{tab:LDA_Method_ModelCompar_tables_cv_confusion_matrices_combined}
-%   \begin{tabular}{lrrrr}
-%     \toprule
-%      & \% Correct & Cluster $C_{1}$ & Cluster $C_{2}$ & Cluster $C_{3}$ \\
-%     \midrule
-%     \multicolumn{5}{l}{\textbf{Model A (fully trained on 35 core sites); $5$-fold $\times$ $10$ cross-validation}} \\
-%     Cluster $C_{1}$ & 0 & 0 & 16 & 44 \\
-%     Cluster $C_{2}$ & 50 & 4 & 69 & 57 \\
-%     Cluster $C_{3}$ & 67 & 14 & 44 & 102 \\
-%     Total & 50 & 18 & 129 & 203 \\
-%     \midrule
-%     \multicolumn{5}{l}{\textbf{Model B (fully trained on 35 core + 10 peripheral sites); $5$-fold $\times$ $10$ cross-validation}} \\
-%     Cluster $C_{1}$ & 67 & 93 & 18 & 39 \\
-%     Cluster $C_{2}$ & 50 & 21 & 63 & 46 \\
-%     Cluster $C_{3}$ & 33 & 74 & 39 & 57 \\
-%     Total & 44 & 188 & 120 & 142 \\
-%     \midrule
-%     \multicolumn{5}{l}{\textbf{Model C (fully trained on 35 core + 10 peripheral sites, weighted); $5$-fold $\times$ $10$ cross-validation}} \\
-%     Cluster $C_{1}$ & 33 & 34 & 20 & 96 \\
-%     Cluster $C_{2}$ & 50 & 13 & 75 & 42 \\
-%     Cluster $C_{3}$ & 33 & 33 & 63 & 74 \\
-%     Total & 44 & 80 & 158 & 212 \\
-%     \midrule
-%     \multicolumn{5}{l}{\textbf{Model D (fully trained on 35 core + 10 peripheral + 5 uncertain sites); $5$-fold $\times$ $10$ cross-validation}} \\
-%     Cluster $C_{1}$ & 67 & 118 & 16 & 56 \\
-%     Cluster $C_{2}$ & 50 & 25 & 62 & 43 \\
-%     Cluster $C_{3}$ & 25 & 88 & 37 & 55 \\
-%     Total & 45 & 231 & 115 & 154 \\
-%     \bottomrule
-%   \end{tabular}
-% \end{table}
-
 \begin{table}[htbp]
   \centering
   \small
   \caption{Cv Confusion Matrices Combined (Lda Method — Modelcompar)}
   \label{tab:LDA_Method_ModelCompar_tables_cv_confusion_matrices_combined}
-  \begin{tabular}{lrrrr}
+  \renewcommand{\arraystretch}{1.10}
+
+  \begin{tabularx}{0.96\textwidth}{@{}Y Y Y Y Y@{}}
     \toprule
-     & \% Correct & Cluster $C_{1}$ & Cluster $C_{2}$ & Cluster $C_{3}$ \\
+    \multicolumn{5}{@{}l}{\textbf{Model A (fully trained on 35 core sites)}} \\
+    \hdashline
+    Label & \% Correct & Cluster $C_{1}$ & Cluster $C_{2}$ & Cluster $C_{3}$ \\
     \midrule
-    \multicolumn{5}{l}{\textbf{Model A (fully trained on 35 core sites)}} \\
     Cluster $C_{1}$ & 0 & 0 & 16 & 44 \\
     Cluster $C_{2}$ & 50 & 4 & 69 & 57 \\
     Cluster $C_{3}$ & 67 & 14 & 44 & 102 \\
     Total & 50 & 18 & 129 & 203 \\
     \midrule
-    \multicolumn{5}{l}{\textbf{Model B (fully trained on 35 core + 10 peripheral sites)}} \\
+    \multicolumn{5}{@{}l}{\textbf{Model B (fully trained on 35 core + 10 peripheral sites)}} \\
+    \hdashline
+    Label & \% Correct & Cluster $C_{1}$ & Cluster $C_{2}$ & Cluster $C_{3}$ \\
+    \midrule
     Cluster $C_{1}$ & 67 & 93 & 18 & 39 \\
     Cluster $C_{2}$ & 50 & 21 & 63 & 46 \\
     Cluster $C_{3}$ & 33 & 74 & 39 & 57 \\
     Total & 44 & 188 & 120 & 142 \\
     \midrule
-    \multicolumn{5}{l}{\textbf{Model C (fully trained on 35 core + 10 peripheral sites, weighted)}} \\
+    \multicolumn{5}{@{}l}{\textbf{Model C (fully trained on 35 core + 10 peripheral sites, weighted)}} \\
+    \hdashline
+    Label & \% Correct & Cluster $C_{1}$ & Cluster $C_{2}$ & Cluster $C_{3}$ \\
+    \midrule
     Cluster $C_{1}$ & 33 & 34 & 20 & 96 \\
     Cluster $C_{2}$ & 50 & 13 & 75 & 42 \\
     Cluster $C_{3}$ & 33 & 33 & 63 & 74 \\
     Total & 44 & 80 & 158 & 212 \\
     \midrule
-    \multicolumn{5}{l}{\textbf{Model D (fully trained on 35 core + 10 peripheral + 5 uncertain sites)}} \\
+    \multicolumn{5}{@{}l}{\textbf{Model D (fully trained on 35 core + 10 peripheral + 5 uncertain sites)}} \\
+    \hdashline
+    Label & \% Correct & Cluster $C_{1}$ & Cluster $C_{2}$ & Cluster $C_{3}$ \\
+    \midrule
     Cluster $C_{1}$ & 67 & 118 & 16 & 56 \\
     Cluster $C_{2}$ & 50 & 25 & 62 & 43 \\
     Cluster $C_{3}$ & 25 & 88 & 37 & 55 \\
     Total & 45 & 231 & 115 & 154 \\
     \bottomrule
-  \end{tabular}
+  \end{tabularx}
 \end{table}

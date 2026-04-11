@@ -85,7 +85,7 @@ def _add_score_top_axis(
 
     # Draw a right-pointing arrow at the right end of the top axis
     ax2.annotate(
-        "", xy=(1.0, 1.0), xytext=(0.92, 1.0),
+        "", xy=(1.01, 1.0), xytext=(0.0, 1.0),
         xycoords="axes fraction", textcoords="axes fraction",
         arrowprops=dict(arrowstyle="->", color="black", lw=1.5),
         annotation_clip=False,

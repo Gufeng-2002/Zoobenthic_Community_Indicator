@@ -50,6 +50,9 @@ def plot_finalized_ordination(
     loadings: pd.DataFrame | None = None,
     variance_explained: np.ndarray | None = None,
     env_short_names: Sequence[str] | None = None,
+    pc_x_col: str = "PC1",
+    pc_y_col: str = "PC2",
+    loading_indices: Tuple[int, int] = (0, 1),
     arrow_scale: float = 1.0,
     title: str = "Finalized Model — Environmental PCA Ordination",
     figsize: Tuple[float, float] = (11, 9),
@@ -62,15 +65,11 @@ def plot_finalized_ordination(
     site_data : DataFrame
         From ``build_site_plot_data`` — must have columns:
         is_reference, true_cluster, pred_cluster, ref_correct,
-        display_cluster, PC1, PC2.
-    xx, yy, grid_labels : optional
-        Prediction grid from ``build_prediction_grid``.
-    hulls : optional
-        Convex hulls from ``compute_cluster_hulls``.
-    ellipses : optional
-        Ellipse params from ``compute_cluster_ellipses``.
-    loadings : optional
-        PCA loadings DataFrame (vars × PCs).
+        display_cluster, plus the two PC columns.
+    pc_x_col, pc_y_col : str
+        Column names in *site_data* for x and y axes (default PC1, PC2).
+    loading_indices : tuple of int
+        Which loading columns to use for biplot arrows (0-based).
     """
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
 
@@ -128,7 +127,7 @@ def plot_finalized_ordination(
         if not mask.any():
             continue
         ax.scatter(
-            nonref.loc[mask, "PC1"], nonref.loc[mask, "PC2"],
+            nonref.loc[mask, pc_x_col], nonref.loc[mask, pc_y_col],
             c=_ccolor(cl), marker="o", s=40, alpha=0.55,
             edgecolors="grey", linewidths=0.3,
             label=f"Non-ref C{cl}",
@@ -141,7 +140,7 @@ def plot_finalized_ordination(
         mask_correct = (ref["true_cluster"] == cl) & (ref["ref_correct"] == True)  # noqa: E712
         if mask_correct.any():
             ax.scatter(
-                ref.loc[mask_correct, "PC1"], ref.loc[mask_correct, "PC2"],
+                ref.loc[mask_correct, pc_x_col], ref.loc[mask_correct, pc_y_col],
                 c=_ccolor(cl), marker="^", s=80,
                 edgecolors="black", linewidths=0.8,
                 label=f"Ref C{cl} (correct)",
@@ -153,26 +152,26 @@ def plot_finalized_ordination(
         mask_wrong = (ref["true_cluster"] == cl) & (ref["ref_correct"] == False)  # noqa: E712
         if mask_wrong.any():
             ax.scatter(
-                ref.loc[mask_wrong, "PC1"], ref.loc[mask_wrong, "PC2"],
+                ref.loc[mask_wrong, pc_x_col], ref.loc[mask_wrong, pc_y_col],
                 c=_ccolor(cl), marker="X", s=90,
-                edgecolors="red", linewidths=1.2,
+                edgecolors="black", linewidths=0.8,
                 label=f"Ref C{cl} (misclassified)",
                 zorder=5,
             )
 
     # ── Layer 6: Loading arrows ──────────────────────────────────────
     if loadings is not None:
-        # Use only PC1, PC2 loadings
-        ld = loadings.iloc[:, :2].values  # (p, 2)
+        ld_x = loadings.iloc[:, loading_indices[0]].values
+        ld_y = loadings.iloc[:, loading_indices[1]].values
         scale = arrow_scale * np.sqrt(
             np.array([
-                np.ptp(site_data["PC1"]),
-                np.ptp(site_data["PC2"]),
+                np.ptp(site_data[pc_x_col]),
+                np.ptp(site_data[pc_y_col]),
             ])
         )
-        for j in range(ld.shape[0]):
-            dx = ld[j, 0] * scale[0] * 0.55
-            dy = ld[j, 1] * scale[1] * 0.55
+        for j in range(len(ld_x)):
+            dx = ld_x[j] * scale[0] * 0.55
+            dy = ld_y[j] * scale[1] * 0.55
             ax.annotate(
                 "", xy=(dx, dy), xytext=(0, 0),
                 arrowprops=dict(arrowstyle="->", color="#333333", lw=2.2,
@@ -195,11 +194,13 @@ def plot_finalized_ordination(
     ax.axvline(0, color="grey", linewidth=0.4, zorder=0)
 
     if variance_explained is not None and len(variance_explained) >= 2:
-        ax.set_xlabel(f"PC1 ({variance_explained[0]:.1f}%)", fontsize=12)
-        ax.set_ylabel(f"PC2 ({variance_explained[1]:.1f}%)", fontsize=12)
+        ix = int(pc_x_col.replace("PC", "")) - 1
+        iy = int(pc_y_col.replace("PC", "")) - 1
+        ax.set_xlabel(f"{pc_x_col} ({variance_explained[ix]:.1f}%)", fontsize=12)
+        ax.set_ylabel(f"{pc_y_col} ({variance_explained[iy]:.1f}%)", fontsize=12)
     else:
-        ax.set_xlabel("PC1", fontsize=12)
-        ax.set_ylabel("PC2", fontsize=12)
+        ax.set_xlabel(pc_x_col, fontsize=12)
+        ax.set_ylabel(pc_y_col, fontsize=12)
 
     ax.set_title(title, fontsize=13, fontweight="bold", pad=12)
 
@@ -208,8 +209,9 @@ def plot_finalized_ordination(
     by_label = dict(zip(labels_lg, handles))
     ax.legend(
         by_label.values(), by_label.keys(),
-        loc="upper left", bbox_to_anchor=(1.01, 1.0),
-        frameon=True, framealpha=0.9, fontsize=8,
+        loc="upper center", bbox_to_anchor=(0.5, -0.08),
+        ncol=min(len(by_label), 5),
+        frameon=True, framealpha=0.9, fontsize=10,
         title="Symbol key",
     )
     ax.grid(alpha=0.12)
@@ -289,6 +291,9 @@ def _draw_single_panel(
     highlight_cluster: int | None,
     unique_clusters: list[int],
     variance_explained: np.ndarray | None,
+    pc_x_col: str = "PC1",
+    pc_y_col: str = "PC2",
+    loading_indices: Tuple[int, int] = (0, 1),
     loadings: pd.DataFrame | None = None,
     env_short_names: Sequence[str] | None = None,
     arrow_scale: float = 1.0,
@@ -327,7 +332,7 @@ def _draw_single_panel(
         if not mask.any():
             continue
         ax.scatter(
-            nonref.loc[mask, "PC1"], nonref.loc[mask, "PC2"],
+            nonref.loc[mask, pc_x_col], nonref.loc[mask, pc_y_col],
             c=_ccolor(cl), marker="o", s=25, alpha=0.40,
             edgecolors="grey", linewidths=0.2,
             label=f"Non-ref C{cl}",
@@ -340,7 +345,7 @@ def _draw_single_panel(
         mask_correct = (ref["true_cluster"] == cl) & (ref["ref_correct"] == True)  # noqa: E712
         if mask_correct.any():
             ax.scatter(
-                ref.loc[mask_correct, "PC1"], ref.loc[mask_correct, "PC2"],
+                ref.loc[mask_correct, pc_x_col], ref.loc[mask_correct, pc_y_col],
                 c=_ccolor(cl), marker="^", s=55,
                 edgecolors="black", linewidths=0.6,
                 label=f"Ref C{cl} (correct)",
@@ -349,22 +354,23 @@ def _draw_single_panel(
         mask_wrong = (ref["true_cluster"] == cl) & (ref["ref_correct"] == False)  # noqa: E712
         if mask_wrong.any():
             ax.scatter(
-                ref.loc[mask_wrong, "PC1"], ref.loc[mask_wrong, "PC2"],
+                ref.loc[mask_wrong, pc_x_col], ref.loc[mask_wrong, pc_y_col],
                 c=_ccolor(cl), marker="X", s=60,
-                edgecolors="red", linewidths=0.9,
+                edgecolors="black", linewidths=0.6,
                 label=f"Ref C{cl} (misclass.)",
                 zorder=5,
             )
 
     # Loadings
     if loadings is not None:
-        ld = loadings.iloc[:, :2].values
+        ld_x = loadings.iloc[:, loading_indices[0]].values
+        ld_y = loadings.iloc[:, loading_indices[1]].values
         scale = arrow_scale * np.sqrt(
-            np.array([np.ptp(site_data["PC1"]), np.ptp(site_data["PC2"])])
+            np.array([np.ptp(site_data[pc_x_col]), np.ptp(site_data[pc_y_col])])
         )
-        for j in range(ld.shape[0]):
-            dx = ld[j, 0] * scale[0] * 0.45
-            dy = ld[j, 1] * scale[1] * 0.45
+        for j in range(len(ld_x)):
+            dx = ld_x[j] * scale[0] * 0.45
+            dy = ld_y[j] * scale[1] * 0.45
             ax.annotate("", xy=(dx, dy), xytext=(0, 0),
                         arrowprops=dict(arrowstyle="->", color="#333333",
                                         lw=1.8, mutation_scale=12),
@@ -379,11 +385,13 @@ def _draw_single_panel(
     ax.axhline(0, color="grey", linewidth=0.3, zorder=0)
     ax.axvline(0, color="grey", linewidth=0.3, zorder=0)
     if variance_explained is not None and len(variance_explained) >= 2:
-        ax.set_xlabel(f"PC1 ({variance_explained[0]:.1f}%)", fontsize=9)
-        ax.set_ylabel(f"PC2 ({variance_explained[1]:.1f}%)", fontsize=9)
+        ix = int(pc_x_col.replace("PC", "")) - 1
+        iy = int(pc_y_col.replace("PC", "")) - 1
+        ax.set_xlabel(f"{pc_x_col} ({variance_explained[ix]:.1f}%)", fontsize=9)
+        ax.set_ylabel(f"{pc_y_col} ({variance_explained[iy]:.1f}%)", fontsize=9)
     else:
-        ax.set_xlabel("PC1", fontsize=9)
-        ax.set_ylabel("PC2", fontsize=9)
+        ax.set_xlabel(pc_x_col, fontsize=9)
+        ax.set_ylabel(pc_y_col, fontsize=9)
     ax.set_title(title, fontsize=10, fontweight="bold")
     ax.grid(alpha=0.10)
 
@@ -399,6 +407,9 @@ def plot_ellipse_panel_2x2(
     loadings: pd.DataFrame | None = None,
     variance_explained: np.ndarray | None = None,
     env_short_names: Sequence[str] | None = None,
+    pc_x_col: str = "PC1",
+    pc_y_col: str = "PC2",
+    loading_indices: Tuple[int, int] = (0, 1),
     arrow_scale: float = 1.0,
     suptitle: str = "Reference-Cluster Ellipses",
     figsize: Tuple[float, float] = (16, 14),
@@ -420,6 +431,9 @@ def plot_ellipse_panel_2x2(
         xx=xx, yy=yy, grid_labels=grid_labels,
         unique_clusters=unique_clusters,
         variance_explained=variance_explained,
+        pc_x_col=pc_x_col,
+        pc_y_col=pc_y_col,
+        loading_indices=loading_indices,
         loadings=loadings,
         env_short_names=env_short_names,
         arrow_scale=arrow_scale,
@@ -458,7 +472,7 @@ def plot_ellipse_panel_2x2(
     fig.legend(
         by_label.values(), by_label.keys(),
         loc="lower center", ncol=min(len(by_label), 5),
-        frameon=True, framealpha=0.9, fontsize=8,
+        frameon=True, framealpha=0.9, fontsize=10,
         bbox_to_anchor=(0.5, -0.02),
     )
 
@@ -480,6 +494,9 @@ def plot_allref_ellipse(
     loadings: pd.DataFrame | None = None,
     variance_explained: np.ndarray | None = None,
     env_short_names: Sequence[str] | None = None,
+    pc_x_col: str = "PC1",
+    pc_y_col: str = "PC2",
+    loading_indices: Tuple[int, int] = (0, 1),
     arrow_scale: float = 1.0,
     title: str = "All Reference Sites — 95% Confidence Ellipse",
     figsize: Tuple[float, float] = (11, 9),
@@ -522,7 +539,7 @@ def plot_allref_ellipse(
         if not mask.any():
             continue
         ax.scatter(
-            nonref.loc[mask, "PC1"], nonref.loc[mask, "PC2"],
+            nonref.loc[mask, pc_x_col], nonref.loc[mask, pc_y_col],
             c=_ccolor(cl), marker="o", s=40, alpha=0.55,
             edgecolors="grey", linewidths=0.3,
             label=f"Non-ref C{cl}", zorder=3,
@@ -534,7 +551,7 @@ def plot_allref_ellipse(
         mask_correct = (ref["true_cluster"] == cl) & (ref["ref_correct"] == True)  # noqa: E712
         if mask_correct.any():
             ax.scatter(
-                ref.loc[mask_correct, "PC1"], ref.loc[mask_correct, "PC2"],
+                ref.loc[mask_correct, pc_x_col], ref.loc[mask_correct, pc_y_col],
                 c=_ccolor(cl), marker="^", s=80,
                 edgecolors="black", linewidths=0.8,
                 label=f"Ref C{cl} (correct)", zorder=4,
@@ -542,21 +559,22 @@ def plot_allref_ellipse(
         mask_wrong = (ref["true_cluster"] == cl) & (ref["ref_correct"] == False)  # noqa: E712
         if mask_wrong.any():
             ax.scatter(
-                ref.loc[mask_wrong, "PC1"], ref.loc[mask_wrong, "PC2"],
+                ref.loc[mask_wrong, pc_x_col], ref.loc[mask_wrong, pc_y_col],
                 c=_ccolor(cl), marker="X", s=90,
-                edgecolors="red", linewidths=1.2,
+                edgecolors="black", linewidths=0.8,
                 label=f"Ref C{cl} (misclassified)", zorder=5,
             )
 
     # Loading arrows
     if loadings is not None:
-        ld = loadings.iloc[:, :2].values
+        ld_x = loadings.iloc[:, loading_indices[0]].values
+        ld_y = loadings.iloc[:, loading_indices[1]].values
         scale = arrow_scale * np.sqrt(
-            np.array([np.ptp(site_data["PC1"]), np.ptp(site_data["PC2"])])
+            np.array([np.ptp(site_data[pc_x_col]), np.ptp(site_data[pc_y_col])])
         )
-        for j in range(ld.shape[0]):
-            dx = ld[j, 0] * scale[0] * 0.55
-            dy = ld[j, 1] * scale[1] * 0.55
+        for j in range(len(ld_x)):
+            dx = ld_x[j] * scale[0] * 0.55
+            dy = ld_y[j] * scale[1] * 0.55
             ax.annotate(
                 "", xy=(dx, dy), xytext=(0, 0),
                 arrowprops=dict(arrowstyle="->", color="#333333", lw=2.2,
@@ -573,16 +591,19 @@ def plot_allref_ellipse(
     ax.axhline(0, color="grey", linewidth=0.4, zorder=0)
     ax.axvline(0, color="grey", linewidth=0.4, zorder=0)
     if variance_explained is not None and len(variance_explained) >= 2:
-        ax.set_xlabel(f"PC1 ({variance_explained[0]:.1f}%)", fontsize=12)
-        ax.set_ylabel(f"PC2 ({variance_explained[1]:.1f}%)", fontsize=12)
+        ix = int(pc_x_col.replace("PC", "")) - 1
+        iy = int(pc_y_col.replace("PC", "")) - 1
+        ax.set_xlabel(f"{pc_x_col} ({variance_explained[ix]:.1f}%)", fontsize=12)
+        ax.set_ylabel(f"{pc_y_col} ({variance_explained[iy]:.1f}%)", fontsize=12)
     ax.set_title(title, fontsize=13, fontweight="bold", pad=12)
 
     handles, labels_lg = ax.get_legend_handles_labels()
     by_label = dict(zip(labels_lg, handles))
     ax.legend(
         by_label.values(), by_label.keys(),
-        loc="upper left", bbox_to_anchor=(1.01, 1.0),
-        frameon=True, framealpha=0.9, fontsize=8,
+        loc="upper center", bbox_to_anchor=(0.5, -0.08),
+        ncol=min(len(by_label), 5),
+        frameon=True, framealpha=0.9, fontsize=10,
         title="Symbol key",
     )
     ax.grid(alpha=0.12)

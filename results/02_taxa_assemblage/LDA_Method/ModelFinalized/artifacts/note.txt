@@ -3,9 +3,9 @@ Decision-region visualization note
 
 Model: Model B (Core+Peripheral)
 Training subset: Core+Peripheral
-N training sites: 45
-Training accuracy: 60.00%
-CV accuracy: 47.33% ± 16.15%
+N training sites: 48
+Training accuracy: 77.08%
+CV accuracy: 68.89% ± 10.93%
 
 The decision regions shown in the PC1–PC2 plane are a *conditional*
 visualization of the full classifier.  The classifier was trained

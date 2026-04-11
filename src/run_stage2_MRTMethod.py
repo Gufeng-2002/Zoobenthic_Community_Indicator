@@ -63,6 +63,7 @@ if __name__ == "__main__":
         minsplit=3,
         minbucket=2,
         random_state=42,
+        target_leaves=3,
         save_plots=True,
     )
 

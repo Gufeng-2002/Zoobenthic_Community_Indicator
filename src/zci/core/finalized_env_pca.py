@@ -83,6 +83,9 @@ def build_site_plot_data(
     pca_result: FullSitePCAResult,
     ref_labels: pd.Series,
     pred_labels_all: pd.Series,
+    *,
+    pc_x: str = "PC1",
+    pc_y: str = "PC2",
 ) -> pd.DataFrame:
     """Create a per-site plotting table.
 
@@ -92,6 +95,8 @@ def build_site_plot_data(
         Ward-defined true cluster labels (index = ref-site IDs).
     pred_labels_all : Series
         Classifier-predicted labels for ALL sites (ref + non-ref).
+    pc_x, pc_y : str
+        Which PC columns to include (default PC1, PC2).
     """
     scores = pca_result.scores
     common = scores.index
@@ -122,8 +127,8 @@ def build_site_plot_data(
         "pred_cluster": pred_label,
         "ref_correct": correct,
         "display_cluster": display_cluster,
-        "PC1": scores["PC1"],
-        "PC2": scores["PC2"],
+        pc_x: scores[pc_x],
+        pc_y: scores[pc_y],
     })
     return df
 
@@ -136,37 +141,44 @@ def build_prediction_grid(
     classifier_model: Any,
     classifier_scaler: Any,
     *,
+    pc_indices: Tuple[int, int] = (0, 1),
     grid_resolution: int = 200,
     margin_pct: float = 0.10,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Build a conditional full-model prediction map in the PC1-PC2 plane.
+    """Build a conditional full-model prediction map in a chosen PC plane.
 
-    Fix PC3 … PCn at their overall-site means; back-transform to raw
+    Fix all other PCs at their overall-site means; back-transform to raw
     env space and apply the *classifier's* scaler before predicting.
+
+    Parameters
+    ----------
+    pc_indices : tuple of two ints
+        Which PC axes to vary (0-based). Default ``(0, 1)`` = PC1×PC2.
 
     Returns
     -------
-    xx, yy : 2-D meshgrid arrays for PC1, PC2.
+    xx, yy : 2-D meshgrid arrays for the chosen PCs.
     grid_labels : 2-D array of predicted cluster labels.
     """
+    ix, iy = pc_indices
     scores = pca_result.scores.values  # (n, p)
     pc_means = scores.mean(axis=0)     # length p
 
-    pc1 = scores[:, 0]
-    pc2 = scores[:, 1]
-    pad1 = (pc1.max() - pc1.min()) * margin_pct
-    pad2 = (pc2.max() - pc2.min()) * margin_pct
+    pc_x = scores[:, ix]
+    pc_y = scores[:, iy]
+    pad_x = (pc_x.max() - pc_x.min()) * margin_pct
+    pad_y = (pc_y.max() - pc_y.min()) * margin_pct
 
-    g1 = np.linspace(pc1.min() - pad1, pc1.max() + pad1, grid_resolution)
-    g2 = np.linspace(pc2.min() - pad2, pc2.max() + pad2, grid_resolution)
+    g1 = np.linspace(pc_x.min() - pad_x, pc_x.max() + pad_x, grid_resolution)
+    g2 = np.linspace(pc_y.min() - pad_y, pc_y.max() + pad_y, grid_resolution)
     xx, yy = np.meshgrid(g1, g2)
 
     # Build full PCA-score vectors for every grid point
     n_pts = xx.size
     n_comp = scores.shape[1]
     grid_scores = np.tile(pc_means, (n_pts, 1))  # (n_pts, p)
-    grid_scores[:, 0] = xx.ravel()
-    grid_scores[:, 1] = yy.ravel()
+    grid_scores[:, ix] = xx.ravel()
+    grid_scores[:, iy] = yy.ravel()
 
     # Inverse PCA → standardized-env → inverse all-site scaler → raw env
     X_std_grid = pca_result.pca.inverse_transform(grid_scores)
@@ -292,12 +304,12 @@ def compute_allref_ellipse(
 
 
 def fit_pc2_lda(
-    ref_pc12: np.ndarray,
+    ref_pc: np.ndarray,
     ref_labels: np.ndarray,
 ) -> LinearDiscriminantAnalysis:
-    """Fit an LDA directly on the first two PC scores of reference sites."""
+    """Fit an LDA directly on two PC scores of reference sites."""
     lda = LinearDiscriminantAnalysis()
-    lda.fit(ref_pc12, ref_labels)
+    lda.fit(ref_pc, ref_labels)
     return lda
 
 
@@ -305,22 +317,24 @@ def build_pc2_lda_grid(
     pca_result: FullSitePCAResult,
     lda_pc2: LinearDiscriminantAnalysis,
     *,
+    pc_indices: Tuple[int, int] = (0, 1),
     grid_resolution: int = 200,
     margin_pct: float = 0.10,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Build a decision grid from the 2-PC LDA in the PC1-PC2 plane.
+    """Build a decision grid from a 2-PC LDA in the chosen PC plane.
 
     Unlike ``build_prediction_grid``, this LDA was trained directly on
-    PC1-PC2 scores, so no inverse transform is needed.
+    two PC scores, so no inverse transform is needed.
     """
+    ix, iy = pc_indices
     scores = pca_result.scores.values
-    pc1 = scores[:, 0]
-    pc2 = scores[:, 1]
-    pad1 = (pc1.max() - pc1.min()) * margin_pct
-    pad2 = (pc2.max() - pc2.min()) * margin_pct
+    pc_x = scores[:, ix]
+    pc_y = scores[:, iy]
+    pad_x = (pc_x.max() - pc_x.min()) * margin_pct
+    pad_y = (pc_y.max() - pc_y.min()) * margin_pct
 
-    g1 = np.linspace(pc1.min() - pad1, pc1.max() + pad1, grid_resolution)
-    g2 = np.linspace(pc2.min() - pad2, pc2.max() + pad2, grid_resolution)
+    g1 = np.linspace(pc_x.min() - pad_x, pc_x.max() + pad_x, grid_resolution)
+    g2 = np.linspace(pc_y.min() - pad_y, pc_y.max() + pad_y, grid_resolution)
     xx, yy = np.meshgrid(g1, g2)
 
     grid_pts = np.column_stack([xx.ravel(), yy.ravel()])
