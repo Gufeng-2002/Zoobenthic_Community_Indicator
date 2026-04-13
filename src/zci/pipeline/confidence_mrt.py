@@ -300,8 +300,15 @@ def _mrt_cv_confusion_matrix(
 
     min_class = int(pd.Series(y).value_counts().min())
     eff_k = min(k_folds, min_class)
+    use_stratified = True
     if eff_k < 2:
-        return agg_cm, fold_cms
+        # Fall back to non-stratified KFold when a class has < 2 samples
+        eff_k = min(k_folds, len(y))
+        use_stratified = False
+        if eff_k < 2:
+            return agg_cm, fold_cms
+
+    from sklearn.model_selection import KFold as _KFold
 
     rng = np.random.default_rng(random_state)
     seeds = (
@@ -309,8 +316,10 @@ def _mrt_cv_confusion_matrix(
         if random_state is not None else [None] * cv_perms
     )
 
+    SplitterClass = StratifiedKFold if use_stratified else _KFold
+
     for seed in seeds:
-        splitter = StratifiedKFold(
+        splitter = SplitterClass(
             n_splits=eff_k, shuffle=True,
             random_state=None if seed is None else int(seed),
         )

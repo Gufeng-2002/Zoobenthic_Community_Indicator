@@ -1,15 +1,19 @@
 #!/usr/bin/env python
 """
-Run Stage 2 -- Full Pipeline: Ward's Clustering → LDA & MRT Classification
-============================================================================
+Run Stage 2 -- Full Pipeline
+==============================
+  Ward's Clustering → Cross-Support Evaluation (Model S)
+  → Finalized Model → Non-Reference Site Prediction & PCA Ordination
 
 Usage (from project root):
     python src/run_stage2.py
 
 Runs three sub-pipelines in sequence:
-  1. Ward's Clustering with robustness assessment
-  2. Confidence-Aware LDA classification (4 models)
-  3. Confidence-Aware MRT classification (4 models)
+  1. Ward's Clustering with robustness assessment (pvclust + co-assignment)
+  2. Cross-Support Evaluation — Model S (LDA + MRT trained on
+     EnvStrong_TaxaStrong sites, evaluated on all four 2×2 classes)
+  3. Finalized LDA (Model S) → predict all sites (ref + non-ref)
+     + full-site environmental PCA ordination with decision-region visualization
 
 Global parameters
 -----------------
@@ -23,17 +27,20 @@ N_REFERENCE_SITES : int
     into the downstream LDA and MRT pipelines.
 """
 
+import numpy as np
 import pandas as pd
 from pathlib import Path
 
+from zci.core.threshold_grid_search import grid_search_thresholds
+from zci.core.cross_support import build_class_count_table
 from zci.pipeline.wards_clustering import wards_clustering_pipeline
-from zci.pipeline.confidence_lda import confidence_lda_pipeline
-from zci.pipeline.confidence_mrt import confidence_mrt_pipeline
+from zci.pipeline.finalized_lda import finalized_lda_pipeline
+from zci.pipeline.cross_support_eval import cross_support_eval_pipeline
 
 # ═══════════════════════════════════════════════════════════════════════
 #  GLOBAL PARAMETERS — change these as needed
 # ═══════════════════════════════════════════════════════════════════════
-TAXA_TRANSFORM: str = "chord"
+TAXA_TRANSFORM: str = "octave"
 """Taxa transformation for Ward's clustering and MRT classification.
 One of: "octave", "chord", "hellinger", "log_chord", "relative_abundance".
 """
@@ -57,7 +64,7 @@ WARDS_OUTPUT = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "WardsClusterin
 LDA_OUTPUT   = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "LDA_Method"
 MRT_OUTPUT   = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "MRT_Method"
 
-# Shared environmental variables for LDA and MRT
+# Shared environmental variables
 ENV_VARIABLES = [
     "Measured Depth (m)",
     "Water DO Bottom (mg/L)",
@@ -71,13 +78,13 @@ if __name__ == "__main__":
     print("=" * 70)
     print("  Stage 2 Full Pipeline")
     print("=" * 70)
-    print(f"  Taxa transform   : {TAXA_TRANSFORM}")
-    print(f"  Reference sites  : {N_REFERENCE_SITES}")
+    print(f"  Taxa transform      : {TAXA_TRANSFORM}")
+    print(f"  Reference sites     : {N_REFERENCE_SITES}")
     print("=" * 70)
 
-    # ── 1. Ward's Clustering ─────────────────────────────────────────
+    # ── 1. Ward's Clustering + Robustness Testing ────────────────────
     print("\n" + "=" * 70)
-    print("  [1/3] Ward's Clustering")
+    print("  [1/3] Ward's Clustering + Robustness (pvclust, co-assignment)")
     print("=" * 70)
     ward_result = wards_clustering_pipeline(
         data_path=DATA_PATH,
@@ -86,7 +93,7 @@ if __name__ == "__main__":
         maps_dir=MAPS_DIR,
         reference_quantile=N_REFERENCE_SITES,
         taxa_transform=TAXA_TRANSFORM,
-        n_clusters=3,
+        n_clusters = 3,
         label_map={1: 1, 2: 2, 3: 3},
         env_variables=ENV_VARIABLES,
         # Robustness parameters
@@ -94,8 +101,11 @@ if __name__ == "__main__":
         coassign_sample_frac=0.8,
         n_boot_pvclust=1000,
         run_pvclust_bootstrap=True,
-        sil_threshold=0.25,
-        margin_threshold=0.25,
+        sil_threshold=None,
+        margin_threshold=None,
+        env_coassign_sample_frac=0.8,
+        env_sil_threshold=None,
+        env_margin_threshold=None,
         random_state=42,
         save_plots=True,
     )
@@ -107,59 +117,107 @@ if __name__ == "__main__":
     print(ward_result.status_distribution())
     print(f"\nMean silhouette: {ward_result.mean_silhouette():.4f}")
 
-    # Read the robustness table produced by Ward's clustering
-    robustness = pd.read_excel(
-        WARDS_OUTPUT / "tables" / "site_robustness.xlsx", index_col=0
+    # Read the combined robustness table (has taxa + env columns)
+    combined_table = pd.read_excel(
+        WARDS_OUTPUT / "artifacts" / "combined_robustness.xlsx", index_col=0
     )
-    print(f"\n  {len(robustness)} reference sites, "
-          f"{robustness['Original_Cluster'].nunique()} clusters")
-    print(f"  Status distribution: "
-          f"{robustness['Status'].value_counts().to_dict()}")
+    # Re-read raw env for classifier training (unstandardized)
+    from zci.io.readers import read_study_data, extract_block
+    data_full = read_study_data(DATA_PATH)
+    env_block = extract_block(data_full, "environmental", "raw")
+    env_ref_raw = env_block.loc[combined_table.index, ENV_VARIABLES].dropna()
+    # Align combined_table to env complete cases
+    combined_table = combined_table.loc[env_ref_raw.index]
+    labels_for_xs = combined_table["Original_Cluster"]
 
-    # ── 2. Confidence-Aware LDA ──────────────────────────────────────
+    # ── Grid search for best threshold combination ───────────────────
+    print("\n  Running threshold grid search ...")
+    best_th, gs_results = grid_search_thresholds(
+        combined=combined_table,
+        env_strength_df=combined_table,   # has Env_Silhouette, Env_Margin
+        labels=labels_for_xs,
+        env_raw=env_ref_raw,
+        verbose=True,
+    )
+    print(f"  Best thresholds: tsil={best_th['tsil']}, tmarg={best_th['tmarg']}, "
+          f"esil={best_th['esil']}, emarg={best_th['emarg']}")
+    print(f"  n_train={int(best_th['n_train'])}, "
+          f"LDA_C1={best_th['LDA_diag_C1_acc']:.1%}, "
+          f"LDA_C3={best_th['LDA_diag_C3_acc']:.1%}")
+
+    # Reclassify sites with best thresholds
+    taxa_strong = (
+        (combined_table["Taxa_Silhouette"] >= best_th["tsil"])
+        & (combined_table["Taxa_Margin"] >= best_th["tmarg"])
+    )
+    env_strong = (
+        (combined_table["Env_Silhouette"] > best_th["esil"])
+        & (combined_table["Env_Margin"] > best_th["emarg"])
+    )
+    combined_table["Taxa_Strength"] = np.where(taxa_strong, "Strong", "Weak")
+    combined_table["Env_Strength"] = np.where(env_strong, "Strong", "Weak")
+    combined_table["TaxaEnv_Class"] = [
+        f"Env{e}_Taxa{t}"
+        for e, t in zip(combined_table["Env_Strength"], combined_table["Taxa_Strength"])
+    ]
+    print(f"  Reclassified TaxaEnv_Class distribution:")
+    print(f"    {combined_table['TaxaEnv_Class'].value_counts().to_dict()}")
+
+    # Save updated 2×2 count table to WardsClustering taxa_confidence
+    from zci.io.writers import save_table
+    class_count = build_class_count_table(combined_table)
+    save_table(
+        class_count,
+        WARDS_OUTPUT / "tables" / "taxa_confidence" / "taxa_env_class_counts",
+        formats=("xlsx",),
+        verbose=True,
+    )
+    print(f"\n  2×2 TaxaEnv class counts (after grid search):")
+    print(f"    {class_count.to_string()}")
+
+    # ── 2. Cross-Support Evaluation (Model S: LDA + MRT) ────────────
     print("\n" + "=" * 70)
-    print("  [2/3] Confidence-Aware LDA Classification")
+    print("  [2/3] Cross-Support Evaluation (EnvStrong_TaxaStrong training)")
     print("=" * 70)
-    lda_result = confidence_lda_pipeline(
+    xs_result = cross_support_eval_pipeline(
+        combined_table=combined_table,
+        env_ref_complete=env_ref_raw,
+        labels_ref_complete=labels_for_xs,
+        lda_output_dir=LDA_OUTPUT / "ModelS_XSupport",
+        mrt_output_dir=MRT_OUTPUT / "ModelS_XSupport",
+        env_variables=ENV_VARIABLES,
+        random_state=42,
+        verbose=True,
+    )
+
+    # ── 3. Finalized LDA (All Env-Strong) → Non-Ref Prediction & PCA ───
+    print("\n" + "=" * 70)
+    print("  [3/3] Finalized LDA (EnvStrong_TaxaStrong Sites)")
+    print("         → Non-Ref Prediction & Env PCA Ordination")
+    print("=" * 70)
+
+    n_double_strong = int((combined_table["TaxaEnv_Class"] == "EnvStrong_TaxaStrong").sum())
+    print(f"  EnvStrong_TaxaStrong training set: {n_double_strong} sites")
+
+    finalized = finalized_lda_pipeline(
         data_path=DATA_PATH,
-        stage1_artifact=STAGE1_ARTIFACT,
         output_dir=LDA_OUTPUT,
-        site_robustness=robustness,
+        model_name="Finalized_EnvStrong",
+        site_robustness=combined_table,  # has Original_Cluster + Env_Strength
         env_variables=ENV_VARIABLES,
-        standardize_env=True,
-        cv_folds=5,
-        cv_repeats=10,
-        random_state=42,
+        taxa_transform=TAXA_TRANSFORM,
+        grid_resolution=200,
         save_plots=True,
     )
-
-    print(f"\n{lda_result.summary()}")
-    print(f"\nLDA model comparison:")
-    print(lda_result.summary_table.to_string())
-
-    # ── 3. Confidence-Aware MRT ──────────────────────────────────────
-    print("\n" + "=" * 70)
-    print("  [3/3] Confidence-Aware MRT Classification")
-    print("=" * 70)
-    mrt_result = confidence_mrt_pipeline(
-        data_path=DATA_PATH,
-        stage1_artifact=STAGE1_ARTIFACT,
-        output_dir=MRT_OUTPUT,
-        site_robustness=robustness,
-        env_variables=ENV_VARIABLES,
-        response_transform=TAXA_TRANSFORM,
-        k_folds=5,
-        cv_perms=10,
-        minsplit=3,
-        minbucket=2,
-        random_state=42,
-        save_plots=True,
-    )
-
-    print(f"\nMRT model comparison:")
-    print(mrt_result["summary_table"].to_string())
 
     # ── Done ─────────────────────────────────────────────────────────
     print("\n" + "=" * 70)
     print("  Stage 2 Complete")
+    print("=" * 70)
+    print(f"  Taxa transform      : {TAXA_TRANSFORM}")
+    print(f"  Reference sites     : {N_REFERENCE_SITES}")
+    print(f"  Finalized model     : Finalized_EnvStrong (EnvStrong_TaxaStrong sites)")
+    print(f"  Ward's output       : {WARDS_OUTPUT}")
+    print(f"  LDA output          : {LDA_OUTPUT}")
+    print(f"  MRT output          : {MRT_OUTPUT}")
     print("=" * 70)

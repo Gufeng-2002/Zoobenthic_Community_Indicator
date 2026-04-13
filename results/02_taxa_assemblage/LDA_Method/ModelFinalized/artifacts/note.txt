@@ -1,24 +1,13 @@
-Decision-region visualization note
-===================================
+Finalized LDA — Posterior Heatmap Ordination
+=============================================
 
-Model: Model B (Core+Peripheral)
-Training subset: Core+Peripheral
-N training sites: 48
-Training accuracy: 77.08%
-CV accuracy: 68.89% ± 10.93%
+Model: Finalized_EnvStrong
+Training subset: EnvStrong_TaxaStrong reference sites
+N training sites: 29
+Training accuracy: 86.21%
+Reference accuracy: 39/50 (78.0%)
 
-The decision regions shown in the PC1–PC2 plane are a *conditional*
-visualization of the full classifier.  The classifier was trained
-on the full environmental descriptor space (not on PCA scores).
-For every grid point in the PC1–PC2 plane, all omitted PCA
-coordinates (PC3 … PC5) are fixed at
-their overall-site mean values (computed from all sites, both
-reference and non-reference).  The grid PCA-score vectors are
-back-transformed into the original environmental space, then
-standardised with the classifier's training scaler, and finally
-passed to the fitted model for prediction.
-
-Because the omitted PCs are fixed at their means, the map shows
-an approximate slice through the full decision surface and may
-not capture classification behaviour that is driven primarily by
-variability along higher-order PCs.
+Figures use LDA posterior probabilities as heatmap background.
+Higher posterior probability → darker colour for that cluster.
+Grid resolution: 200×200
+Non-varied PCs fixed at overall-site means.

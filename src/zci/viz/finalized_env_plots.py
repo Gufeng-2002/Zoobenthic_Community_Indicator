@@ -415,17 +415,21 @@ def plot_ellipse_panel_2x2(
     figsize: Tuple[float, float] = (16, 14),
     dpi: int = 180,
 ) -> plt.Figure:
-    """Create a 2x2 figure: one panel per cluster ellipse + all-ref ellipse.
+    """Create a panel figure: one panel per cluster ellipse + all-ref ellipse.
 
-    For k=3 clusters the layout is:
-        [C1 ellipse] [C2 ellipse]
-        [C3 ellipse] [All ref ellipse]
+    Grid is sized dynamically to fit k cluster panels + 1 all-ref panel
+    (2 columns, as many rows as needed).
     """
+    import math
+
     unique_clusters = sorted(cluster_ellipses.keys())
     k = len(unique_clusters)
+    n_panels = k + 1          # k cluster panels + 1 all-ref panel
+    ncols = 2
+    nrows = math.ceil(n_panels / ncols)
 
-    fig, axes = plt.subplots(2, 2, figsize=figsize, dpi=dpi)
-    axflat = axes.ravel()
+    fig, axes = plt.subplots(nrows, ncols, figsize=figsize, dpi=dpi)
+    axflat = np.asarray(axes).ravel()
 
     common_kw = dict(
         xx=xx, yy=yy, grid_labels=grid_labels,
@@ -462,8 +466,8 @@ def plot_ellipse_panel_2x2(
         **common_kw,
     )
 
-    # Hide unused axes (if k < 3)
-    for i in range(k + 1, 4):
+    # Hide unused axes (if k+1 doesn't fill the grid)
+    for i in range(k + 1, nrows * ncols):
         axflat[i].set_visible(False)
 
     # Shared legend from the first axis

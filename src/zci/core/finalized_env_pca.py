@@ -199,6 +199,60 @@ def build_prediction_grid(
     return xx, yy, grid_labels
 
 
+def build_prediction_grid_proba(
+    pca_result: FullSitePCAResult,
+    classifier_model: Any,
+    classifier_scaler: Any,
+    *,
+    pc_indices: Tuple[int, int] = (0, 1),
+    grid_resolution: int = 200,
+    margin_pct: float = 0.10,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Like build_prediction_grid but also returns posterior probabilities.
+
+    Returns
+    -------
+    xx, yy : 2-D meshgrid arrays.
+    grid_labels : 2-D predicted cluster labels.
+    grid_probs : 3-D (res, res, n_classes) posterior probability array.
+    """
+    ix, iy = pc_indices
+    scores = pca_result.scores.values
+    pc_means = scores.mean(axis=0)
+
+    pc_x = scores[:, ix]
+    pc_y = scores[:, iy]
+    pad_x = (pc_x.max() - pc_x.min()) * margin_pct
+    pad_y = (pc_y.max() - pc_y.min()) * margin_pct
+
+    g1 = np.linspace(pc_x.min() - pad_x, pc_x.max() + pad_x, grid_resolution)
+    g2 = np.linspace(pc_y.min() - pad_y, pc_y.max() + pad_y, grid_resolution)
+    xx, yy = np.meshgrid(g1, g2)
+
+    n_pts = xx.size
+    grid_scores = np.tile(pc_means, (n_pts, 1))
+    grid_scores[:, ix] = xx.ravel()
+    grid_scores[:, iy] = yy.ravel()
+
+    X_std_grid = pca_result.pca.inverse_transform(grid_scores)
+    if pca_result.scaler is not None:
+        X_raw_grid = pca_result.scaler.inverse_transform(X_std_grid)
+    else:
+        X_raw_grid = X_std_grid
+
+    if classifier_scaler is not None:
+        X_clf = classifier_scaler.transform(X_raw_grid)
+    else:
+        X_clf = X_raw_grid
+
+    preds = classifier_model.predict(X_clf)
+    probs = classifier_model.predict_proba(X_clf)
+    grid_labels = preds.reshape(xx.shape)
+    grid_probs = probs.reshape((*xx.shape, -1))
+
+    return xx, yy, grid_labels, grid_probs
+
+
 # ─── 4. Convex hulls per reference cluster ──────────────────────────
 
 

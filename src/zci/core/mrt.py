@@ -6,7 +6,7 @@ from collections import Counter
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, KFold
 from sklearn.tree import DecisionTreeClassifier
 
 from ..models.mrt import MRTResult
@@ -65,6 +65,7 @@ def _cross_validated_relative_errors(
     minbucket: int,
     random_state: int | None,
     max_leaf_nodes: int | None = None,
+    use_stratified: bool = True,
 ) -> np.ndarray:
     if cv_perms < 1:
         raise ValueError("cv_perms must be >= 1")
@@ -75,9 +76,11 @@ def _cross_validated_relative_errors(
         if random_state is not None else np.repeat(None, cv_perms)
     )
 
+    SplitterClass = StratifiedKFold if use_stratified else KFold
+
     cv_errors: list[float] = []
     for seed in seeds:
-        splitter = StratifiedKFold(
+        splitter = SplitterClass(
             n_splits=k_folds,
             shuffle=True,
             random_state=None if seed is None else int(seed),
@@ -132,10 +135,15 @@ def fit_mrt(
 
     min_class_size = int(aligned_clusters.value_counts().min())
     effective_k_folds = min(k_folds, min_class_size)
+    use_stratified = True
     if effective_k_folds < 2:
-        raise ValueError(
-            "At least two samples per Ward cluster are required for cross-validation"
-        )
+        # Fall back to non-stratified KFold when a cluster has < 2 samples
+        effective_k_folds = min(k_folds, len(y))
+        use_stratified = False
+        if effective_k_folds < 2:
+            raise ValueError(
+                "At least two total training samples are required for cross-validation"
+            )
 
     root_error = _root_node_error(y.to_numpy(dtype=int))
 
@@ -180,6 +188,7 @@ def fit_mrt(
             minsplit=minsplit,
             minbucket=minbucket,
             random_state=random_state,
+            use_stratified=use_stratified,
         )
 
         candidate_rows[nsplit] = {
@@ -223,6 +232,7 @@ def fit_mrt(
                 minsplit=minsplit, minbucket=minbucket,
                 random_state=random_state,
                 max_leaf_nodes=target_leaves,
+                use_stratified=use_stratified,
             )
             # Insert into cp_table so the plot can find it
             new_row = {
