@@ -16,6 +16,71 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import StandardScaler
 
+from .cross_support import (
+    assign_taxa_env_class,
+    assign_taxa_status_v2,
+    assign_taxa_strength,
+)
+from .env_robustness import assign_env_strength
+
+
+def apply_threshold_configuration(
+    combined: pd.DataFrame,
+    *,
+    tsil: float,
+    tmarg: float,
+    esil: float,
+    emarg: float,
+) -> pd.DataFrame:
+    """Return a copy of *combined* with the threshold-based labels refreshed.
+
+    The Ward artifact stores intermediate taxa and environmental robustness
+    metrics. This helper reapplies the chosen taxa and environmental
+    thresholds so that ``Taxa_Status``, ``Taxa_Strength``, ``Env_Strength``,
+    and ``TaxaEnv_Class`` remain internally consistent.
+    """
+    required_cols = {
+        "Taxa_Silhouette",
+        "Taxa_Margin",
+        "Env_Silhouette",
+        "Env_Margin",
+    }
+    missing_cols = sorted(required_cols.difference(combined.columns))
+    if missing_cols:
+        raise KeyError(
+            "combined table missing required columns: "
+            + ", ".join(missing_cols)
+        )
+
+    updated = combined.copy()
+    updated["Taxa_Status"] = updated.apply(
+        lambda row: assign_taxa_status_v2(
+            row["Taxa_Silhouette"],
+            row["Taxa_Margin"],
+            sil_threshold=tsil,
+            margin_threshold=tmarg,
+        ),
+        axis=1,
+    )
+    updated["Taxa_Strength"] = updated["Taxa_Status"].map(assign_taxa_strength)
+    updated["Env_Strength"] = updated.apply(
+        lambda row: assign_env_strength(
+            row["Env_Silhouette"],
+            row["Env_Margin"],
+            sil_threshold=esil,
+            margin_threshold=emarg,
+        ),
+        axis=1,
+    )
+    updated["TaxaEnv_Class"] = updated.apply(
+        lambda row: assign_taxa_env_class(
+            row["Env_Strength"],
+            row["Taxa_Strength"],
+        ),
+        axis=1,
+    )
+    return updated
+
 
 def _classify_sites(
     taxa_sil: pd.Series,

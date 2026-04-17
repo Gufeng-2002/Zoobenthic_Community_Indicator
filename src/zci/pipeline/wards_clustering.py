@@ -46,6 +46,10 @@ from ..core.cross_support import (
     build_updated_combined_table,
     build_class_count_table,
 )
+from ..core.threshold_grid_search import (
+    apply_threshold_configuration,
+    grid_search_thresholds,
+)
 from ..models.clustering import TAXA_COLUMNS
 from ..models.ward_clustering import WardClusteringResult
 from ..viz.clustering_plots import plot_dendrogram
@@ -60,6 +64,14 @@ _TRANSFORMS = {
     "log_chord": octave_to_log_chord,
 }
 
+_ENV_ASSIGNMENT_COLUMNS = [
+    "Env_Silhouette",
+    "Env_Own_Coassign",
+    "Env_BestAlt_Coassign",
+    "Env_Margin",
+    "Env_Strength",
+]
+
 
 def _relabel(labels: pd.Series, label_map: Dict[int, int]) -> pd.Series:
     """Remap cluster labels using sentinel-based swap-safe approach."""
@@ -72,6 +84,94 @@ def _relabel(labels: pd.Series, label_map: Dict[int, int]) -> pd.Series:
     for sentinel, new in sentinel_map.items():
         tmp = tmp.replace({sentinel: float(new)})
     return tmp.astype(int)
+
+
+def refresh_combined_robustness_outputs(
+    data_path: str | _Path,
+    output_dir: str | _Path,
+    *,
+    env_variables: Sequence[str],
+    table_formats: Sequence[str] = ("xlsx",),
+    verbose: bool = True,
+) -> tuple[pd.DataFrame, pd.DataFrame, Dict[str, float], pd.DataFrame]:
+    """Reapply optimized thresholds to the saved Ward combined outputs.
+
+    The standalone Ward pipeline persists the combined robustness artifact
+    before the later LDA-driven threshold optimization step. This helper
+    reruns the threshold search against the saved artifact, rewrites the
+    combined robustness workbook, and refreshes the related Ward count tables
+    so the Ward outputs match the later 2x2 classification used downstream.
+    """
+
+    output_dir = _Path(output_dir)
+    combined_path = output_dir / "artifacts" / "combined_robustness.xlsx"
+    combined_table = pd.read_excel(combined_path, index_col=0)
+
+    data_full = read_study_data(data_path)
+    env_block = extract_block(data_full, "environmental", "raw")
+    env_vars_present = [v for v in env_variables if v in env_block.columns]
+    env_ref_raw = env_block.loc[combined_table.index, env_vars_present].dropna()
+    combined_table = combined_table.loc[env_ref_raw.index].copy()
+    labels_for_xs = combined_table["Original_Cluster"]
+
+    best_th, gs_results = grid_search_thresholds(
+        combined=combined_table,
+        env_strength_df=combined_table,
+        labels=labels_for_xs,
+        env_raw=env_ref_raw,
+        verbose=verbose,
+    )
+
+    updated_combined = apply_threshold_configuration(
+        combined_table,
+        tsil=best_th["tsil"],
+        tmarg=best_th["tmarg"],
+        esil=best_th["esil"],
+        emarg=best_th["emarg"],
+    )
+    class_count_table = build_class_count_table(updated_combined)
+
+    save_table(
+        updated_combined,
+        output_dir / "artifacts" / "combined_robustness",
+        formats=table_formats,
+        verbose=verbose,
+    )
+    save_table(
+        updated_combined.loc[:, _ENV_ASSIGNMENT_COLUMNS],
+        output_dir / "tables" / "env_coherence" / "env_strength_assignments",
+        formats=table_formats,
+        verbose=verbose,
+    )
+    save_table(
+        class_count_table,
+        output_dir / "tables" / "env_coherence" / "taxa_env_class_counts",
+        formats=table_formats,
+        verbose=verbose,
+    )
+    save_table(
+        class_count_table,
+        output_dir / "tables" / "taxa_confidence" / "taxa_env_class_counts",
+        formats=table_formats,
+        verbose=verbose,
+    )
+    best_thresholds = pd.DataFrame([best_th], index=["best"])
+    save_table(
+        best_thresholds,
+        output_dir / "artifacts" / "combined_robustness_thresholds",
+        formats=table_formats,
+        verbose=verbose,
+    )
+
+    if verbose:
+        print(
+            "  Reclassified TaxaEnv_Class distribution:"
+            f" {updated_combined['TaxaEnv_Class'].value_counts().to_dict()}"
+        )
+        print("\n  2x2 TaxaEnv class counts (after grid search):")
+        print(class_count_table.to_string())
+
+    return updated_combined, class_count_table, best_th, gs_results
 
 
 def wards_clustering_pipeline(

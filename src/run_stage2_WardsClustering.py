@@ -24,7 +24,10 @@ run_stage2_LDAMethod.py and run_stage2_MRTMethod.py.
 
 from pathlib import Path
 
-from zci.pipeline.wards_clustering import wards_clustering_pipeline
+from zci.pipeline.wards_clustering import (
+    refresh_combined_robustness_outputs,
+    wards_clustering_pipeline,
+)
 
 # Resolve project root (parent of src/)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -38,6 +41,14 @@ STAGE1_ARTIFACT = (
 OUTPUT_DIR = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "WardsClustering"
 MAPS_DIR   = PROJECT_ROOT / "data" / "maps"
 
+ENV_VARIABLES = [
+    "Measured Depth (m)",
+    "Water DO Bottom (mg/L)",
+    "Temperature (oC)",
+    "MPS (Phi)",
+    "LOI (%)",
+]
+
 
 if __name__ == "__main__":
     result = wards_clustering_pipeline(
@@ -49,13 +60,7 @@ if __name__ == "__main__":
         taxa_transform="octave",
         n_clusters=3,
         label_map={1: 1, 2: 2, 3: 3},
-        env_variables=[
-            "Measured Depth (m)",
-            "Water DO Bottom (mg/L)",
-            "Temperature (oC)",
-            "MPS (Phi)",
-            "LOI (%)",
-        ],
+        env_variables=ENV_VARIABLES,
         # Robustness parameters
         n_boot_coassign=1000,
         coassign_sample_frac=0.8,
@@ -67,9 +72,23 @@ if __name__ == "__main__":
         save_plots=True,
     )
 
+    print("\nRunning threshold grid search to refresh Ward combined outputs ...")
+    combined_table, class_count, best_th, _ = refresh_combined_robustness_outputs(
+        data_path=DATA_PATH,
+        output_dir=OUTPUT_DIR,
+        env_variables=ENV_VARIABLES,
+        verbose=True,
+    )
+
     print(f"\n{result.summary()}")
     print(f"\nCluster distribution (reference sites):")
     print(result.cluster_distribution())
+    print("\nBest thresholds:")
+    print(best_th)
+    print("\nUpdated 2x2 class counts:")
+    print(class_count.to_string())
+    print("\nUpdated TaxaEnv_Class distribution:")
+    print(combined_table["TaxaEnv_Class"].value_counts().to_string())
     print(f"\nStatus distribution:")
     print(result.status_distribution())
     print(f"\nMean silhouette: {result.mean_silhouette():.4f}")

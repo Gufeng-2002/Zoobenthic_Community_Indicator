@@ -86,7 +86,7 @@ def plot_dendrogram(
         cid = int(assignments[leaf_idx])
         if cid not in seen:
             seen.append(cid)
-    palette = [CLUSTER_COLORS[cid - 1] for cid in seen]
+    palette = [CLUSTER_COLORS[cid - 1] for cid in reversed(seen)]
     set_link_color_palette(palette)
 
     fig, ax = plt.subplots(figsize=figsize, constrained_layout=True)

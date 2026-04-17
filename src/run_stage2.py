@@ -27,13 +27,13 @@ N_REFERENCE_SITES : int
     into the downstream LDA and MRT pipelines.
 """
 
-import numpy as np
 import pandas as pd
 from pathlib import Path
 
-from zci.core.threshold_grid_search import grid_search_thresholds
-from zci.core.cross_support import build_class_count_table
-from zci.pipeline.wards_clustering import wards_clustering_pipeline
+from zci.pipeline.wards_clustering import (
+    refresh_combined_robustness_outputs,
+    wards_clustering_pipeline,
+)
 from zci.pipeline.finalized_lda import finalized_lda_pipeline
 from zci.pipeline.cross_support_eval import cross_support_eval_pipeline
 
@@ -117,26 +117,13 @@ if __name__ == "__main__":
     print(ward_result.status_distribution())
     print(f"\nMean silhouette: {ward_result.mean_silhouette():.4f}")
 
-    # Read the combined robustness table (has taxa + env columns)
-    combined_table = pd.read_excel(
-        WARDS_OUTPUT / "artifacts" / "combined_robustness.xlsx", index_col=0
-    )
-    # Re-read raw env for classifier training (unstandardized)
-    from zci.io.readers import read_study_data, extract_block
-    data_full = read_study_data(DATA_PATH)
-    env_block = extract_block(data_full, "environmental", "raw")
-    env_ref_raw = env_block.loc[combined_table.index, ENV_VARIABLES].dropna()
-    # Align combined_table to env complete cases
-    combined_table = combined_table.loc[env_ref_raw.index]
-    labels_for_xs = combined_table["Original_Cluster"]
-
-    # ── Grid search for best threshold combination ───────────────────
+    # Refresh the saved Ward artifact with the optimized thresholds used
+    # by the later 2x2 env/taxa classification.
     print("\n  Running threshold grid search ...")
-    best_th, gs_results = grid_search_thresholds(
-        combined=combined_table,
-        env_strength_df=combined_table,   # has Env_Silhouette, Env_Margin
-        labels=labels_for_xs,
-        env_raw=env_ref_raw,
+    combined_table, class_count, best_th, _ = refresh_combined_robustness_outputs(
+        data_path=DATA_PATH,
+        output_dir=WARDS_OUTPUT,
+        env_variables=ENV_VARIABLES,
         verbose=True,
     )
     print(f"  Best thresholds: tsil={best_th['tsil']}, tmarg={best_th['tmarg']}, "
@@ -145,35 +132,11 @@ if __name__ == "__main__":
           f"LDA_C1={best_th['LDA_diag_C1_acc']:.1%}, "
           f"LDA_C3={best_th['LDA_diag_C3_acc']:.1%}")
 
-    # Reclassify sites with best thresholds
-    taxa_strong = (
-        (combined_table["Taxa_Silhouette"] >= best_th["tsil"])
-        & (combined_table["Taxa_Margin"] >= best_th["tmarg"])
-    )
-    env_strong = (
-        (combined_table["Env_Silhouette"] > best_th["esil"])
-        & (combined_table["Env_Margin"] > best_th["emarg"])
-    )
-    combined_table["Taxa_Strength"] = np.where(taxa_strong, "Strong", "Weak")
-    combined_table["Env_Strength"] = np.where(env_strong, "Strong", "Weak")
-    combined_table["TaxaEnv_Class"] = [
-        f"Env{e}_Taxa{t}"
-        for e, t in zip(combined_table["Env_Strength"], combined_table["Taxa_Strength"])
-    ]
-    print(f"  Reclassified TaxaEnv_Class distribution:")
-    print(f"    {combined_table['TaxaEnv_Class'].value_counts().to_dict()}")
-
-    # Save updated 2×2 count table to WardsClustering taxa_confidence
-    from zci.io.writers import save_table
-    class_count = build_class_count_table(combined_table)
-    save_table(
-        class_count,
-        WARDS_OUTPUT / "tables" / "taxa_confidence" / "taxa_env_class_counts",
-        formats=("xlsx",),
-        verbose=True,
-    )
-    print(f"\n  2×2 TaxaEnv class counts (after grid search):")
-    print(f"    {class_count.to_string()}")
+    from zci.io.readers import read_study_data, extract_block
+    data_full = read_study_data(DATA_PATH)
+    env_block = extract_block(data_full, "environmental", "raw")
+    env_ref_raw = env_block.loc[combined_table.index, ENV_VARIABLES].dropna()
+    labels_for_xs = combined_table["Original_Cluster"]
 
     # ── 2. Cross-Support Evaluation (Model S: LDA + MRT) ────────────
     print("\n" + "=" * 70)
