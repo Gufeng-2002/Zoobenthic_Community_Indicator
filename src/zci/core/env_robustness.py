@@ -18,6 +18,9 @@ env_site_confidence
     co-assignment matrix relative to the original taxa cluster labels.
 assign_env_strength
     Binary environmental coherence label (Strong / Weak).
+assign_env_strength_percentile
+    Percentile-based environmental coherence: only the top *pct* of sites
+    per cluster (ranked by combined silhouette + margin) are Strong.
 build_env_coherence_table
     One-row-per-site summary of all environmental diagnostics.
 """
@@ -246,6 +249,49 @@ def assign_env_strength(
     return "Weak"
 
 
+def assign_env_strength_percentile(
+    labels: pd.Series,
+    env_silhouettes: pd.Series,
+    env_margins: pd.Series,
+    *,
+    top_pct: float = 0.60,
+) -> pd.Series:
+    """Per-cluster percentile-based environmental strength.
+
+    Within each cluster, sites are ranked by a combined score
+    (silhouette + margin).  Only the top *top_pct* fraction (e.g. 60 %)
+    are classified as ``"Strong"``; the remainder are ``"Weak"``.
+
+    Parameters
+    ----------
+    labels : pd.Series
+        Cluster labels for each site.
+    env_silhouettes : pd.Series
+        Per-site environmental silhouette.
+    env_margins : pd.Series
+        Per-site environmental margin.
+    top_pct : float
+        Fraction of sites (per cluster) that qualify as Strong.
+        Must be in (0, 1].
+
+    Returns
+    -------
+    pd.Series
+        ``"Strong"`` or ``"Weak"`` for each site, same index as *labels*.
+    """
+    combined_score = env_silhouettes + env_margins
+    strength = pd.Series("Weak", index=labels.index, name="Env_Strength")
+
+    for cluster_id in sorted(labels.unique()):
+        cluster_mask = labels == cluster_id
+        cluster_scores = combined_score.loc[cluster_mask].sort_values(ascending=False)
+        n_strong = max(1, int(np.ceil(len(cluster_scores) * top_pct)))
+        strong_sites = cluster_scores.index[:n_strong]
+        strength.loc[strong_sites] = "Strong"
+
+    return strength
+
+
 # ------------------------------------------------------------------
 # Build environmental coherence table
 # ------------------------------------------------------------------
@@ -256,6 +302,8 @@ def build_env_coherence_table(
     env_confidence: pd.DataFrame,
     sil_threshold: float = 0.0,
     margin_threshold: float = 0.0,
+    env_strength_method: str = "threshold",
+    env_strength_top_pct: float = 0.60,
 ) -> pd.DataFrame:
     """One-row-per-site environmental coherence summary.
 
@@ -269,9 +317,15 @@ def build_env_coherence_table(
         From :func:`env_site_confidence` — Env_Own_Coassign,
         Env_BestAlt_Coassign, Env_Margin.
     sil_threshold : float
-        Minimum env silhouette for Strong.
+        Minimum env silhouette for Strong (used when method="threshold").
     margin_threshold : float
-        Minimum env margin for Strong.
+        Minimum env margin for Strong (used when method="threshold").
+    env_strength_method : str
+        ``"threshold"`` — original absolute-threshold rule.
+        ``"percentile"`` — per-cluster top *env_strength_top_pct* rule.
+    env_strength_top_pct : float
+        Fraction of sites per cluster classified as Strong when
+        *env_strength_method* is ``"percentile"``.  Default 0.60.
 
     Returns
     -------
@@ -279,23 +333,38 @@ def build_env_coherence_table(
         Columns: Env_Silhouette, Env_Own_Coassign,
         Env_BestAlt_Coassign, Env_Margin, Env_Strength.
     """
+    # Build the numeric columns first
     rows = []
     for site in labels.index:
         sil = float(env_silhouettes.loc[site])
         own = float(env_confidence.loc[site, "Env_Own_Coassign"])
         alt = float(env_confidence.loc[site, "Env_BestAlt_Coassign"])
         margin = float(env_confidence.loc[site, "Env_Margin"])
-        strength = assign_env_strength(
-            sil, margin,
-            sil_threshold=sil_threshold,
-            margin_threshold=margin_threshold,
-        )
         rows.append({
             "Site": site,
             "Env_Silhouette": round(sil, 4),
             "Env_Own_Coassign": round(own, 4),
             "Env_BestAlt_Coassign": round(alt, 4),
             "Env_Margin": round(margin, 4),
-            "Env_Strength": strength,
         })
-    return pd.DataFrame(rows).set_index("Site")
+    df = pd.DataFrame(rows).set_index("Site")
+
+    # Assign Env_Strength
+    if env_strength_method == "percentile":
+        df["Env_Strength"] = assign_env_strength_percentile(
+            labels,
+            df["Env_Silhouette"],
+            df["Env_Margin"],
+            top_pct=env_strength_top_pct,
+        )
+    else:
+        df["Env_Strength"] = df.apply(
+            lambda r: assign_env_strength(
+                r["Env_Silhouette"], r["Env_Margin"],
+                sil_threshold=sil_threshold,
+                margin_threshold=margin_threshold,
+            ),
+            axis=1,
+        )
+
+    return df

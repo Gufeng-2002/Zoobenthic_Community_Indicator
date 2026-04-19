@@ -42,7 +42,7 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Paths
-DATA_PATH      = PROJECT_ROOT / "data" / "processed" / "complete_env_taxa_chemical_Feb_3.xlsx"
+DATA_PATH      = PROJECT_ROOT / "data" / "processed" / "complete_env_taxa_chemical_Apr17.xlsx"
 BENCHMARK_PATH = PROJECT_ROOT / "data" / "TEC_PEC_consensus" / "10_chemicals_TEC_PEC.xlsx"
 OUTPUT_DIR     = PROJECT_ROOT / "results" / "01_pollution_assessment"
 MAPS_DIR       = PROJECT_ROOT / "data" / "maps"
@@ -74,8 +74,8 @@ if __name__ == "__main__":
         output_dir=OUTPUT_DIR / "PCA_Stressors",
         pollution_standardize=True,
         n_components=5,
-        selected_pcs=['PC1', 'PC2', 'PC3', 'PC4', 'PC5'],
-        composite_transform="none",
+        selected_pcs=['PC1', 'PC2', 'PC4', 'PC5'], # PC3 holds loadings on natural elements
+        composite_transform="min-max",
         maps_dir=MAPS_DIR,
         threshold_quantile=0.20,
         save_plots=True,

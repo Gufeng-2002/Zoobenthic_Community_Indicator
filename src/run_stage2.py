@@ -45,15 +45,25 @@ TAXA_TRANSFORM: str = "octave"
 One of: "octave", "chord", "hellinger", "log_chord", "relative_abundance".
 """
 
-N_REFERENCE_SITES: int = 50
+N_REFERENCE_SITES: int = 42
 """Number of least-polluted reference sites entering Ward's clustering."""
+
+ENV_STRENGTH_METHOD: str = "percentile"
+"""Environmental strength classification method.
+``"threshold"`` — original absolute-threshold rule (sil > esil & margin > emarg).
+``"percentile"`` — per-cluster top-pct rule (top 70 % of combined score → Strong).
+"""
+
+ENV_STRENGTH_TOP_PCT: float = 0.60
+"""Fraction of sites per cluster classified as Strong (used only when
+ENV_STRENGTH_METHOD = "percentile")."""
 
 # ═══════════════════════════════════════════════════════════════════════
 #  Paths
 # ═══════════════════════════════════════════════════════════════════════
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-DATA_PATH = PROJECT_ROOT / "data" / "processed" / "complete_env_taxa_chemical_Feb_3.xlsx"
+DATA_PATH = PROJECT_ROOT / "data" / "processed" / "complete_env_taxa_chemical_Apr17.xlsx"
 STAGE1_ARTIFACT = (
     PROJECT_ROOT / "results" / "01_pollution_assessment"
     / "PCA_Stressors" / "artifacts" / "SumRel_01_updated_data.xlsx"
@@ -80,6 +90,9 @@ if __name__ == "__main__":
     print("=" * 70)
     print(f"  Taxa transform      : {TAXA_TRANSFORM}")
     print(f"  Reference sites     : {N_REFERENCE_SITES}")
+    print(f"  Env strength method : {ENV_STRENGTH_METHOD}")
+    if ENV_STRENGTH_METHOD == "percentile":
+        print(f"  Env strength top %  : {ENV_STRENGTH_TOP_PCT:.0%}")
     print("=" * 70)
 
     # ── 1. Ward's Clustering + Robustness Testing ────────────────────
@@ -106,6 +119,8 @@ if __name__ == "__main__":
         env_coassign_sample_frac=0.8,
         env_sil_threshold=None,
         env_margin_threshold=None,
+        env_strength_method=ENV_STRENGTH_METHOD,
+        env_strength_top_pct=ENV_STRENGTH_TOP_PCT,
         random_state=42,
         save_plots=True,
     )
@@ -124,6 +139,8 @@ if __name__ == "__main__":
         data_path=DATA_PATH,
         output_dir=WARDS_OUTPUT,
         env_variables=ENV_VARIABLES,
+        env_strength_method=ENV_STRENGTH_METHOD,
+        env_strength_top_pct=ENV_STRENGTH_TOP_PCT,
         verbose=True,
     )
     print(f"  Best thresholds: tsil={best_th['tsil']}, tmarg={best_th['tmarg']}, "

@@ -176,6 +176,25 @@ def plot_corridor_bifurcation(
     c_middle = middle_color or _BIFURCATION_COLORS["middle"]
     c_above  = above_color  or _BIFURCATION_COLORS["above"]
 
+    aligned = pd.concat(
+        {
+            "score": scores,
+            "lat": lat,
+            "lon": lon,
+            "waterbody": waterbody,
+        },
+        axis=1,
+        join="inner",
+    ).dropna(subset=["score", "lat", "lon", "waterbody"])
+
+    if aligned.empty:
+        raise ValueError("No aligned sites are available for corridor bifurcation plotting.")
+
+    scores = aligned["score"]
+    lat = aligned["lat"]
+    lon = aligned["lon"]
+    waterbody = aligned["waterbody"]
+
     # ── thresholds ────────────────────────────────────────────────────────
     n_total = len(scores)
     n_lo = resolve_n_ref(threshold_quantile, n_total)

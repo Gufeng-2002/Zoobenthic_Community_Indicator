@@ -121,6 +121,26 @@ def score_focus_pipeline(
     env_all = env_all[env_vars_present]
     taxa_all = extract_block(data, "taxa", "raw")
 
+    common_index = score.index.intersection(env_all.index, sort=False)
+    common_index = common_index.intersection(taxa_all.index, sort=False)
+    if stressor_predictors is not None:
+        common_index = common_index.intersection(stressor_predictors.index, sort=False)
+
+    dropped_sites = len(score) - len(common_index)
+    if dropped_sites > 0:
+        _log(
+            f"  [1a] Aligning inputs to shared sites … dropped {dropped_sites} site(s)"
+        )
+
+    score = score.loc[common_index].copy()
+    env_all = env_all.loc[common_index].copy()
+    taxa_all = taxa_all.loc[common_index].copy()
+    if stressor_predictors is not None:
+        stressor_predictors = stressor_predictors.loc[common_index].copy()
+
+    if score.empty:
+        raise ValueError("No shared sites remain after aligning score and predictor inputs.")
+
     # ── 2. Sweep thresholds for Env predictors ───────────────────────
     _log(f"  [2] Sweeping cut-offs ({score_label} · Env) …")
     env_metrics = sweep_thresholds(

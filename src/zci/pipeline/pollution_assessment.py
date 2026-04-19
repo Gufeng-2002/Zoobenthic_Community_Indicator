@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import List, Sequence
 
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 
 from ..io.readers import read_study_data, extract_block
@@ -163,6 +164,25 @@ def pollution_pca_pipeline(
         verbose=verbose,
     )
 
+    # PCA cannot handle NaNs, so drop only the affected sites in-memory.
+    missing_site_mask = pollution_raw.isna().any(axis=1)
+    if missing_site_mask.any():
+        missing_sites = pollution_raw.index[missing_site_mask].tolist()
+        preview = missing_sites[:10]
+        suffix = "" if len(missing_sites) <= 10 else " ..."
+        _log(
+            "[2c/9] Dropping sites with missing pollution values required for PCA …"
+        )
+        _log(
+            f"      Dropping {len(missing_sites)} site(s): {preview}{suffix}"
+        )
+        pollution_raw = pollution_raw.loc[~missing_site_mask].copy()
+
+    if pollution_raw.empty:
+        raise ValueError(
+            "No sites remain after dropping rows with missing pollution values."
+        )
+
     # ── 3. Screen variables ───────────────────────────────────────────────
     _log("[3/9] Screening variables for negligible variation …")
     low_var = pollution_raw.std() < 1e-10
@@ -174,7 +194,7 @@ def pollution_pca_pipeline(
         _log("      All variables retained (no negligible-variance columns)")
 
     # ── 4. Transform ─────────────────────────────────────────────────────
-    _log("[4/9] Applying log₂(1 + x) transformation …")
+    _log("[4/9] Applying log2(1 + x) transformation …")
     pollution_transformed = log2_transform(pollution_raw)
     if pollution_standardize:
         _log("      Applying z-score standardisation to log-transformed variables …")

@@ -91,6 +91,8 @@ def refresh_combined_robustness_outputs(
     output_dir: str | _Path,
     *,
     env_variables: Sequence[str],
+    env_strength_method: str = "threshold",
+    env_strength_top_pct: float = 0.60,
     table_formats: Sequence[str] = ("xlsx",),
     verbose: bool = True,
 ) -> tuple[pd.DataFrame, pd.DataFrame, Dict[str, float], pd.DataFrame]:
@@ -119,6 +121,8 @@ def refresh_combined_robustness_outputs(
         env_strength_df=combined_table,
         labels=labels_for_xs,
         env_raw=env_ref_raw,
+        env_strength_method=env_strength_method,
+        env_strength_top_pct=env_strength_top_pct,
         verbose=verbose,
     )
 
@@ -128,6 +132,8 @@ def refresh_combined_robustness_outputs(
         tmarg=best_th["tmarg"],
         esil=best_th["esil"],
         emarg=best_th["emarg"],
+        env_strength_method=env_strength_method,
+        env_strength_top_pct=env_strength_top_pct,
     )
     class_count_table = build_class_count_table(updated_combined)
 
@@ -199,6 +205,8 @@ def wards_clustering_pipeline(
     env_coassign_sample_frac: float = 0.8,
     env_sil_threshold: float | None = 0.0,
     env_margin_threshold: float | None = 0.0,
+    env_strength_method: str = "threshold",
+    env_strength_top_pct: float = 0.60,
     # General
     random_state: int | None = 42,
     map_func=None,
@@ -279,6 +287,8 @@ def wards_clustering_pipeline(
     # -- 4. Extract taxa block -----------------------------------------
     _log(f"[4/16] Extracting taxa data for {n_ref} reference sites ...")
     taxa_all = extract_block(data, "taxa", "raw")[list(taxa_columns)]
+    # Align to sites present in the Stage 1 artifact (pollution score)
+    taxa_all = taxa_all.loc[taxa_all.index.intersection(ref_mask.index)]
     taxa_ref = taxa_all.loc[ref_mask]
     _log(f"       {taxa_ref.shape[0]} sites x {taxa_ref.shape[1]} taxa")
 
@@ -414,6 +424,8 @@ def wards_clustering_pipeline(
         env_confidence=env_confidence,
         sil_threshold=env_sil_threshold,
         margin_threshold=env_margin_threshold,
+        env_strength_method=env_strength_method,
+        env_strength_top_pct=env_strength_top_pct,
     )
     env_strength_counts = env_coherence["Env_Strength"].value_counts()
     for strength, count in env_strength_counts.items():

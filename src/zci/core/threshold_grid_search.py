@@ -21,7 +21,7 @@ from .cross_support import (
     assign_taxa_status_v2,
     assign_taxa_strength,
 )
-from .env_robustness import assign_env_strength
+from .env_robustness import assign_env_strength, assign_env_strength_percentile
 
 
 def apply_threshold_configuration(
@@ -31,6 +31,8 @@ def apply_threshold_configuration(
     tmarg: float,
     esil: float,
     emarg: float,
+    env_strength_method: str = "threshold",
+    env_strength_top_pct: float = 0.60,
 ) -> pd.DataFrame:
     """Return a copy of *combined* with the threshold-based labels refreshed.
 
@@ -63,15 +65,26 @@ def apply_threshold_configuration(
         axis=1,
     )
     updated["Taxa_Strength"] = updated["Taxa_Status"].map(assign_taxa_strength)
-    updated["Env_Strength"] = updated.apply(
-        lambda row: assign_env_strength(
-            row["Env_Silhouette"],
-            row["Env_Margin"],
-            sil_threshold=esil,
-            margin_threshold=emarg,
-        ),
-        axis=1,
-    )
+
+    if env_strength_method == "percentile":
+        labels = updated["Original_Cluster"]
+        updated["Env_Strength"] = assign_env_strength_percentile(
+            labels,
+            updated["Env_Silhouette"],
+            updated["Env_Margin"],
+            top_pct=env_strength_top_pct,
+        )
+    else:
+        updated["Env_Strength"] = updated.apply(
+            lambda row: assign_env_strength(
+                row["Env_Silhouette"],
+                row["Env_Margin"],
+                sil_threshold=esil,
+                margin_threshold=emarg,
+            ),
+            axis=1,
+        )
+
     updated["TaxaEnv_Class"] = updated.apply(
         lambda row: assign_taxa_env_class(
             row["Env_Strength"],
@@ -91,10 +104,19 @@ def _classify_sites(
     tmarg_th: float,
     esil_th: float,
     emarg_th: float,
+    *,
+    env_strong_override: pd.Series | None = None,
 ) -> pd.Series:
-    """Re-classify sites into 4 TaxaEnv classes given thresholds."""
+    """Re-classify sites into 4 TaxaEnv classes given thresholds.
+
+    If *env_strong_override* is provided (a boolean Series), it is used
+    instead of the env threshold comparison.
+    """
     taxa_strong = (taxa_sil >= tsil_th) & (taxa_margin >= tmarg_th)
-    env_strong = (env_sil > esil_th) & (env_margin > emarg_th)
+    if env_strong_override is not None:
+        env_strong = env_strong_override
+    else:
+        env_strong = (env_sil > esil_th) & (env_margin > emarg_th)
     taxa_str = np.where(taxa_strong, "Strong", "Weak")
     env_str = np.where(env_strong, "Strong", "Weak")
     return pd.Series(
@@ -128,6 +150,8 @@ def _eval_config(
     tmarg_th: float,
     esil_th: float,
     emarg_th: float,
+    *,
+    env_strong_override: pd.Series | None = None,
 ) -> dict | None:
     """Evaluate a single threshold configuration.
 
@@ -136,6 +160,7 @@ def _eval_config(
     classes = _classify_sites(
         taxa_sil, taxa_margin, env_sil, env_margin,
         tsil_th, tmarg_th, esil_th, emarg_th,
+        env_strong_override=env_strong_override,
     )
     train_mask = classes == "EnvStrong_TaxaStrong"
     n_train = int(train_mask.sum())
@@ -191,6 +216,8 @@ def grid_search_thresholds(
     taxa_margin_vals: Sequence[float] = (0.0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30),
     env_sil_vals: Sequence[float] = (-1.0, -0.5, -0.3, -0.1, 0.0),
     env_margin_vals: Sequence[float] = (-0.5, -0.3, -0.1, 0.0, 0.1, 0.2),
+    env_strength_method: str = "threshold",
+    env_strength_top_pct: float = 0.60,
     verbose: bool = True,
 ) -> Tuple[Dict[str, float], pd.DataFrame]:
     """Search for threshold combination that maximises LDA C1+C3 diagnostic accuracy.
@@ -205,6 +232,12 @@ def grid_search_thresholds(
         Original cluster labels for reference sites.
     env_raw : DataFrame
         Raw (unstandardised) environmental variables for reference sites.
+    env_strength_method : str
+        ``"threshold"`` or ``"percentile"``.  When ``"percentile"``,
+        env thresholds are ignored and env strength is fixed by the
+        per-cluster top-pct rule.
+    env_strength_top_pct : float
+        Fraction of sites per cluster that are Strong (percentile mode).
 
     Returns
     -------
@@ -218,17 +251,30 @@ def grid_search_thresholds(
     env_sil = env_strength_df.loc[combined.index, "Env_Silhouette"]
     env_margin_col = env_strength_df.loc[combined.index, "Env_Margin"]
 
+    # When percentile mode, compute env_strong mask once and collapse env grid
+    env_strong_override = None
+    if env_strength_method == "percentile":
+        pct_strength = assign_env_strength_percentile(
+            labels, env_sil, env_margin_col, top_pct=env_strength_top_pct,
+        )
+        env_strong_override = (pct_strength == "Strong")
+        env_sil_vals = (0.0,)          # single dummy value
+        env_margin_vals = (0.0,)
+
     grid = list(itertools.product(
         taxa_sil_vals, taxa_margin_vals, env_sil_vals, env_margin_vals,
     ))
     if verbose:
-        print(f"  Grid search: {len(grid)} combinations ...")
+        mode_label = (f"percentile (top {env_strength_top_pct:.0%})"
+                      if env_strength_method == "percentile" else "threshold")
+        print(f"  Grid search ({mode_label}): {len(grid)} combinations ...")
 
     results = []
     for i, (ts, tm, es, em) in enumerate(grid):
         r = _eval_config(
             taxa_sil, taxa_margin, env_sil, env_margin_col,
             labels, env_raw, ts, tm, es, em,
+            env_strong_override=env_strong_override,
         )
         if r is not None:
             results.append(r)

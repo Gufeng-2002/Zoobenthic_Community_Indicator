@@ -74,11 +74,77 @@ get_node_members <- function(hc, node_idx) {
 n_internal <- nrow(hc$merge)
 node_members <- vector("list", n_internal)
 for (i in seq_len(n_internal)) {
-  node_members[[i]] <- sort(get_node_members(hc, i))
+  node_members[[i]] <- sort(as.integer(get_node_members(hc, i)))
 }
 
-# For each cluster, find the internal node whose member set exactly matches
-# (or best matches) the cluster sites.
+# ── Map each k-cut cluster to its subtree root node ──────────────────
+# Cutting the tree at k clusters removes the top k-1 merges.
+# The k subtree roots are the children of those top merges that are
+# not themselves among the cut merges.
+top_merges <- seq(n_internal - n_clusters + 2, n_internal)  # e.g. k=3: {n-1, n}
+children <- integer(0)
+for (m in top_merges) {
+  children <- c(children, hc$merge[m, 1], hc$merge[m, 2])
+}
+# Subtree roots = children that are internal nodes but NOT in top_merges,
+# plus any leaves (negative values)
+subtree_roots <- children[!(children %in% top_merges)]
+
+# Map each subtree root to its cutree cluster label
+root_to_cluster <- integer(length(subtree_roots))
+for (j in seq_along(subtree_roots)) {
+  root <- subtree_roots[j]
+  if (root < 0) {
+    # Leaf node
+    representative <- -root
+  } else {
+    # Pick the first member of the subtree
+    representative <- node_members[[root]][1]
+  }
+  root_to_cluster[j] <- cut_labels[representative]
+}
+
+# ── Helper: detect degenerate pvclust edge (all zeros) ───────────────
+is_degenerate_edge <- function(pv_result, edge_name) {
+  if (!(edge_name %in% rownames(pv_result$edges))) return(TRUE)
+  row <- pv_result$edges[edge_name, ]
+  return(row["au"] == 0 && row["bp"] == 0 && row["se.au"] == 0 && row["se.bp"] == 0)
+}
+
+# ── Fallback: direct bootstrap proportion for degenerate edges ───────
+# Resample n sites with replacement B times, re-cluster with Ward.D2,
+# cut at k, and check if the target cluster appears intact.
+direct_bootstrap_cluster <- function(taxa, target_sites, n_clusters, nboot_fb = 500) {
+  n <- nrow(taxa)
+  count <- 0
+  for (b in seq_len(nboot_fb)) {
+    idx <- sample(n, n, replace = TRUE)
+    boot_data <- taxa[idx, , drop = FALSE]
+    # Some bootstrap samples may have duplicate rows — use unique for distance
+    # but keep all for clustering (standard bootstrap approach)
+    d_boot <- dist(boot_data, method = "euclidean")
+    hc_boot <- hclust(d_boot, method = "ward.D2")
+    labels_boot <- cutree(hc_boot, k = n_clusters)
+    # Map bootstrap labels back to original indices
+    # For each original-index site in target_sites, find which bootstrap
+    # positions it occupies and check if they all share the same label
+    # AND no non-target sites share that label.
+    target_positions <- which(idx %in% target_sites)
+    if (length(target_positions) == 0) next
+    target_labels <- labels_boot[target_positions]
+    if (length(unique(target_labels)) != 1) next
+    # Check that no non-target bootstrap positions share this label
+    target_label <- target_labels[1]
+    non_target_positions <- which(!(idx %in% target_sites))
+    non_target_with_label <- sum(labels_boot[non_target_positions] == target_label)
+    if (non_target_with_label == 0) {
+      count <- count + 1
+    }
+  }
+  return(count / nboot_fb)
+}
+
+# ── Build the result table ───────────────────────────────────────────
 cluster_au <- data.frame(
   Cluster = integer(n_clusters),
   AU      = numeric(n_clusters),
@@ -87,43 +153,44 @@ cluster_au <- data.frame(
 )
 
 for (k in seq_len(n_clusters)) {
-  cluster_sites <- sort(which(cut_labels == k))
+  cluster_sites <- as.integer(sort(which(cut_labels == k)))
 
-  # Try exact match first
-  best_node <- NA
-  for (i in seq_len(n_internal)) {
-    if (identical(node_members[[i]], cluster_sites)) {
-      best_node <- i
-      break
-    }
+  # Find the subtree root for this cluster
+  root_idx <- which(root_to_cluster == k)
+  if (length(root_idx) == 1) {
+    root_node <- subtree_roots[root_idx]
+  } else {
+    root_node <- NA
   }
 
-  # If no exact match, find the smallest superset
-  if (is.na(best_node)) {
-    best_size <- Inf
-    for (i in seq_len(n_internal)) {
-      members <- node_members[[i]]
-      if (all(cluster_sites %in% members) && length(members) < best_size) {
-        best_size <- length(members)
-        best_node <- i
-      }
-    }
-  }
+  au_val <- NA
+  bp_val <- NA
 
-  if (!is.na(best_node)) {
-    # pvclust stores AU and BP p-values in $edges with row names = edge number
-    # Edge numbers correspond to internal node indices
-    edge_name <- as.character(best_node)
-    if (edge_name %in% rownames(pv_result$edges)) {
+  if (!is.na(root_node) && root_node > 0) {
+    edge_name <- as.character(root_node)
+    if (!is_degenerate_edge(pv_result, edge_name)) {
+      # Normal case: use pvclust AU/BP directly
       au_val <- pv_result$edges[edge_name, "au"]
       bp_val <- pv_result$edges[edge_name, "bp"]
+      cat(sprintf("Cluster %d -> node %d: AU=%.4f, BP=%.4f (pvclust)\n",
+                  k, root_node, au_val, bp_val))
     } else {
-      au_val <- NA
-      bp_val <- NA
+      # Degenerate edge: pvclust curve fitting failed for this near-root node.
+      # Fall back to direct bootstrap proportion.
+      cat(sprintf("Cluster %d -> node %d: degenerate pvclust edge (AU=0, BP=0).\n", k, root_node))
+      cat(sprintf("  Computing direct bootstrap proportion (500 replicates) ...\n"))
+      bp_fb <- direct_bootstrap_cluster(taxa, cluster_sites, n_clusters, nboot_fb = 500)
+      au_val <- bp_fb  # Use direct bootstrap as AU estimate
+      bp_val <- bp_fb
+      cat(sprintf("  Fallback bootstrap proportion: %.4f\n", bp_fb))
     }
+  } else if (!is.na(root_node) && root_node < 0) {
+    # Single-leaf cluster — trivially supported
+    au_val <- 1.0
+    bp_val <- 1.0
+    cat(sprintf("Cluster %d -> single leaf: AU=1.0, BP=1.0\n", k))
   } else {
-    au_val <- NA
-    bp_val <- NA
+    cat(sprintf("Cluster %d: could not map to dendrogram node.\n", k))
   }
 
   cluster_au$Cluster[k] <- k
