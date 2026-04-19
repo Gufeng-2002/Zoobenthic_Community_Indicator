@@ -31,6 +31,7 @@ import pandas as pd
 from pathlib import Path
 
 from zci.pipeline.wards_clustering import (
+    pvclust_au_sweep,
     refresh_combined_robustness_outputs,
     wards_clustering_pipeline,
 )
@@ -43,18 +44,18 @@ from zci.pipeline.cross_support_eval import cross_support_eval_pipeline
 TAXA_TRANSFORM: str = "octave"
 """Taxa transformation for Ward's clustering and MRT classification.
 One of: "octave", "chord", "hellinger", "log_chord", "relative_abundance".
-"""
+""" 
 
-N_REFERENCE_SITES: int = 42
-"""Number of least-polluted reference sites entering Ward's clustering."""
+N_REFERENCE_SITES: int = 59
+"""Number of least-polluted reference sites to enter Ward's clustering."""
 
 ENV_STRENGTH_METHOD: str = "percentile"
 """Environmental strength classification method.
 ``"threshold"`` — original absolute-threshold rule (sil > esil & margin > emarg).
-``"percentile"`` — per-cluster top-pct rule (top 70 % of combined score → Strong).
+``"percentile"`` — per-cluster top-pct rule (top 80 % of combined score → Strong).
 """
 
-ENV_STRENGTH_TOP_PCT: float = 0.60
+ENV_STRENGTH_TOP_PCT: float = 0.80
 """Fraction of sites per cluster classified as Strong (used only when
 ENV_STRENGTH_METHOD = "percentile")."""
 
@@ -131,6 +132,23 @@ if __name__ == "__main__":
     print(f"\nStatus distribution:")
     print(ward_result.status_distribution())
     print(f"\nMean silhouette: {ward_result.mean_silhouette():.4f}")
+
+    # ── 1b. pvclust AU sweep across N = 40..70 ───────────────────────
+    print("\n" + "─" * 70)
+    # print("  [1b] pvclust AU sweep (N = 40..70, nboot = 300)")
+    # print("─" * 70)
+    # for n_cluster_number in [2, 3]:
+    #     print(f"\n  N_CLUSTERS = {n_cluster_number}")
+    #     au_sweep_results = pvclust_au_sweep(
+    #         data_path=DATA_PATH,
+    #         stage1_artifact=STAGE1_ARTIFACT,
+    #         output_dir=WARDS_OUTPUT,
+    #         n_range=(40, 70),
+    #         n_clusters=n_cluster_number,
+    #         taxa_transform=TAXA_TRANSFORM,
+    #         label_map={1: 1, 2: 2, 3: 3},
+    #         nboot=300,
+    #     )
 
     # Refresh the saved Ward artifact with the optimized thresholds used
     # by the later 2x2 env/taxa classification.

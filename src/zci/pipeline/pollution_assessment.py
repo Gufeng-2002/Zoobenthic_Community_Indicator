@@ -27,6 +27,7 @@ from ..io.readers import read_study_data, extract_block
 from ..io.writers import save_table, save_figure
 from ..core.transforms import (
     log2_transform,
+    log10_transform,
     score_sumrel,
     score_maxrel,
 )
@@ -194,8 +195,8 @@ def pollution_pca_pipeline(
         _log("      All variables retained (no negligible-variance columns)")
 
     # ── 4. Transform ─────────────────────────────────────────────────────
-    _log("[4/9] Applying log2(1 + x) transformation …")
-    pollution_transformed = log2_transform(pollution_raw)
+    _log("[4/9] Applying log10(1 + x) transformation …")
+    pollution_transformed = log10_transform(pollution_raw)
     if pollution_standardize:
         _log("      Applying z-score standardisation to log-transformed variables …")
         pollution_transformed = (pollution_transformed - pollution_transformed.mean()) / pollution_transformed.std()

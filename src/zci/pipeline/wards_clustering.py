@@ -627,3 +627,158 @@ def wards_clustering_pipeline(
 
     _log(f"\n{result.summary()}")
     return result
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  pvclust AU sweep across N_REFERENCE_SITES
+# ══════════════════════════════════════════════════════════════════════
+
+def pvclust_au_sweep(
+    data_path: str | _Path,
+    stage1_artifact: str | _Path,
+    output_dir: str | _Path,
+    *,
+    n_range: tuple[int, int] = (40, 70),
+    n_clusters: int = 3,
+    taxa_transform: str = "octave",
+    label_map: Dict[int, int] | None = None,
+    nboot: int = 300,
+    figure_formats: Sequence[str] = ("png",),
+    table_formats: Sequence[str] = ("xlsx",),
+    verbose: bool = True,
+) -> pd.DataFrame:
+    """Sweep N_REFERENCE_SITES and record pvclust AU for each cluster.
+
+    Parameters
+    ----------
+    data_path, stage1_artifact : path-like
+        Input data and Stage-1 artifact (for pollution scores).
+    output_dir : path-like
+        Ward's output directory; results go into its ``tables/`` and
+        ``figures/`` sub-folders.
+    n_range : (int, int)
+        Inclusive (min, max) for the sweep.
+    n_clusters : int
+        Number of Ward clusters.
+    taxa_transform : str
+        Taxa transformation name.
+    label_map : dict | None
+        Optional cluster relabelling.
+    nboot : int
+        Bootstrap replicates per pvclust run (300–500 recommended).
+    figure_formats, table_formats : sequence of str
+        Output file formats.
+    verbose : bool
+        Print progress.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per N value with AU / BP / cluster-size columns.
+    """
+    output_dir = _Path(output_dir)
+    tables_dir = output_dir / "tables"
+    figures_dir = output_dir / "figures"
+
+    if label_map is None:
+        label_map = {}
+
+    transform_fn = _TRANSFORMS.get(taxa_transform)
+    if transform_fn is None:
+        raise ValueError(
+            f"Unknown taxa_transform={taxa_transform!r}. "
+            f"Choose from {list(_TRANSFORMS)}."
+        )
+
+    # ── load data once ────────────────────────────────────────────────
+    data = read_study_data(data_path)
+    stage1 = pd.read_excel(stage1_artifact, header=[0, 1, 2], index_col=0)
+    score_cols = [
+        c for c in stage1.columns
+        if c[0] == "01_pollution_assessment" and c[1] == "raw"
+        and c[2].endswith("_Score")
+    ]
+    if not score_cols:
+        raise KeyError("No pollution score column found in Stage 1 artifact")
+    pollution_score = stage1.loc[:, score_cols[0]]
+    taxa_all = extract_block(data, "taxa", "raw")
+    taxa_all = taxa_all.loc[taxa_all.index.intersection(pollution_score.index)]
+
+    n_min, n_max = n_range
+    n_values = list(range(n_min, n_max + 1))
+
+    if verbose:
+        print(f"\n{'='*60}")
+        print(f"  pvclust AU sweep: N = {n_min}..{n_max}  (nboot={nboot})")
+        print(f"{'='*60}")
+
+    rows: list[dict] = []
+    for n_ref in n_values:
+        if verbose:
+            print(f"\n  N = {n_ref} ...", end=" ", flush=True)
+
+        ref_mask = select_reference_sites(pollution_score, quantile=n_ref)
+        taxa_ref = taxa_all.loc[ref_mask]
+        taxa_transformed = transform_fn(taxa_ref)
+        labels_ref, Z = ward_cluster(taxa_transformed, n_clusters=n_clusters)
+
+        if label_map:
+            labels_ref = _relabel(labels_ref, label_map)
+
+        cluster_sizes = labels_ref.value_counts().sort_index()
+
+        try:
+            pvclust_df = run_pvclust(
+                taxa_transformed, n_clusters=n_clusters, nboot=nboot, verbose=False,
+            )
+            row: dict[str, Any] = {"N": n_ref, "actual_n": int(ref_mask.sum())}
+            for _, r in pvclust_df.iterrows():
+                k = int(r["Cluster"])
+                row[f"AU_C{k}"] = round(r["AU"], 4)
+                row[f"BP_C{k}"] = round(r["BP"], 4)
+                row[f"size_C{k}"] = int(cluster_sizes.get(k, 0))
+            rows.append(row)
+            if verbose:
+                au_str = ", ".join(
+                    f"C{k}={row.get(f'AU_C{k}', '?')}" for k in range(1, n_clusters + 1)
+                )
+                print(f"AU: {au_str}")
+        except Exception as e:
+            rows.append({"N": n_ref, "actual_n": int(ref_mask.sum()), "error": str(e)})
+            if verbose:
+                print(f"ERROR: {e}")
+
+    results = pd.DataFrame(rows)
+
+    # ── save table ────────────────────────────────────────────────────
+    sweep_table_path = tables_dir / f"pvclust_AU_sweep_{n_clusters}_{n_range}"
+    save_table(results, sweep_table_path, formats=table_formats, verbose=verbose)
+
+    # ── save figure ───────────────────────────────────────────────────
+    fig, ax = plt.subplots(figsize=(10, 5))
+    au_cols = [c for c in results.columns if c.startswith("AU_C")]
+    for col in sorted(au_cols):
+        cluster_label = col.replace("AU_", "")
+        ax.plot(results["N"], results[col], marker="o", linewidth=1.5, label=cluster_label)
+
+    ax.axhline(0.95, color="green", linestyle="--", alpha=0.6, label="AU = 0.95")
+    ax.axhline(0.90, color="orange", linestyle="--", alpha=0.6, label="AU = 0.90")
+    ax.set_xlabel("N reference sites")
+    ax.set_ylabel("AU (approximately unbiased p-value)")
+    ax.set_title(f"pvclust AU sweep  (N = {n_min}–{n_max}, nboot = {nboot})")
+    ax.legend(loc="best")
+    ax.set_xticks(n_values)
+    ax.tick_params(axis="x", rotation=45)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+
+    save_figure(fig, figures_dir / f"pvclust_AU_sweep_{n_clusters}_{n_range}", formats=figure_formats, verbose=verbose)
+    plt.close(fig)
+
+    if verbose:
+        print(f"\n{'='*60}")
+        print("  SWEEP COMPLETE")
+        print(f"{'='*60}")
+        print(results.to_string(index=False))
+
+    return results

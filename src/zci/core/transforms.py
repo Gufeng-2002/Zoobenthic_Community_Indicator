@@ -29,6 +29,25 @@ def log2_transform(df: pd.DataFrame) -> pd.DataFrame:
     return df.apply(lambda col: np.log2(col + 1))
 
 
+def log10_transform(df: pd.DataFrame) -> pd.DataFrame:
+    """Apply *log₁₀(1 + x)* element-wise.
+
+    This is the transform used by the production notebook (``transform_method='log10'``).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Raw pollution-variable matrix (sites × variables).
+
+    Returns
+    -------
+    pd.DataFrame
+        Transformed matrix, same shape and index.
+    """
+    return df.apply(lambda col: np.log10(col + 1))
+
+
+
 # ---------------------------------------------------------------------------
 # Composite pollution scoring
 # ---------------------------------------------------------------------------

@@ -74,7 +74,7 @@ if __name__ == "__main__":
         output_dir=OUTPUT_DIR / "PCA_Stressors",
         pollution_standardize=True,
         n_components=5,
-        selected_pcs=['PC1', 'PC2', 'PC4', 'PC5'], # PC3 holds loadings on natural elements
+        selected_pcs=['PC1', 'PC2', 'PC3', 'PC4', 'PC5'], # PC3 holds loadings on natural elements
         composite_transform="min-max",
         maps_dir=MAPS_DIR,
         threshold_quantile=0.20,
