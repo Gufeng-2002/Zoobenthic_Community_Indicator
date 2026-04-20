@@ -3,9 +3,9 @@ Finalized LDA — Posterior Heatmap Ordination
 
 Model: Finalized_EnvStrong
 Training subset: EnvStrong_TaxaStrong reference sites
-N training sites: 27
-Training accuracy: 96.30%
-Reference accuracy: 47/59 (79.7%)
+N training sites: 16
+Training accuracy: 100.00%
+Reference accuracy: 37/52 (71.2%)
 
 Figures use LDA posterior probabilities as heatmap background.
 Higher posterior probability → darker colour for that cluster.

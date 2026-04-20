@@ -91,6 +91,7 @@ def run_pca(
     df: pd.DataFrame,
     n_components: int = 5,
     orient_positive: bool = True,
+    varimax: bool = False,
 ) -> PCAResult:
     """Fit PCA and return a structured result.
 
@@ -104,6 +105,8 @@ def run_pca(
     orient_positive : bool, default True
         If True, flip each rotated component so that higher scores indicate greater
         contamination intensity.
+    varimax : bool, default True
+        If True, apply varimax rotation to the principal components.
 
     Returns
     -------
@@ -149,13 +152,14 @@ def run_pca(
     scores_arr = pca.transform(df)[:, :n_components]
 
     # --- varimax rotation ----------------------------------------------------
-    loadings_rot_arr, rotation_matrix = _varimax(loadings_arr)
-    scores_rot_arr = scores_arr @ rotation_matrix
+    if varimax:
+        loadings_arr, rotation_matrix = _varimax(loadings_arr)
+        scores_arr = scores_arr @ rotation_matrix
 
     pc_names = [f"PC{i+1}" for i in range(n_components)]
 
-    loadings = pd.DataFrame(loadings_rot_arr, index=df.columns, columns=pc_names)
-    scores_raw = pd.DataFrame(scores_rot_arr, index=df.index, columns=pc_names)
+    loadings = pd.DataFrame(loadings_arr, index=df.columns, columns=pc_names)
+    scores_raw = pd.DataFrame(scores_arr, index=df.index, columns=pc_names)
 
     # --- orient so that higher = more contaminated --------------------------
     if orient_positive:

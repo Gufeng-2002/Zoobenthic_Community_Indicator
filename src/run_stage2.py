@@ -32,6 +32,7 @@ from pathlib import Path
 
 from zci.pipeline.wards_clustering import (
     pvclust_au_sweep,
+    pvclust_au_sweep_popout,
     refresh_combined_robustness_outputs,
     wards_clustering_pipeline,
 )
@@ -46,16 +47,16 @@ TAXA_TRANSFORM: str = "octave"
 One of: "octave", "chord", "hellinger", "log_chord", "relative_abundance".
 """ 
 
-N_REFERENCE_SITES: int = 59
+N_REFERENCE_SITES: int = 52
 """Number of least-polluted reference sites to enter Ward's clustering."""
 
-ENV_STRENGTH_METHOD: str = "percentile"
+ENV_STRENGTH_METHOD: str = "threshold"
 """Environmental strength classification method.
 ``"threshold"`` — original absolute-threshold rule (sil > esil & margin > emarg).
 ``"percentile"`` — per-cluster top-pct rule (top 80 % of combined score → Strong).
 """
 
-ENV_STRENGTH_TOP_PCT: float = 0.80
+ENV_STRENGTH_TOP_PCT: float = None
 """Fraction of sites per cluster classified as Strong (used only when
 ENV_STRENGTH_METHOD = "percentile")."""
 
@@ -72,6 +73,7 @@ STAGE1_ARTIFACT = (
 MAPS_DIR = PROJECT_ROOT / "data" / "maps"
 
 WARDS_OUTPUT = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "WardsClustering"
+AU_SWEEP_OUTPUT = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "AU-Sweeping"
 LDA_OUTPUT   = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "LDA_Method"
 MRT_OUTPUT   = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "MRT_Method"
 
@@ -95,6 +97,41 @@ if __name__ == "__main__":
     if ENV_STRENGTH_METHOD == "percentile":
         print(f"  Env strength top %  : {ENV_STRENGTH_TOP_PCT:.0%}")
     print("=" * 70)
+
+    # ── 0. pvclust AU sweep across N = 40..70 for k=2 and k=3 ─────────
+    for k in (2, 3):
+        print("\n" + "=" * 70)
+        print(f"  [0/3] pvclust AU sweep  k={k}  (N = 40..70, nboot = 300)")
+        print("=" * 70)
+        lmap = {i: i for i in range(1, k + 1)}
+        pvclust_au_sweep(
+            data_path=DATA_PATH,
+            stage1_artifact=STAGE1_ARTIFACT,
+            output_dir=AU_SWEEP_OUTPUT,
+            n_range=(35, 70),
+            n_clusters=k,
+            taxa_transform=TAXA_TRANSFORM,
+            label_map=lmap,
+            nboot=300,
+            file_prefix=f"k{k}_",
+        )
+
+        # Pop-out variant: skip sites that drop min_AU by > 0.3
+        print("\n" + "=" * 70)
+        print(f"  [0/3] Pop-out AU sweep  k={k}  (N = 35..70, drop > 0.3)")
+        print("=" * 70)
+        pvclust_au_sweep_popout(
+            data_path=DATA_PATH,
+            stage1_artifact=STAGE1_ARTIFACT,
+            output_dir=AU_SWEEP_OUTPUT,
+            n_range=(35, 70),
+            n_clusters=k,
+            taxa_transform=TAXA_TRANSFORM,
+            label_map=lmap,
+            nboot=300,
+            file_prefix=f"k{k}_",
+            drop_threshold=0.3,
+        )
 
     # ── 1. Ward's Clustering + Robustness Testing ────────────────────
     print("\n" + "=" * 70)
@@ -132,23 +169,6 @@ if __name__ == "__main__":
     print(f"\nStatus distribution:")
     print(ward_result.status_distribution())
     print(f"\nMean silhouette: {ward_result.mean_silhouette():.4f}")
-
-    # ── 1b. pvclust AU sweep across N = 40..70 ───────────────────────
-    print("\n" + "─" * 70)
-    # print("  [1b] pvclust AU sweep (N = 40..70, nboot = 300)")
-    # print("─" * 70)
-    # for n_cluster_number in [2, 3]:
-    #     print(f"\n  N_CLUSTERS = {n_cluster_number}")
-    #     au_sweep_results = pvclust_au_sweep(
-    #         data_path=DATA_PATH,
-    #         stage1_artifact=STAGE1_ARTIFACT,
-    #         output_dir=WARDS_OUTPUT,
-    #         n_range=(40, 70),
-    #         n_clusters=n_cluster_number,
-    #         taxa_transform=TAXA_TRANSFORM,
-    #         label_map={1: 1, 2: 2, 3: 3},
-    #         nboot=300,
-    #     )
 
     # Refresh the saved Ward artifact with the optimized thresholds used
     # by the later 2x2 env/taxa classification.

@@ -72,8 +72,8 @@ if __name__ == "__main__":
     result = pollution_pca_pipeline(
         data_path=DATA_PATH,
         output_dir=OUTPUT_DIR / "PCA_Stressors",
-        pollution_standardize=True,
         n_components=5,
+        varimax = True,
         selected_pcs=['PC1', 'PC2', 'PC3', 'PC4', 'PC5'], # PC3 holds loadings on natural elements
         composite_transform="min-max",
         maps_dir=MAPS_DIR,

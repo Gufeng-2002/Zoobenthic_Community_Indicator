@@ -59,7 +59,7 @@ def pollution_pca_pipeline(
     output_dir: str | Path,
     *,
     pollution_vars: Sequence[str] = POLLUTION_VARS_2008,
-    pollution_standardize: bool = True,
+    varimax: bool = False,
     n_components: int = 5,
     selected_pcs: Sequence[str] | None = None,
     composite_transform: str = "min-max",
@@ -197,9 +197,8 @@ def pollution_pca_pipeline(
     # ── 4. Transform ─────────────────────────────────────────────────────
     _log("[4/9] Applying log10(1 + x) transformation …")
     pollution_transformed = log10_transform(pollution_raw)
-    if pollution_standardize:
-        _log("      Applying z-score standardisation to log-transformed variables …")
-        pollution_transformed = (pollution_transformed - pollution_transformed.mean()) / pollution_transformed.std()
+    _log("      Applying z-score standardisation to log-transformed variables …")
+    pollution_transformed = (pollution_transformed - pollution_transformed.mean()) / pollution_transformed.std()
 
     # ── 5. PCA ────────────────────────────────────────────────────────────
     _log(f"[5/9] Fitting PCA (n_components={n_components}, orient_positive=True) …")
@@ -207,6 +206,7 @@ def pollution_pca_pipeline(
         pollution_transformed,
         n_components=n_components,
         orient_positive=True,
+        varimax=varimax,
     )
 
     cum_var = result.variance_info.loc["Cumulative Proportion"].iloc[-1]
