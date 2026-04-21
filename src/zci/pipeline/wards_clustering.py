@@ -702,6 +702,7 @@ def pvclust_au_sweep(
 
     n_min, n_max = n_range
     n_values = list(range(n_min, n_max + 1))
+    total_steps = len(n_values)
 
     if verbose:
         print(f"\n{'='*60}")
@@ -709,9 +710,10 @@ def pvclust_au_sweep(
         print(f"{'='*60}")
 
     rows: list[dict] = []
-    for n_ref in n_values:
+    for step_i, n_ref in enumerate(n_values, 1):
         if verbose:
-            print(f"\n  N = {n_ref} ...", end=" ", flush=True)
+            pct = step_i / total_steps * 100
+            print(f"\n  [{step_i}/{total_steps} {pct:5.1f}%]  N = {n_ref} ...", end=" ", flush=True)
 
         ref_mask = select_reference_sites(pollution_score, quantile=n_ref)
         taxa_ref = taxa_all.loc[ref_mask]
@@ -767,66 +769,11 @@ def pvclust_au_sweep(
 
     results = pd.DataFrame(rows)
 
-    # ── save table ────────────────────────────────────────────────────
+    # ── save table (drop actual_n since it always equals N) ───────
+    save_cols = [c for c in results.columns if c != "actual_n"]
     stem = f"{file_prefix}au_sweep_full" if file_prefix else "au_sweep_full"
-    save_table(results, tables_dir / stem,
+    save_table(results[save_cols], tables_dir / stem,
                formats=table_formats, verbose=verbose)
-
-    # ── save figure ───────────────────────────────────────────────────
-    valid = results.dropna(subset=["min_AU"])
-    if not valid.empty:
-        fig, ax = plt.subplots(figsize=(14, 5))
-
-        # Single min-AU curve
-        ax.plot(
-            range(len(valid)),
-            valid["min_AU"].values,
-            marker="o", linewidth=1.5, color="steelblue",
-            label="min AU",
-        )
-        ax.axhline(0.95, color="green", linestyle="--", alpha=0.6, label="AU = 0.95")
-        ax.axhline(0.90, color="orange", linestyle="--", alpha=0.6, label="AU = 0.90")
-
-        # Bottom x-axis: newly entered site IDs
-        site_labels = valid["newly_entered_site"].tolist()
-        # Annotate first and last labels with total N
-        n_first = int(valid.iloc[0]["N"])
-        n_last = int(valid.iloc[-1]["N"])
-        site_labels[0] = f"{site_labels[0]} (N={n_first})"
-        site_labels[-1] = f"{site_labels[-1]} (N={n_last})"
-        # Add intermediate N annotation at midpoint
-        mid = len(site_labels) // 2
-        n_mid = int(valid.iloc[mid]["N"])
-        site_labels[mid] = f"{site_labels[mid]} (N={n_mid})"
-
-        ax.set_xticks(range(len(valid)))
-        ax.set_xticklabels(site_labels, rotation=60, ha="right", fontsize=8)
-        ax.set_xlabel("Newly Entered Site ID")
-        ax.set_ylabel("Minimum AU (approximately unbiased p-value)")
-
-        # Top x-axis: min cluster sizes
-        ax2 = ax.twiny()
-        ax2.set_xlim(ax.get_xlim())
-        ax2.set_xticks(range(len(valid)))
-        ax2.set_xticklabels(
-            [str(int(s)) for s in valid["min_size"].values],
-            fontsize=7, rotation=0,
-        )
-        ax2.set_xlabel("Min Cluster Size")
-
-        ax.set_title(
-            f"AU Sweep: Ward k={n_clusters}, {taxa_transform} "
-            f"(N = {n_min}–{n_max}, nboot={nboot})",
-            pad=30,
-        )
-        ax.legend(loc="best")
-        ax.grid(True, alpha=0.3)
-        fig.tight_layout()
-
-        fig_stem = f"{file_prefix}au_sweep" if file_prefix else "au_sweep"
-        save_figure(fig, figures_dir / fig_stem,
-                    formats=figure_formats, verbose=verbose)
-        plt.close(fig)
 
     if verbose:
         print(f"\n{'='*60}")
@@ -929,6 +876,8 @@ def pvclust_au_sweep_popout(
         row["min_size"] = min(size_vals) if size_vals else np.nan
         return row
 
+    total_steps = n_max - n_min + 1
+
     if verbose:
         print(f"\n{'='*60}")
         print(f"  Pop-out AU sweep: N = {n_min}..{n_max}  "
@@ -937,14 +886,17 @@ def pvclust_au_sweep_popout(
 
     # ── baseline at n_min ─────────────────────────────────────────────
     current_sites = list(sorted_sites[:n_min])
+    step_i = 1
 
     if verbose:
-        print(f"\n  N = {n_min} (baseline) ...", end=" ", flush=True)
+        pct = step_i / total_steps * 100
+        print(f"\n  [{step_i}/{total_steps} {pct:5.1f}%]  N = {n_min} (baseline) ...", end=" ", flush=True)
 
     baseline = _evaluate(current_sites)
     baseline["N"] = n_min
     baseline["actual_n"] = n_min
     baseline["newly_entered_site"] = str(sorted_sites[n_min - 1])
+    baseline["is_atypical"] = False
 
     prev_min_au = baseline["min_AU"]
 
@@ -956,19 +908,17 @@ def pvclust_au_sweep_popout(
         print(f"AU: {au_str}  min_AU={prev_min_au:.4f}  "
               f"min_size={int(baseline['min_size'])}")
 
-    accepted_rows = [baseline]
+    all_rows = [baseline]
     atypical_rows: list[dict] = []
 
     # ── sweep remaining candidates ────────────────────────────────────
-    candidate_idx = n_min          # next position in sorted_sites
-    effective_n = n_min
-
-    while effective_n < n_max and candidate_idx < len(sorted_sites):
-        candidate = sorted_sites[candidate_idx]
-        candidate_idx += 1
+    for n_ref in range(n_min + 1, n_max + 1):
+        candidate = sorted_sites[n_ref - 1]
+        step_i += 1
 
         if verbose:
-            print(f"\n  N = {effective_n + 1} trying {candidate} ...",
+            pct = min(step_i / total_steps * 100, 100.0)
+            print(f"\n  [{step_i}/{total_steps} {pct:5.1f}%]  N = {n_ref} trying {candidate} ...",
                   end=" ", flush=True)
 
         trial_sites = current_sites + [candidate]
@@ -980,10 +930,19 @@ def pvclust_au_sweep_popout(
 
             if au_drop > drop_threshold:
                 # ── atypical: pop out ─────────────────────────────────
+                atyp_row: dict[str, Any] = {
+                    "N": n_ref,
+                    "actual_n": len(current_sites),
+                    "newly_entered_site": str(candidate),
+                    "is_atypical": True,
+                }
+                atyp_row.update(trial)
+                all_rows.append(atyp_row)
+
                 atypical_rows.append({
                     "site": str(candidate),
-                    "pollution_rank": candidate_idx,
-                    "effective_N_when_rejected": effective_n,
+                    "pollution_rank": n_ref,
+                    "effective_N_when_rejected": len(current_sites),
                     "prev_min_AU": round(prev_min_au, 4),
                     "trial_min_AU": round(new_min_au, 4),
                     "AU_drop": round(au_drop, 4),
@@ -994,14 +953,14 @@ def pvclust_au_sweep_popout(
                 continue
 
             # ── accepted ──────────────────────────────────────────────
-            effective_n += 1
             current_sites = trial_sites
             prev_min_au = new_min_au
 
-            trial["N"] = effective_n
+            trial["N"] = n_ref
             trial["actual_n"] = len(current_sites)
             trial["newly_entered_site"] = str(candidate)
-            accepted_rows.append(trial)
+            trial["is_atypical"] = False
+            all_rows.append(trial)
 
             if verbose:
                 au_str = ", ".join(
@@ -1012,18 +971,18 @@ def pvclust_au_sweep_popout(
                       f"min_size={int(trial['min_size'])}")
 
         except Exception as e:
-            effective_n += 1
             current_sites.append(candidate)
-            accepted_rows.append({
-                "N": effective_n,
+            all_rows.append({
+                "N": n_ref,
                 "actual_n": len(current_sites),
                 "newly_entered_site": str(candidate),
+                "is_atypical": False,
                 "error": str(e),
             })
             if verbose:
                 print(f"ERROR: {e}")
 
-    accepted_df = pd.DataFrame(accepted_rows)
+    full_df = pd.DataFrame(all_rows)
     atypical_df = pd.DataFrame(atypical_rows) if atypical_rows else pd.DataFrame(
         columns=["site", "pollution_rank", "effective_N_when_rejected",
                  "prev_min_AU", "trial_min_AU", "AU_drop"],
@@ -1031,84 +990,12 @@ def pvclust_au_sweep_popout(
 
     # ── save tables ───────────────────────────────────────────────────
     sweep_stem = f"{file_prefix}popout_au_sweep_full"
-    save_table(accepted_df, tables_dir / sweep_stem,
+    save_table(full_df, tables_dir / sweep_stem,
                formats=table_formats, verbose=verbose)
 
     atyp_stem = f"{file_prefix}popout_atypical_sites"
     save_table(atypical_df, tables_dir / atyp_stem,
                formats=table_formats, verbose=verbose)
-
-    # ── save figure ───────────────────────────────────────────────────
-    valid = accepted_df.dropna(subset=["min_AU"])
-    if not valid.empty:
-        fig, ax = plt.subplots(figsize=(14, 5))
-
-        ax.plot(
-            range(len(valid)),
-            valid["min_AU"].values,
-            marker="o", linewidth=1.5, color="steelblue",
-            label="min AU (pop-out)",
-        )
-        ax.axhline(0.95, color="green", linestyle="--", alpha=0.6,
-                    label="AU = 0.95")
-        ax.axhline(0.90, color="orange", linestyle="--", alpha=0.6,
-                    label="AU = 0.90")
-
-        # Bottom x-axis: site IDs
-        site_labels = valid["newly_entered_site"].tolist()
-        n_first = int(valid.iloc[0]["N"])
-        n_last = int(valid.iloc[-1]["N"])
-        site_labels[0] = f"{site_labels[0]} (N={n_first})"
-        site_labels[-1] = f"{site_labels[-1]} (N={n_last})"
-        if len(site_labels) > 2:
-            mid = len(site_labels) // 2
-            n_mid = int(valid.iloc[mid]["N"])
-            site_labels[mid] = f"{site_labels[mid]} (N={n_mid})"
-
-        ax.set_xticks(range(len(valid)))
-        ax.set_xticklabels(site_labels, rotation=60, ha="right", fontsize=8)
-        ax.set_xlabel("Newly Entered Site ID")
-        ax.set_ylabel("Minimum AU (approximately unbiased p-value)")
-
-        # Top x-axis: min cluster sizes
-        ax2 = ax.twiny()
-        ax2.set_xlim(ax.get_xlim())
-        ax2.set_xticks(range(len(valid)))
-        ax2.set_xticklabels(
-            [str(int(s)) for s in valid["min_size"].values],
-            fontsize=7, rotation=0,
-        )
-        ax2.set_xlabel("Min Cluster Size")
-
-        # Annotate atypical sites
-        n_atyp = len(atypical_df)
-        if n_atyp > 0:
-            atyp_list = ", ".join(atypical_df["site"].tolist())
-            atyp_text = f"Popped out ({n_atyp}): {atyp_list}"
-            ax.text(
-                0.02, 0.02, atyp_text,
-                transform=ax.transAxes, fontsize=8,
-                verticalalignment="bottom",
-                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow",
-                          edgecolor="red", alpha=0.8),
-            )
-
-        title_suffix = (f" [{n_atyp} atypical popped]"
-                        if n_atyp else " [no atypical]")
-        ax.set_title(
-            f"Pop-out AU Sweep: Ward k={n_clusters}, {taxa_transform} "
-            f"(N = {n_min}–{n_max}, nboot={nboot}, drop>{drop_threshold})"
-            + title_suffix,
-            pad=30,
-        )
-        ax.legend(loc="best")
-        ax.grid(True, alpha=0.3)
-        fig.tight_layout()
-
-        fig_stem = f"{file_prefix}popout_au_sweep"
-        save_figure(fig, figures_dir / fig_stem,
-                    formats=figure_formats, verbose=verbose)
-        plt.close(fig)
 
     # ── summary ───────────────────────────────────────────────────────
     if verbose:
@@ -1119,7 +1006,157 @@ def pvclust_au_sweep_popout(
         if not atypical_df.empty:
             print(f"\n  Atypical sites:")
             print(atypical_df.to_string(index=False))
-        print(f"\n  Accepted sweep:")
-        print(accepted_df.to_string(index=False))
+        print(f"\n  Full sweep (incl. atypical):")
+        print(full_df.to_string(index=False))
 
-    return accepted_df, atypical_df
+    return full_df, atypical_df
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Combined AU-sweep figure (original + pop-out, rotated 90°)
+# ═══════════════════════════════════════════════════════════════════════
+
+def plot_combined_au_sweep(
+    original_df: pd.DataFrame,
+    popout_df: pd.DataFrame,
+    *,
+    n_clusters: int,
+    taxa_transform: str,
+    n_range: tuple[int, int],
+    nboot: int,
+    drop_threshold: float,
+    output_dir: str | _Path,
+    file_prefix: str = "",
+    figure_formats: Sequence[str] = ("png",),
+    verbose: bool = True,
+):
+    """Two-panel figure: original AU sweep (left) and pop-out sweep (right).
+
+    Both panels are rotated 90° so that site IDs run down the vertical
+    axis and min AU is on the top horizontal axis.
+    """
+    output_dir = _Path(output_dir)
+    figures_dir = output_dir / "figures"
+    n_min, n_max = n_range
+
+    valid_orig = original_df.dropna(subset=["min_AU"])
+    if valid_orig.empty and popout_df.empty:
+        return
+
+    n_rows = max(len(valid_orig), len(popout_df))
+    fig_height = max(10, n_rows * 0.45)
+    fig, (ax_orig, ax_pop) = plt.subplots(
+        1, 2, figsize=(14, fig_height),
+        gridspec_kw={"wspace": 0.55},
+    )
+
+    # ── Left panel: Original AU sweep ─────────────────────────────────
+    y_orig = np.arange(len(valid_orig))
+    ax_orig.plot(
+        valid_orig["min_AU"].values, y_orig,
+        marker="o", linewidth=1.5, color="steelblue",
+    )
+    ax_orig.axvline(0.90, color="orange", linestyle="--", alpha=0.6,
+                    label="AU = 0.90")
+
+    ax_orig.set_yticks(y_orig)
+    ax_orig.set_yticklabels(
+        valid_orig["newly_entered_site"].tolist(), fontsize=7,
+    )
+    ax_orig.invert_yaxis()
+    ax_orig.xaxis.tick_top()
+    ax_orig.xaxis.set_label_position("top")
+    ax_orig.set_xlabel("min AU")
+    ax_orig.set_ylabel("Newly Entered Site ID")
+    ax_orig.set_title(
+        f"AU Sweep (k={n_clusters})", pad=15, fontsize=10,
+    )
+    ax_orig.grid(True, alpha=0.3)
+    ax_orig.legend(loc="lower right", fontsize=8)
+
+    # Right-side y-axis: min cluster size
+    ax_orig_r = ax_orig.twinx()
+    ax_orig_r.set_ylim(ax_orig.get_ylim())
+    ax_orig_r.set_yticks(y_orig)
+    ax_orig_r.set_yticklabels(
+        [str(int(s)) for s in valid_orig["min_size"].values], fontsize=7,
+    )
+    ax_orig_r.set_ylabel("Min Cluster Size")
+
+    # ── Right panel: Pop-out AU sweep ─────────────────────────────────
+    y_pop = np.arange(len(popout_df))
+    is_atyp = popout_df["is_atypical"].values
+    au_vals = popout_df["min_AU"].values
+
+    # Build line segments that skip atypical sites
+    segments: list[tuple[list, list]] = []
+    seg_x: list[float] = []
+    seg_y: list[float] = []
+    for i in range(len(popout_df)):
+        if not is_atyp[i] and not np.isnan(au_vals[i]):
+            seg_x.append(au_vals[i])
+            seg_y.append(y_pop[i])
+        else:
+            if seg_x:
+                segments.append((seg_x[:], seg_y[:]))
+            seg_x, seg_y = [], []
+    if seg_x:
+        segments.append((seg_x, seg_y))
+
+    for j, (sx, sy) in enumerate(segments):
+        ax_pop.plot(
+            sx, sy,
+            marker="o", linewidth=1.5, color="steelblue",
+            label="min AU (pop-out)" if j == 0 else None,
+        )
+
+    ax_pop.axvline(0.90, color="orange", linestyle="--", alpha=0.6,
+                   label="AU = 0.90")
+
+    ax_pop.set_yticks(y_pop)
+    site_labels_pop = popout_df["newly_entered_site"].tolist()
+    ax_pop.set_yticklabels(site_labels_pop, fontsize=7)
+    ax_pop.invert_yaxis()
+    ax_pop.xaxis.tick_top()
+    ax_pop.xaxis.set_label_position("top")
+    ax_pop.set_xlabel("min AU")
+    ax_pop.set_ylabel("Newly Entered Site ID")
+    ax_pop.set_title(
+        f"Pop-out AU Sweep (k={n_clusters}, drop>{drop_threshold})",
+        pad=15, fontsize=10,
+    )
+    ax_pop.grid(True, alpha=0.3)
+    ax_pop.legend(loc="lower right", fontsize=8)
+
+    # Colour atypical site labels red
+    for i, label in enumerate(ax_pop.get_yticklabels()):
+        if i < len(is_atyp) and is_atyp[i]:
+            label.set_color("red")
+
+    # Right-side y-axis: min cluster size (blank for atypical rows)
+    ax_pop_r = ax_pop.twinx()
+    ax_pop_r.set_ylim(ax_pop.get_ylim())
+    ax_pop_r.set_yticks(y_pop)
+    size_labels: list[str] = []
+    for _, row in popout_df.iterrows():
+        if row["is_atypical"]:
+            size_labels.append("")
+        elif pd.notna(row.get("min_size")):
+            size_labels.append(str(int(row["min_size"])))
+        else:
+            size_labels.append("")
+    ax_pop_r.set_yticklabels(size_labels, fontsize=7)
+    ax_pop_r.set_ylabel("Min Cluster Size")
+
+    # ── overall title ─────────────────────────────────────────────────
+    fig.suptitle(
+        f"AU Sweep: Ward k={n_clusters}, {taxa_transform} "
+        f"(N = {n_min}–{n_max}, nboot={nboot})",
+        fontsize=12, y=0.995,
+    )
+    fig.tight_layout(rect=[0, 0, 1, 0.98])
+
+    fig_stem = f"{file_prefix}au_sweep_combined" if file_prefix else "au_sweep_combined"
+    save_figure(fig, figures_dir / fig_stem,
+                formats=figure_formats, verbose=verbose)
+    plt.close(fig)

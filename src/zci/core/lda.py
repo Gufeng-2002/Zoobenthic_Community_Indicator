@@ -59,7 +59,7 @@ def fit_lda(
     scaler: Optional[StandardScaler] = None
     if standardize:
         scaler = StandardScaler()
-        arr = scaler.fit_transform(env)
+        arr = scaler.fit_transform(env.values)
         env = pd.DataFrame(arr, index=env.index, columns=env.columns)
 
     lda = LinearDiscriminantAnalysis()

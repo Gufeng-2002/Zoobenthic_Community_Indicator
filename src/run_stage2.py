@@ -31,6 +31,7 @@ import pandas as pd
 from pathlib import Path
 
 from zci.pipeline.wards_clustering import (
+    plot_combined_au_sweep,
     pvclust_au_sweep,
     pvclust_au_sweep_popout,
     refresh_combined_robustness_outputs,
@@ -38,6 +39,7 @@ from zci.pipeline.wards_clustering import (
 )
 from zci.pipeline.finalized_lda import finalized_lda_pipeline
 from zci.pipeline.cross_support_eval import cross_support_eval_pipeline
+from zci.pipeline.simprof_pipeline import simprof_pipeline
 
 # ═══════════════════════════════════════════════════════════════════════
 #  GLOBAL PARAMETERS — change these as needed
@@ -47,7 +49,7 @@ TAXA_TRANSFORM: str = "octave"
 One of: "octave", "chord", "hellinger", "log_chord", "relative_abundance".
 """ 
 
-N_REFERENCE_SITES: int = 52
+N_REFERENCE_SITES: int = 59
 """Number of least-polluted reference sites to enter Ward's clustering."""
 
 ENV_STRENGTH_METHOD: str = "threshold"
@@ -72,10 +74,11 @@ STAGE1_ARTIFACT = (
 )
 MAPS_DIR = PROJECT_ROOT / "data" / "maps"
 
-WARDS_OUTPUT = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "WardsClustering"
+WARDS_OUTPUT    = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "WardsClustering"
 AU_SWEEP_OUTPUT = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "AU-Sweeping"
-LDA_OUTPUT   = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "LDA_Method"
-MRT_OUTPUT   = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "MRT_Method"
+SIMPROF_OUTPUT  = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "SIMPROF"
+LDA_OUTPUT      = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "LDA_Method"
+MRT_OUTPUT      = PROJECT_ROOT / "results" / "02_taxa_assemblage" / "MRT_Method"
 
 # Shared environmental variables
 ENV_VARIABLES = [
@@ -99,16 +102,17 @@ if __name__ == "__main__":
     print("=" * 70)
 
     # ── 0. pvclust AU sweep across N = 40..70 for k=2 and k=3 ─────────
-    for k in (2, 3):
+    for k in (2, 3, 4):
+        n_range = (40, 70)
         print("\n" + "=" * 70)
-        print(f"  [0/3] pvclust AU sweep  k={k}  (N = 40..70, nboot = 300)")
+        print(f"  [0/3] pvclust AU sweep  k={k}  (N = {n_range[0]}..{n_range[1]}, nboot = 300)")
         print("=" * 70)
         lmap = {i: i for i in range(1, k + 1)}
-        pvclust_au_sweep(
+        orig_results = pvclust_au_sweep(
             data_path=DATA_PATH,
             stage1_artifact=STAGE1_ARTIFACT,
             output_dir=AU_SWEEP_OUTPUT,
-            n_range=(35, 70),
+            n_range=n_range,
             n_clusters=k,
             taxa_transform=TAXA_TRANSFORM,
             label_map=lmap,
@@ -116,22 +120,58 @@ if __name__ == "__main__":
             file_prefix=f"k{k}_",
         )
 
-        # Pop-out variant: skip sites that drop min_AU by > 0.3
+        # Pop-out variant: skip sites that drop min_AU by > 0.2
         print("\n" + "=" * 70)
-        print(f"  [0/3] Pop-out AU sweep  k={k}  (N = 35..70, drop > 0.3)")
+        print(f"  [0/3] Pop-out AU sweep  k={k}  (N = {n_range[0]}..{n_range[1]}, drop > 0.2)")
         print("=" * 70)
-        pvclust_au_sweep_popout(
+        popout_results, _ = pvclust_au_sweep_popout(
             data_path=DATA_PATH,
             stage1_artifact=STAGE1_ARTIFACT,
             output_dir=AU_SWEEP_OUTPUT,
-            n_range=(35, 70),
+            n_range=n_range,
             n_clusters=k,
             taxa_transform=TAXA_TRANSFORM,
             label_map=lmap,
             nboot=300,
             file_prefix=f"k{k}_",
-            drop_threshold=0.3,
+            drop_threshold=0.2,
         )
+
+        # Combined two-panel figure (rotated 90°)
+        plot_combined_au_sweep(
+            orig_results,
+            popout_results,
+            n_clusters=k,
+            taxa_transform=TAXA_TRANSFORM,
+            n_range=n_range,
+            nboot=300,
+            drop_threshold=0.2,
+            output_dir=AU_SWEEP_OUTPUT,
+            file_prefix=f"k{k}_",
+        )
+
+    # ── 0b. SIMPROF — Similarity Profile analysis ────────────────────
+    print("\n" + "=" * 70)
+    print("  [0b/3] SIMPROF  (k=2 and k=3, n_perm=999, metric=braycurtis)")
+    print("=" * 70)
+    simprof_results = simprof_pipeline(
+        data_path=DATA_PATH,
+        stage1_artifact=STAGE1_ARTIFACT,
+        output_dir=SIMPROF_OUTPUT,
+        n_reference_sites=N_REFERENCE_SITES,
+        taxa_transform=TAXA_TRANSFORM,
+        n_clusters_list=(2, 3, 4),
+        n_perm=999,
+        alpha=0.05,
+        metric="braycurtis",
+        save_plots=True,
+        verbose=True,
+    )
+    for k_key, k_results in simprof_results.items():
+        print(f"\n  {k_key} — interpretation:")
+        for r in k_results:
+            sig = "SIGNIFICANT" if r["significant"] else "not significant"
+            print(f"    {r['group_label']:30s}  p={r['p_value']:.3f}  [{sig}]")
 
     # ── 1. Ward's Clustering + Robustness Testing ────────────────────
     print("\n" + "=" * 70)

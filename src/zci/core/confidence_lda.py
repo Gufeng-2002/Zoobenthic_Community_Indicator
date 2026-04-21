@@ -167,7 +167,7 @@ def fit_weighted_lda(
     scaler: StandardScaler | None = None
     if standardize:
         scaler = StandardScaler()
-        arr = scaler.fit_transform(env)
+        arr = scaler.fit_transform(env.values)
         env = pd.DataFrame(arr, index=env.index, columns=env.columns)
 
     # Weighted multinomial logistic regression
